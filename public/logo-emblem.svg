@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="g" x1="12%" y1="4%" x2="88%" y2="96%">
+      <stop offset="0%" stop-color="#fff9e6"/>
+      <stop offset="22%" stop-color="#f5e0a3"/>
+      <stop offset="48%" stop-color="#c9a227"/>
+      <stop offset="72%" stop-color="#e8c547"/>
+      <stop offset="100%" stop-color="#5c4a14"/>
+    </linearGradient>
+  </defs>
+  <path d="M4 28c2.5-6 6-10.5 12-12.5 1.2 2.4 2.4 5.4 2.8 8.8-4.2 1.2-7.6 3.5-10.2 6.7C6.8 32.2 5.2 30.4 4 28zM44 28c-2.5-6-6-10.5-12-12.5-1.2 2.4-2.4 5.4-2.8 8.8 4.2 1.2 7.6 3.5 10.2 6.7C41.2 32.2 42.8 30.4 44 28z" fill="#080808" stroke="url(#g)" stroke-width="0.55" stroke-linejoin="round" opacity="0.92"/>
+  <path d="M24 6.5 L36.2 10.3 V22.4C36.2 30.4 31.3 36.5 24 41.5c-7.3-5-12.2-11.1-12.2-19.1V10.3L24 6.5Z" fill="#050505" stroke="url(#g)" stroke-width="1.05" stroke-linejoin="round"/>
+  <path d="M18.2 9.2h3.1l2.7-2.1 2.7 2.1h3.1l-1.1 2.3H19.3l-1.1-2.3z" fill="#0a0a0a" stroke="url(#g)" stroke-width="0.35" stroke-linejoin="round" opacity="0.95"/>
+  <circle cx="24" cy="24" r="8.2" stroke="url(#g)" stroke-width="0.45" fill="#050505"/>
+  <circle cx="24" cy="24" r="5.6" stroke="url(#g)" stroke-width="0.22" fill="none" opacity="0.45"/>
+  <g stroke="url(#g)" stroke-width="0.34" stroke-linecap="round" opacity="0.55">
+    <line x1="24" y1="15.8" x2="24" y2="18.4"/>
+    <line x1="24" y1="15.8" x2="24" y2="18.4" transform="rotate(45 24 24)"/>
+    <line x1="24" y1="15.8" x2="24" y2="18.4" transform="rotate(90 24 24)"/>
+    <line x1="24" y1="15.8" x2="24" y2="18.4" transform="rotate(135 24 24)"/>
+  </g>
+  <circle cx="24" cy="24" r="2.3" fill="#080808" stroke="url(#g)" stroke-width="0.32"/>
+</svg>
