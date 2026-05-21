@@ -266,7 +266,10 @@ export function PremiumHero({
                 </span>
               </div>
 
-              <h1 id="hero-heading" className="hero-heading mt-3 sm:mt-5 lg:mt-7">
+              <h1
+                id="hero-heading"
+                className="hero-heading mt-3 max-lg:[text-shadow:0_2px_24px_rgba(0,0,0,0.65)] sm:mt-5 lg:mt-7 lg:[text-shadow:none]"
+              >
                 <span className="block text-[clamp(1.5rem,6.2vw,2.1rem)] font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-white sm:text-[clamp(1.85rem,4.8vw,2.5rem)] lg:text-[clamp(2.75rem,4.8vw,4.25rem)] lg:leading-[0.98] lg:tracking-[-0.04em]">
                   EXPERT CARE
                 </span>
@@ -275,7 +278,7 @@ export function PremiumHero({
                 </span>
               </h1>
 
-              <p className="hero-subcopy mt-3 max-w-[520px] text-[13px] font-medium leading-relaxed text-white/82 sm:mt-4 sm:text-[14px] lg:mt-6 lg:text-[16px]">
+              <p className="hero-subcopy mt-3 max-w-[520px] text-[13px] font-medium leading-relaxed text-white/88 max-lg:[text-shadow:0_1px_14px_rgba(0,0,0,0.7)] sm:mt-4 sm:text-[14px] lg:mt-6 lg:text-[16px] lg:text-white/82 lg:[text-shadow:none]">
                 Dealer-level diagnostics, MOT testing, and premium repairs for BMW,
                 Audi, Mercedes and more.
               </p>
@@ -353,9 +356,13 @@ export function PremiumHero({
                     priority
                     fetchPriority="high"
                     quality={95}
-                    className="hero-bmw-img"
+                    className="hero-bmw-img max-lg:brightness-[0.66] max-lg:contrast-[1.05] max-lg:saturate-[0.96] sm:max-lg:brightness-[0.68] lg:brightness-100 lg:contrast-100 lg:saturate-100"
                   />
-                  <div className="hero-bmw-scrim" aria-hidden />
+                  {/* Mobile/tablet scrim — lighter than before; hidden on desktop (mask handles blend) */}
+                  <div
+                    className="pointer-events-none absolute inset-0 z-[2] block bg-[linear-gradient(180deg,rgba(3,3,3,0.38)_0%,rgba(3,3,3,0.22)_38%,rgba(3,3,3,0.32)_72%,rgba(3,3,3,0.46)_100%),linear-gradient(90deg,rgba(3,3,3,0.4)_0%,rgba(3,3,3,0.18)_38%,rgba(3,3,3,0.05)_62%,transparent_100%)] max-sm:bg-[linear-gradient(180deg,rgba(3,3,3,0.32)_0%,rgba(3,3,3,0.18)_38%,rgba(3,3,3,0.28)_72%,rgba(3,3,3,0.4)_100%),linear-gradient(90deg,rgba(3,3,3,0.34)_0%,rgba(3,3,3,0.14)_38%,rgba(3,3,3,0.04)_62%,transparent_100%)] lg:hidden"
+                    aria-hidden
+                  />
                 </div>
               </div>
             </div>

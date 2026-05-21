@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, Geist_Mono } from "next/font/google";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { businessConfig } from "@/lib/config/business";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -19,7 +20,7 @@ const SITE_URL = "https://danautocentre.co.uk";
 const SITE_NAME = "Dan Auto Centre";
 const DEFAULT_TITLE = "Dan Auto Centre | Premium MOT, Servicing & Diagnostics Southampton";
 const DEFAULT_DESCRIPTION =
-  "Southampton's independent workshop for dealer-grade diagnostics, MOT, servicing, and premium repairs. Private automotive concierge for BMW, Audi, Mercedes and all makes. Book online or call 023 8023 3552.";
+  `Southampton's independent workshop for dealer-grade diagnostics, MOT, servicing, and premium repairs. Private automotive concierge for BMW, Audi, Mercedes and all makes. Book online or call ${businessConfig.phone.display}.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -77,6 +77,23 @@ export function AdminDashboard() {
 
   const analytics = platform.admin;
 
+  const platformLinks = (
+    <div className="mb-4 flex flex-wrap gap-2">
+      <Link
+        href="/admin/bookings"
+        className="rounded-lg border border-[#d4a63c]/30 px-3 py-1.5 text-xs font-semibold text-[#d4a63c] hover:bg-[#d4a63c]/10"
+      >
+        Bookings API →
+      </Link>
+      <Link
+        href="/admin/leads"
+        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 hover:border-white/20"
+      >
+        Leads inbox →
+      </Link>
+    </div>
+  );
+
   const handleAi = () => {
     const q = aiPrompt.toLowerCase();
     let reply =
@@ -128,6 +145,7 @@ export function AdminDashboard() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        {platformLinks}
         <nav className="flex flex-wrap gap-2">
           {(
             [

@@ -746,10 +746,6 @@ body {
   overflow: visible;
 }
 
-.hero-bmw-scrim {
-  display: none;
-}
-
 .hero-bmw {
   position: absolute;
   right: -140px;
@@ -1513,31 +1509,10 @@ body {
     height: 100% !important;
     object-fit: cover;
     object-position: center right;
-    filter: brightness(0.58) contrast(1.05) saturate(0.95);
+    /* Brightness via Tailwind on .hero-bmw-img — desktop unchanged */
   }
 
-  .hero-bmw-scrim {
-    display: block;
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    background:
-      linear-gradient(
-        180deg,
-        rgba(3, 3, 3, 0.55) 0%,
-        rgba(3, 3, 3, 0.38) 38%,
-        rgba(3, 3, 3, 0.48) 72%,
-        rgba(3, 3, 3, 0.62) 100%
-      ),
-      linear-gradient(
-        90deg,
-        rgba(3, 3, 3, 0.58) 0%,
-        rgba(3, 3, 3, 0.32) 38%,
-        rgba(3, 3, 3, 0.12) 62%,
-        transparent 100%
-      );
-  }
+  /* Scrim gradients: Tailwind on .hero-bmw-scrim sibling in PremiumHero */
 
   /* Content sits above the car — one centered block */
   .hero-left {
@@ -1563,8 +1538,8 @@ body {
     border-radius: 20px;
     background: linear-gradient(
       180deg,
-      rgba(3, 3, 3, 0.72) 0%,
-      rgba(3, 3, 3, 0.4) 55%,
+      rgba(3, 3, 3, 0.58) 0%,
+      rgba(3, 3, 3, 0.28) 55%,
       transparent 100%
     );
   }
@@ -1687,7 +1662,18 @@ body {
   .hero-below {
     margin-top: 0;
     padding-top: 1.25rem;
-    background: linear-gradient(180deg, rgba(3, 3, 3, 0.35) 0%, #030303 28%);
+    background: linear-gradient(180deg, rgba(3, 3, 3, 0.22) 0%, #030303 28%);
+  }
+}
+
+@media (max-width: 639px) {
+  .hero-left::before {
+    background: linear-gradient(
+      180deg,
+      rgba(3, 3, 3, 0.5) 0%,
+      rgba(3, 3, 3, 0.22) 55%,
+      transparent 100%
+    );
   }
 }
 
@@ -2442,6 +2428,67 @@ body {
     rgba(201, 162, 39, 0.2) 0%,
     transparent 70%
   );
+}
+
+/* Booking intake modal */
+.booking-intake-modal {
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1023px) {
+  .booking-intake-modal .grid {
+    grid-template-rows: 1fr auto;
+  }
+}
+
+/* Service advisor floating panel */
+.service-advisor-panel {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Shared chat timeline (widget + booking intake) */
+.chat-timeline {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 166, 60, 0.22) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-timeline::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-timeline::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(212, 166, 60, 0.28);
+}
+
+.chat-bubble--sending {
+  animation: chat-bubble-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chat-bubble-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.chat-quick-replies {
+  flex-shrink: 0;
+}
+
+/* MOT section — opening hours card */
+.mot-hours-card dl {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble--sending {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

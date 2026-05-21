@@ -40,39 +40,28 @@ import { PlateInput } from "@/components/PlateInput";
 import { PlatformHub } from "@/components/platform/PlatformHub";
 import { VipMembership } from "@/components/platform/VipMembership";
 import { ServiceGridPremium } from "@/components/services/ServiceGridPremium";
+import { BookingCTAStrip } from "@/features/marketing/components/BookingCTAStrip";
+import { MotSection } from "@/features/marketing/components/MotSection";
+import { useAssistant } from "@/features/assistant/AssistantContext";
+import {
+  BookingIntakeFlow,
+  BookingIntakeSidebar,
+} from "@/features/booking";
 import { useI18n } from "@/components/providers/I18nProvider";
 import type { SavedVehicle } from "@/lib/platform/types";
 import type { VehicleResult } from "@/lib/types/vehicle";
 import { formatPlate, stripPlate } from "@/lib/format-plate";
 import { readMemberStatus, setMemberStatus } from "@/lib/membership";
+import { createLead } from "@/lib/api/client";
+import { BUSINESS, WHATSAPP_HREF, businessConfig, openingHours } from "@/lib/config";
 import { mockVehicleLookup, SCAN_STEPS } from "@/lib/vehicle-data";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
 
 /* ─────────────────────────── Data ─────────────────────────── */
 
-const BUSINESS = {
-  name: "Dan Auto Centre LTD",
-  shortName: "Dan Auto Centre",
-  tagline: "One-stop garage for car repair & maintenance in Southampton",
-  phone: "023 8023 3552",
-  phoneHref: "tel:02380233552",
-  email: "contact@danautocentre.co.uk",
-  address: "9 Park Rd, Southampton SO15 3AS",
-  mapsHref:
-    "https://www.google.com/maps/dir//Dan+Auto+Centre+Ltd/@50.9104006,-1.463707,13z/data=!4m8!4m7!1m0!1m5!1m1!1s0x48747697f33e1945:0x31049542cb368570!2m2!1d-1.4224711!2d50.9104121",
-  googleReviewsHref:
-    "https://maps.google.com/?cid=3532112121875039600",
-  hours: "Mon–Sat 8:00–17:00",
-  hoursDetail: "Sunday closed",
-  experience: "25+",
-  googleRating: "4.9",
-  googleReviewCount: "80",
-} as const;
-
 const PHONE = BUSINESS.phone;
 const PHONE_HREF = BUSINESS.phoneHref;
 const EMAIL = BUSINESS.email;
-const WHATSAPP_HREF = "https://wa.me/442380233552";
 
 const FOOTER_LINKS = [
   { href: "#mot", label: "MOT" },
@@ -311,34 +300,6 @@ const SERVICE_OPTIONS = [
   "General repair",
 ];
 
-const TIME_SLOTS = [
-  "08:00",
-  "08:30",
-  "09:00",
-  "09:30",
-  "10:00",
-  "10:30",
-  "11:00",
-  "11:30",
-  "12:00",
-  "12:30",
-  "13:00",
-  "13:30",
-  "14:00",
-  "14:30",
-  "15:00",
-  "15:30",
-  "16:00",
-  "16:30",
-];
-
-const BOOKING_DURATIONS = [
-  { value: "1", label: "1 hour" },
-  { value: "1.5", label: "1 hour 30 min" },
-  { value: "3", label: "3 hours" },
-  { value: "5", label: "5 hours" },
-] as const;
-
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 /* ─────────────────────────── Helpers ─────────────────────────── */
@@ -428,6 +389,7 @@ function SectionHeader({
 
 export default function Home() {
   const { isLocalizedExperience, messages, returnToEnglish } = useI18n();
+  const { openAssistant } = useAssistant();
 
   const [heroPlate, setHeroPlate] = useState("");
   const [heroScanPhase, setHeroScanPhase] = useState<"idle" | "scanning" | "done">(
@@ -448,14 +410,7 @@ export default function Home() {
   const [quoteDisplayed, setQuoteDisplayed] = useState("");
 
   const [bookReg, setBookReg] = useState("");
-  const [bookDate, setBookDate] = useState("");
-  const [bookSlot, setBookSlot] = useState("");
   const [bookService, setBookService] = useState(SERVICE_OPTIONS[0]);
-  const [bookDuration, setBookDuration] = useState<string>(BOOKING_DURATIONS[0].value);
-  const [bookName, setBookName] = useState("");
-  const [bookEmail, setBookEmail] = useState("");
-  const [bookPhone, setBookPhone] = useState("");
-  const [bookDone, setBookDone] = useState(false);
   const [bookDoneTick, setBookDoneTick] = useState(0);
 
   const [contactName, setContactName] = useState("");
@@ -464,19 +419,14 @@ export default function Home() {
   const [contactMessage, setContactMessage] = useState("");
   const [contactSent, setContactSent] = useState(false);
 
-  const [plateFocus, setPlateFocus] = useState<"hero" | "quote" | "book" | null>(
-    null
-  );
+  const [plateFocus, setPlateFocus] = useState<"hero" | "quote" | null>(null);
   const [accountSignupFocus, setAccountSignupFocus] = useState(false);
 
   const handlePlateBlur = useCallback(() => setPlateFocus(null), []);
   const handleHeroPlateFocus = useCallback(() => setPlateFocus("hero"), []);
   const handleQuotePlateFocus = useCallback(() => setPlateFocus("quote"), []);
-  const handleBookPlateFocus = useCallback(() => setPlateFocus("book"), []);
-
   const handleHeroPlateChange = useCallback((v: string) => setHeroPlate(v), []);
   const handleQuotePlateChange = useCallback((v: string) => setQuoteReg(v), []);
-  const handleBookPlateChange = useCallback((v: string) => setBookReg(v), []);
 
   useEffect(() => {
     if (!quoteText) return;
@@ -526,17 +476,26 @@ export default function Home() {
     }, 1200);
   }, []);
 
-  const onBookSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (stripPlate(bookReg) && bookDate && bookSlot && bookName && bookPhone) {
-      setBookDone(true);
-      setBookDoneTick((t) => t + 1);
-    }
-  };
+  const onBookingIntakeComplete = useCallback(() => {
+    setBookDoneTick((t) => t + 1);
+  }, []);
 
-  const onContactSubmit = (e: FormEvent) => {
+  const onContactSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (contactName && contactPhone && contactMessage) setContactSent(true);
+    if (!contactName || !contactPhone || !contactMessage) return;
+
+    try {
+      await createLead({
+        name: contactName,
+        phone: contactPhone,
+        email: contactEmail || undefined,
+        problemDescription: contactMessage,
+        source: "contact_form",
+      });
+    } catch {
+      /* still acknowledge — offline-friendly */
+    }
+    setContactSent(true);
   };
 
   const scrollToBooking = useCallback((service?: string) => {
@@ -629,64 +588,10 @@ export default function Home() {
           onMembershipNote={openAccountSignup}
         />
 
-        {/* ── MOT ── */}
-        <section id="mot" className="section-future relative scroll-mt-28 py-20 sm:py-28">
-          <SectionGlow position="top" />
-          <motion.div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.55, ease: EASE }}
-            >
-              <p className="eyebrow">MOT testing</p>
-              <h2 className="display-section mt-4 text-white">
-                Pass your MOT with confidence
-              </h2>
-              <p className="mt-5 text-base leading-relaxed text-zinc-400 sm:text-lg">
-                Ensure your vehicle meets required safety and environmental
-                standards with our comprehensive MOT testing. Saturday slots
-                available — book your reg online and we&apos;ll confirm your
-                appointment.
-              </p>
-              <ul className="mt-6 space-y-2.5 text-sm text-zinc-300">
-                {[
-                  "Pre-MOT checks available",
-                  "Cars and vans",
-                  "Clear advisories explained",
-                  "Retest support if required",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-2">
-                    <Check className="h-4 w-4 shrink-0 text-cyan" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                onClick={() => scrollToBooking("MOT")}
-                className="btn-glow mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-black"
-              >
-                Book MOT online
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              className="premium-card glow-cyan rounded-3xl p-8 sm:p-10"
-            >
-              <ClipboardCheck className="h-10 w-10 text-cyan" />
-              <p className="mt-6 text-3xl font-light text-white">From £54.85</p>
-              <p className="mt-2 text-sm text-zinc-400">Maximum MOT test fee</p>
-              <p className="mt-8 border-t border-white/10 pt-6 text-sm text-zinc-400">
-                Need an oil change or service at the same time? Combine MOT with
-                servicing when you book — our team will advise on the best package.
-              </p>
-            </motion.div>
-          </motion.div>
-        </section>
+        <MotSection
+          onBookMot={() => scrollToBooking("MOT")}
+          onAskAdvisor={openAssistant}
+        />
 
         {/* ── Services ── */}
         <section id="services" className="section-deep relative scroll-mt-28 py-24 sm:py-32">
@@ -737,6 +642,11 @@ export default function Home() {
                 ))}
               </div>
             </motion.div>
+
+            <BookingCTAStrip
+              className="mt-12"
+              onBook={() => scrollToBooking()}
+            />
           </div>
         </section>
 
@@ -1115,6 +1025,16 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="section-deep relative py-12 sm:py-16">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <BookingCTAStrip
+              title="Need help with your car?"
+              subtitle="Choose a slot, describe what's happening, and upload photos — a mechanic will review and call you back."
+              onBook={() => scrollToBooking()}
+            />
+          </div>
+        </section>
+
         <div id="members" className="scroll-mt-28">
         <VipMembership />
 
@@ -1132,184 +1052,15 @@ export default function Home() {
             <div className="premium-panel overflow-hidden rounded-3xl">
               <div className="grid lg:grid-cols-2">
                 <div className="border-b border-white/8 p-6 sm:p-10 lg:border-b-0 lg:border-r">
-                  <p className="text-xs font-medium uppercase tracking-[0.28em] text-cyan">
-                    Booking
-                  </p>
-                  <h2 className="mt-3 text-2xl font-light tracking-tight text-white sm:text-3xl">
-                    Book your service online
-                  </h2>
-                  <p className="mt-4 text-sm leading-relaxed text-zinc-400 sm:text-base">
-                    Choose your service, enter your registration, and pick a time —
-                    just like our online booking at {BUSINESS.shortName}. We&apos;ll
-                    confirm your appointment by phone or email.
-                  </p>
-                  <ul className="mt-8 space-y-3">
-                    {[
-                      "MOT, servicing, diagnostics & repairs",
-                      "Free collection for non-runners (20 miles)",
-                      `Open ${BUSINESS.hours} · ${BUSINESS.hoursDetail}`,
-                    ].map((item) => (
-                      <li
-                        key={item}
-                        className="flex items-center gap-2 text-sm text-zinc-300"
-                      >
-                        <Check className="h-4 w-4 shrink-0 text-cyan" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+                  <BookingIntakeSidebar />
                 </div>
 
                 <div className="p-6 sm:p-10">
-                  {bookDone ? (
-                    <motion.div
-                      initial={{ scale: 0.96, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="flex flex-col items-center py-10 text-center"
-                    >
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-cyan/15 text-cyan">
-                        <Check className="h-7 w-7" />
-                      </div>
-                      <h3 className="mt-5 text-xl font-medium text-white">
-                        Request received
-                      </h3>
-                      <p className="mt-2 max-w-xs text-sm text-zinc-400">
-                        We&apos;ll confirm {bookReg} on {bookDate} at {bookSlot}.
-                        Check your phone shortly.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <form onSubmit={onBookSubmit} className="space-y-4">
-                      <div className="flex items-center gap-2 text-cyan">
-                        <Calendar className="h-4 w-4" />
-                        <span className="text-[10px] font-medium uppercase tracking-[0.22em]">
-                          Book appointment
-                        </span>
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs text-zinc-500">
-                          Service required
-                        </label>
-                        <select
-                          value={bookService}
-                          onChange={(e) => setBookService(e.target.value)}
-                          className="input-premium w-full rounded-xl px-4 py-3 text-sm text-white"
-                        >
-                          {SERVICE_OPTIONS.map((o) => (
-                            <option key={o} value={o} className="bg-zinc-900">
-                              {o}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs text-zinc-500">
-                          Registration
-                        </label>
-                        <PlateInput
-                          id="book"
-                          value={bookReg}
-                          onChange={handleBookPlateChange}
-                          compact
-                          focused={plateFocus === "book"}
-                          onFocus={handleBookPlateFocus}
-                          onBlur={handlePlateBlur}
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs text-zinc-500">
-                          Estimated duration
-                        </label>
-                        <select
-                          value={bookDuration}
-                          onChange={(e) => setBookDuration(e.target.value)}
-                          className="input-premium w-full rounded-xl px-4 py-3 text-sm text-white"
-                        >
-                          {BOOKING_DURATIONS.map((d) => (
-                            <option key={d.value} value={d.value} className="bg-zinc-900">
-                              {d.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs text-zinc-500">
-                          Date
-                        </label>
-                        <input
-                          type="date"
-                          required
-                          value={bookDate}
-                          onChange={(e) => setBookDate(e.target.value)}
-                          className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white focus:border-cyan/50 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-2 block text-xs text-zinc-500">
-                          Time
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {TIME_SLOTS.map((t) => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => setBookSlot(t)}
-                              className={`rounded-xl border py-2.5 text-sm transition ${
-                                bookSlot === t
-                                  ? "border-cyan bg-cyan/10 font-medium text-cyan"
-                                  : "border-white/10 text-zinc-400 hover:border-white/20"
-                              }`}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className="mb-1.5 block text-xs text-zinc-500">
-                            Your name *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={bookName}
-                            onChange={(e) => setBookName(e.target.value)}
-                            className="input-premium w-full rounded-xl px-4 py-3 text-sm text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-1.5 block text-xs text-zinc-500">
-                            Phone *
-                          </label>
-                          <input
-                            type="tel"
-                            required
-                            value={bookPhone}
-                            onChange={(e) => setBookPhone(e.target.value)}
-                            className="input-premium w-full rounded-xl px-4 py-3 text-sm text-white"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs text-zinc-500">
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          value={bookEmail}
-                          onChange={(e) => setBookEmail(e.target.value)}
-                          className="input-premium w-full rounded-xl px-4 py-3 text-sm text-white"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        className="btn-glow w-full rounded-full py-3.5 text-sm font-semibold text-black"
-                      >
-                        Submit booking request
-                      </button>
-                    </form>
-                  )}
+                  <BookingIntakeFlow
+                    initialRegistration={bookReg || undefined}
+                    initialService={bookService}
+                    onComplete={onBookingIntakeComplete}
+                  />
                 </div>
               </div>
             </div>
@@ -1362,7 +1113,7 @@ export default function Home() {
                 {
                   icon: Clock,
                   label: "Hours",
-                  value: `${BUSINESS.hours}\n${BUSINESS.hoursDetail}`,
+                  value: `${openingHours.summary}\n${openingHours.detail}\nSat ${openingHours.saturday.hours}`,
                 },
               ].map((c, i) => (
                 <motion.div
@@ -1531,7 +1282,7 @@ export default function Home() {
             Call
           </a>
           <a
-            href={WHATSAPP_HREF}
+            href={`${WHATSAPP_HREF}?text=${encodeURIComponent(businessConfig.whatsapp.defaultMessage)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 py-3 text-xs font-medium text-emerald-300 sm:text-sm"

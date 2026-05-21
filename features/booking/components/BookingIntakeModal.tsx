@@ -1,0 +1,190 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Bot, Loader2, Send, Sparkles, X } from "lucide-react";
+import { ChatTimeline } from "@/features/chat/components/ChatTimeline";
+import { IntakeMediaUpload } from "@/features/booking/components/IntakeMediaUpload";
+import { useBookingIntakeChat } from "@/features/booking/hooks/useBookingIntakeChat";
+import { useMediaUpload } from "@/features/booking/hooks/useMediaUpload";
+import { completeBookingIntake } from "@/lib/api/client";
+import { BOOKING_INTAKE_COPY } from "@/lib/config/booking-copy";
+import type { BookingChatContext } from "@/lib/types/chat";
+
+type Props = {
+  open: boolean;
+  bookingContext: BookingChatContext;
+  registrationHint?: string;
+  onClose: () => void;
+  onSubmitted: () => void;
+};
+
+export function BookingIntakeModal({
+  open,
+  bookingContext,
+  registrationHint,
+  onClose,
+  onSubmitted,
+}: Props) {
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const chat = useBookingIntakeChat(open ? bookingContext : null);
+  const media = useMediaUpload();
+
+  useEffect(() => {
+    if (open) void chat.bootstrap();
+  }, [open, chat.bootstrap]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = draft.trim();
+    if (!text) return;
+    setDraft("");
+    void chat.send(text, { registration: registrationHint });
+  };
+
+  const finalize = async () => {
+    if (!chat.sessionId || !chat.intakeComplete) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await completeBookingIntake({
+        service: bookingContext.service,
+        preferredDate: bookingContext.preferredDate,
+        preferredTime: bookingContext.preferredTime,
+        chatSessionId: chat.sessionId,
+        uploadIds: media.uploadIds,
+        registration: registrationHint,
+      });
+      media.clear();
+      onSubmitted();
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Could not send request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[95] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal
+          aria-label={BOOKING_INTAKE_COPY.modalTitle}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.99 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="booking-intake-modal flex max-h-[94dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-cyan/20 bg-[#060504] shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl"
+          >
+            <header className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-3 sm:px-5">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan/15 ring-1 ring-cyan/30">
+                  <Bot className="h-4 w-4 text-cyan" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {BOOKING_INTAKE_COPY.modalTitle}
+                  </p>
+                  <p className="text-[11px] text-zinc-500">
+                    {BOOKING_INTAKE_COPY.modalSubtitle}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-white/10 p-2 text-zinc-400 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+
+            <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_280px]">
+              <div className="flex min-h-0 flex-col border-b border-white/8 lg:border-b-0 lg:border-r">
+                <ChatTimeline
+                  messages={chat.messages}
+                  isTyping={chat.isTyping}
+                  typingLabel={chat.typingLabel}
+                  suggestionChips={chat.suggestionChips}
+                  onQuickReply={(chip) =>
+                    chat.sendQuickReply(chip, registrationHint)
+                  }
+                  error={chat.error}
+                  theme="cyan"
+                  quickRepliesDisabled={chat.isTyping || submitting}
+                />
+
+                <form
+                  onSubmit={handleSubmit}
+                  className="flex gap-2 border-t border-white/8 p-3 sm:p-4"
+                >
+                  <input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Tell us what's happening with the vehicle…"
+                    disabled={chat.isTyping || submitting}
+                    className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/55 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-cyan/40 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={chat.isTyping || !draft.trim() || submitting}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan text-black disabled:opacity-40"
+                    aria-label="Send"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </form>
+              </div>
+
+              <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3 sm:p-4">
+                <IntakeMediaUpload
+                  items={media.items}
+                  onAdd={media.addFiles}
+                  onRemove={media.remove}
+                  disabled={submitting}
+                />
+                <p className="text-[10px] leading-relaxed text-zinc-600">
+                  {BOOKING_INTAKE_COPY.disclaimer}
+                </p>
+                {chat.intakeComplete && (
+                  <button
+                    type="button"
+                    onClick={() => void finalize()}
+                    disabled={submitting}
+                    className="btn-glow flex w-full items-center justify-center gap-2 rounded-full py-3 text-sm font-bold text-black disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {BOOKING_INTAKE_COPY.submitting}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        {BOOKING_INTAKE_COPY.submitRequest}
+                      </>
+                    )}
+                  </button>
+                )}
+                {submitError && (
+                  <p className="text-[11px] text-red-400">{submitError}</p>
+                )}
+              </aside>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
