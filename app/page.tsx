@@ -41,6 +41,7 @@ import { PlatformHub } from "@/components/platform/PlatformHub";
 import { VipMembership } from "@/components/platform/VipMembership";
 import { ServiceGridPremium } from "@/components/services/ServiceGridPremium";
 import { BookingCTAStrip } from "@/features/marketing/components/BookingCTAStrip";
+import { AdvisorSection } from "@/features/marketing/components/AdvisorSection";
 import { MotSection } from "@/features/marketing/components/MotSection";
 import { useAssistant } from "@/features/assistant/AssistantContext";
 import {
@@ -64,14 +65,14 @@ const PHONE_HREF = BUSINESS.phoneHref;
 const EMAIL = BUSINESS.email;
 
 const FOOTER_LINKS = [
+  { href: "#services", label: "Services" },
   { href: "#mot", label: "MOT" },
-  { href: "#services", label: "Repairs & servicing" },
   { href: "#diagnostics", label: "Diagnostics" },
-  { href: "#about", label: "About" },
-  { href: "#members", label: "Members" },
+  { href: "#booking", label: "Book online" },
+  { href: "#ai-advisor", label: "AI advisor" },
+  { href: "#why-us", label: "Why us" },
   { href: "#reviews", label: "Reviews" },
   { href: "#contact", label: "Contact" },
-  { href: "#booking", label: "Book" },
 ] as const;
 
 const WHY_CHOOSE = [
@@ -588,11 +589,6 @@ export default function Home() {
           onMembershipNote={openAccountSignup}
         />
 
-        <MotSection
-          onBookMot={() => scrollToBooking("MOT")}
-          onAskAdvisor={openAssistant}
-        />
-
         {/* ── Services ── */}
         <section id="services" className="section-deep relative scroll-mt-28 py-24 sm:py-32">
           <SectionGlow position="top" />
@@ -650,6 +646,11 @@ export default function Home() {
           </div>
         </section>
 
+        <MotSection
+          onBookMot={() => scrollToBooking("MOT")}
+          onAskAdvisor={openAssistant}
+        />
+
         {/* ── Diagnostics ── */}
         <section id="diagnostics" className="section-future relative scroll-mt-28 py-20 sm:py-28">
           <SectionGlow position="center" />
@@ -697,6 +698,143 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ── Booking ── */}
+        <section id="booking" className="section-future relative scroll-mt-28 py-20 sm:py-28">
+          <SectionGlow position="bottom" />
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="premium-panel overflow-hidden rounded-3xl">
+              <div className="grid lg:grid-cols-2 lg:items-stretch">
+                <div className="border-b border-white/8 p-6 sm:p-10 lg:border-b-0 lg:border-r">
+                  <BookingIntakeSidebar />
+                </div>
+                <div className="p-6 sm:p-10">
+                  <BookingIntakeFlow
+                    initialRegistration={bookReg || undefined}
+                    initialService={bookService}
+                    onComplete={onBookingIntakeComplete}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <AdvisorSection
+          onOpenAdvisor={openAssistant}
+          onBook={() => scrollToBooking()}
+        />
+
+        {/* ── Why choose us ── */}
+        <section id="why-us" className="relative scroll-mt-28 py-24 sm:py-32">
+          <SectionGlow position="bottom" />
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <SectionHeader
+              eyebrow="Why choose us"
+              title="Reliable, professional vehicle care"
+              description="Trust Dan Auto Centre for dependable diagnostics and repairs — competitive pricing, prompt service, and a team that keeps you informed every step of the way."
+              align="center"
+            />
+            <div className="mt-14 grid gap-4 sm:grid-cols-2">
+              {WHY_CHOOSE.map((item, i) => (
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05 }}
+                  className="premium-card group flex gap-5 rounded-2xl p-6 sm:p-7"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan/10 text-cyan ring-1 ring-cyan/20 transition group-hover:bg-cyan/20">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-medium text-white">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                      {item.description}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Reviews ── */}
+        <section id="reviews" className="section-deep relative scroll-mt-28 py-20 sm:py-28">
+          <SectionGlow position="top" />
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <SectionHeader
+              eyebrow="Reviews"
+              title="What our customers say"
+              description={`${BUSINESS.googleRating}★ rating on Google from ${BUSINESS.googleReviewCount}+ reviews — trusted by drivers across Southampton.`}
+              align="center"
+            />
+
+            <motion.a
+              href={BUSINESS.googleReviewsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="premium-card mx-auto mt-10 flex max-w-md items-center justify-center gap-4 rounded-2xl px-6 py-5 transition hover:border-cyan/30"
+            >
+              <div className="flex gap-0.5">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <Star
+                    key={j}
+                    className={`h-4 w-4 ${j < 4 ? "fill-amber-400 text-amber-400" : "fill-amber-400/40 text-amber-400/40"}`}
+                  />
+                ))}
+              </div>
+              <div className="text-left">
+                <p className="text-2xl font-light text-white">{BUSINESS.googleRating}</p>
+                <p className="text-xs text-zinc-500">Google · {BUSINESS.googleReviewCount} reviews</p>
+              </div>
+              <ExternalLink className="ml-auto h-4 w-4 text-zinc-500" />
+            </motion.a>
+
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-2">
+              {REVIEWS.map((r, i) => (
+                <motion.blockquote
+                  key={r.name}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.06, duration: 0.45 }}
+                  className="premium-card relative rounded-2xl p-6 sm:p-8"
+                >
+                  <span className="quote-mark pointer-events-none absolute -top-2 left-4 select-none" aria-hidden>
+                    &ldquo;
+                  </span>
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <Star
+                        key={j}
+                        className="h-3.5 w-3.5 fill-cyan text-cyan"
+                      />
+                    ))}
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-zinc-300 sm:text-base">
+                    &ldquo;{r.text}&rdquo;
+                  </p>
+                  <footer className="mt-5 flex items-center justify-between border-t border-white/8 pt-4">
+                    <div>
+                      <cite className="not-italic text-sm font-medium text-white">
+                        {r.name}
+                      </cite>
+                      <p className="text-xs text-zinc-500">{r.vehicle}</p>
+                    </div>
+                    <span className="rounded-full bg-cyan/10 px-2.5 py-1 text-[10px] font-medium text-cyan">
+                      Google
+                    </span>
+                  </footer>
+                </motion.blockquote>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── About ── */}
         <section id="about" className="section-deep relative scroll-mt-28 py-24 sm:py-32">
           <SectionGlow position="top" />
@@ -731,41 +869,6 @@ export default function Home() {
                 >
                   <h3 className="text-lg font-medium text-white">{item.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-zinc-400">{item.text}</p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Why choose us ── */}
-        <section id="why-us" className="relative scroll-mt-28 py-24 sm:py-32">
-          <SectionGlow position="bottom" />
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <SectionHeader
-              eyebrow="Why choose us"
-              title="Reliable, professional vehicle care"
-              description="Trust Dan Auto Centre for dependable diagnostics and repairs — competitive pricing, prompt service, and a team that keeps you informed every step of the way."
-              align="center"
-            />
-            <div className="mt-14 grid gap-4 sm:grid-cols-2">
-              {WHY_CHOOSE.map((item, i) => (
-                <motion.div
-                  key={item.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.05 }}
-                  className="premium-card group flex gap-5 rounded-2xl p-6 sm:p-7"
-                >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan/10 text-cyan ring-1 ring-cyan/20 transition group-hover:bg-cyan/20">
-                    <item.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-medium text-white">{item.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-                      {item.description}
-                    </p>
-                  </div>
                 </motion.div>
               ))}
             </div>
@@ -949,82 +1052,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Reviews ── */}
-        <section id="reviews" className="section-deep relative scroll-mt-28 py-24 sm:py-32">
-          <SectionGlow position="top" />
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <SectionHeader
-              eyebrow="Reviews"
-              title="What our customers say"
-              description={`${BUSINESS.googleRating}★ rating on Google from ${BUSINESS.googleReviewCount}+ reviews — trusted by drivers across Southampton.`}
-              align="center"
-            />
-
-            <motion.a
-              href={BUSINESS.googleReviewsHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="premium-card mx-auto mt-10 flex max-w-md items-center justify-center gap-4 rounded-2xl px-6 py-5 transition hover:border-cyan/30"
-            >
-              <div className="flex gap-0.5">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <Star
-                    key={j}
-                    className={`h-4 w-4 ${j < 4 ? "fill-amber-400 text-amber-400" : "fill-amber-400/40 text-amber-400/40"}`}
-                  />
-                ))}
-              </div>
-              <div className="text-left">
-                <p className="text-2xl font-light text-white">{BUSINESS.googleRating}</p>
-                <p className="text-xs text-zinc-500">Google · {BUSINESS.googleReviewCount} reviews</p>
-              </div>
-              <ExternalLink className="ml-auto h-4 w-4 text-zinc-500" />
-            </motion.a>
-
-            <div className="mt-12 grid gap-4 sm:grid-cols-2 sm:gap-5">
-              {REVIEWS.map((r, i) => (
-                <motion.blockquote
-                  key={r.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.06, duration: 0.45 }}
-                  className="premium-card relative rounded-2xl p-6 sm:p-8"
-                >
-                  <span className="quote-mark pointer-events-none absolute -top-2 left-4 select-none" aria-hidden>
-                    &ldquo;
-                  </span>
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <Star
-                        key={j}
-                        className="h-3.5 w-3.5 fill-cyan text-cyan"
-                      />
-                    ))}
-                  </div>
-                  <p className="mt-3 text-sm leading-relaxed text-zinc-300 sm:text-base">
-                    &ldquo;{r.text}&rdquo;
-                  </p>
-                  <footer className="mt-5 flex items-center justify-between border-t border-white/8 pt-4">
-                    <div>
-                      <cite className="not-italic text-sm font-medium text-white">
-                        {r.name}
-                      </cite>
-                      <p className="text-xs text-zinc-500">{r.vehicle}</p>
-                    </div>
-                    <span className="rounded-full bg-cyan/10 px-2.5 py-1 text-[10px] font-medium text-cyan">
-                      Google
-                    </span>
-                  </footer>
-                </motion.blockquote>
-              ))}
-            </div>
-          </div>
-        </section>
-
         <section className="section-deep relative py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <BookingCTAStrip
@@ -1044,28 +1071,6 @@ export default function Home() {
           focusSignup={accountSignupFocus}
         />
         </div>
-
-        {/* ── Booking ── */}
-        <section id="booking" className="section-future relative py-24 sm:py-32">
-          <SectionGlow position="bottom" />
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="premium-panel overflow-hidden rounded-3xl">
-              <div className="grid lg:grid-cols-2">
-                <div className="border-b border-white/8 p-6 sm:p-10 lg:border-b-0 lg:border-r">
-                  <BookingIntakeSidebar />
-                </div>
-
-                <div className="p-6 sm:p-10">
-                  <BookingIntakeFlow
-                    initialRegistration={bookReg || undefined}
-                    initialService={bookService}
-                    onComplete={onBookingIntakeComplete}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* ── Contact ── */}
         <section id="contact" className="relative py-24 sm:py-32">

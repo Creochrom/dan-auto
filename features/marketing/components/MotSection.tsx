@@ -19,13 +19,13 @@ type Props = {
 
 export function MotSection({ onBookMot, onAskAdvisor }: Props) {
   return (
-    <section id="mot" className="section-future relative scroll-mt-28 py-20 sm:py-28">
+    <section id="mot" className="section-future relative scroll-mt-28 py-20 sm:py-24 lg:py-24">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(201,162,39,0.08),transparent)]"
         aria-hidden
       />
       <motion.div
-        className="relative mx-auto grid max-w-6xl items-start gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:gap-14 lg:items-center"
+        className="relative mx-auto grid max-w-6xl items-start gap-8 px-4 sm:px-6 md:grid-cols-2 md:gap-10 md:items-center lg:gap-12 xl:max-w-6xl"
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true, margin: "-60px" }}
@@ -137,7 +137,7 @@ export function MotSection({ onBookMot, onAskAdvisor }: Props) {
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5, ease: EASE, delay: 0.08 }}
-          className="premium-card glow-cyan flex flex-col rounded-3xl p-8 sm:p-10 lg:sticky lg:top-28"
+          className="premium-card flex flex-col rounded-3xl p-7 sm:p-9 md:sticky md:top-28 lg:p-10"
         >
           <ClipboardCheck className="h-10 w-10 text-[#d4a63c]" aria-hidden />
           <p className="mt-6 text-3xl font-light tracking-tight text-white">

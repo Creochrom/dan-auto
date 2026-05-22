@@ -1,5 +1,5 @@
 /**
- * Central business configuration — single source of truth for Dana Auto Centre.
+ * Central business configuration — single source of truth for Dan Auto Centre.
  */
 
 function formatUkMobileDisplay(digits: string): string {
@@ -30,7 +30,7 @@ export const businessConfig = {
       return `https://wa.me/${this.mobileE164}`;
     },
     defaultMessage:
-      "Hi Dana Auto Centre — I'd like help with my vehicle.",
+      "Hi Dan Auto Centre — I'd like help with my vehicle.",
   },
   email: "contact@danautocentre.co.uk",
   address: {

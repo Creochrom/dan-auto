@@ -12,7 +12,7 @@ export function Footer() {
                 DA
               </span>
               <span className="text-sm font-semibold text-white">
-                Dana Auto Centre
+                Dan Auto Centre
               </span>
             </Link>
             <p className="mt-4 max-w-xs text-sm text-zinc-500">
@@ -35,7 +35,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col gap-4 border-t border-white/8 pt-8 text-xs text-zinc-600 md:flex-row md:items-center md:justify-between">
-          <p>© {new Date().getFullYear()} Dana Auto Centre. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Dan Auto Centre. All rights reserved.</p>
           <p>Privacy · Terms · Cookies</p>
         </div>
       </div>

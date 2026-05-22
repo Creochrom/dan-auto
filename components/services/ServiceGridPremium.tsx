@@ -81,7 +81,7 @@ export function ServiceGridPremium({ services }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/80 p-4 backdrop-blur-md sm:items-center"
+            className="fixed inset-0 z-[var(--z-overlay)] flex items-end justify-center bg-black/80 p-4 backdrop-blur-md sm:items-center"
             onClick={() => setActive(null)}
             role="dialog"
             aria-modal

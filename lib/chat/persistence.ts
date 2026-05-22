@@ -1,6 +1,7 @@
 import type { ChatMessage, ChatTranscript } from "@/lib/types/chat";
 
-const TRANSCRIPT_PREFIX = "dana-chat-transcript:";
+const TRANSCRIPT_PREFIX = "dan-auto-chat-transcript:";
+const LEGACY_TRANSCRIPT_PREFIX = "dana-chat-transcript:";
 
 export function saveChatTranscript(sessionId: string, messages: ChatMessage[]): void {
   if (typeof window === "undefined") return;
@@ -11,6 +12,7 @@ export function saveChatTranscript(sessionId: string, messages: ChatMessage[]): 
   };
   try {
     sessionStorage.setItem(`${TRANSCRIPT_PREFIX}${sessionId}`, JSON.stringify(payload));
+    sessionStorage.removeItem(`${LEGACY_TRANSCRIPT_PREFIX}${sessionId}`);
   } catch {
     /* quota — ignore */
   }
@@ -19,7 +21,9 @@ export function saveChatTranscript(sessionId: string, messages: ChatMessage[]): 
 export function loadChatTranscript(sessionId: string): ChatMessage[] | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(`${TRANSCRIPT_PREFIX}${sessionId}`);
+    const raw =
+      sessionStorage.getItem(`${TRANSCRIPT_PREFIX}${sessionId}`) ??
+      sessionStorage.getItem(`${LEGACY_TRANSCRIPT_PREFIX}${sessionId}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ChatTranscript;
     if (parsed.sessionId !== sessionId || !Array.isArray(parsed.messages)) return null;
@@ -32,4 +36,5 @@ export function loadChatTranscript(sessionId: string): ChatMessage[] | null {
 export function clearChatTranscript(sessionId: string): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(`${TRANSCRIPT_PREFIX}${sessionId}`);
+  sessionStorage.removeItem(`${LEGACY_TRANSCRIPT_PREFIX}${sessionId}`);
 }

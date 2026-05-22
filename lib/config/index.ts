@@ -2,6 +2,7 @@ import { businessConfig } from "./business";
 import { openingHours } from "./hours";
 
 export { businessConfig, WHATSAPP_MOBILE_E164 } from "./business";
+export { BRAND, advisorIntro, ADVISOR_TYPING_LABELS } from "./brand";
 export { openingHours } from "./hours";
 export {
   workshopServices,

@@ -8,7 +8,11 @@ import {
   saveChatTranscript,
   loadChatTranscript,
   clearChatTranscript,
+  splitAssistantContent,
+  REVEAL_FIRST_MS,
+  REVEAL_BETWEEN_MS,
 } from "@/lib/chat";
+import { ADVISOR_TYPING_LABELS } from "@/lib/config/brand";
 import type {
   BookingChatContext,
   ChatMessage,
@@ -83,6 +87,60 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     [persist]
   );
 
+  const revealResponse = useCallback(
+    async (
+      res: Awaited<ReturnType<typeof sendChatMessage>>,
+      optimistic?: ChatMessage,
+      chipsOffered?: SuggestionChip[]
+    ) => {
+      const chunks = splitAssistantContent(res.message.content);
+      if (chunks.length <= 1) {
+        applyResponse(res, optimistic, chipsOffered);
+        return;
+      }
+
+      setSessionId(res.sessionId);
+      if (res.mechanicSummary) setMechanicSummary(res.mechanicSummary);
+      if (res.intakeComplete) setIntakeComplete(true);
+
+      const label = res.typingLabel ?? ADVISOR_TYPING_LABELS.symptoms;
+      await new Promise((r) => setTimeout(r, REVEAL_FIRST_MS));
+
+      for (let i = 0; i < chunks.length; i++) {
+        const isLast = i === chunks.length - 1;
+        setIsTyping(true);
+        setTypingLabel(isLast ? label : ADVISOR_TYPING_LABELS.causes);
+
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, REVEAL_BETWEEN_MS));
+        }
+
+        const assistant: ChatMessage = {
+          ...res.message,
+          id: i === 0 ? res.message.id : `${res.message.id}-p${i}`,
+          content: chunks[i]!,
+        };
+
+        setMessages((prev) => {
+          const merged = mergeTurnIntoTimeline(prev, {
+            optimisticId: i === 0 ? optimistic?.id : undefined,
+            optimisticUser: i === 0 ? optimistic : undefined,
+            serverUser: i === 0 ? res.userMessage : undefined,
+            assistant,
+            chipsOffered: isLast ? chipsOffered : undefined,
+          });
+          persist(res.sessionId, merged);
+          return merged;
+        });
+
+        if (isLast) {
+          setSuggestionChips(res.suggestionChips ?? []);
+        }
+      }
+    },
+    [applyResponse, persist]
+  );
+
   const send = useCallback(
     async (content: string, sendOpts?: SendChatOptions) => {
       const trimmed = content.trim();
@@ -91,7 +149,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       const chipsOffered = [...chipsRef.current];
       setError(null);
       setIsTyping(true);
-      setTypingLabel("Reviewing your notes…");
+      setTypingLabel(ADVISOR_TYPING_LABELS.symptoms);
       setSuggestionChips([]);
       sending.current = true;
 
@@ -110,7 +168,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
           bookingContext: bookingContext ?? undefined,
         });
         setTypingLabel(res.typingLabel ?? null);
-        applyResponse(res, optimistic, chipsOffered);
+        await revealResponse(res, optimistic, chipsOffered);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Message failed");
         setMessages((m) =>
@@ -124,7 +182,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         sending.current = false;
       }
     },
-    [sessionId, bookingContext, enabled, applyResponse]
+    [sessionId, bookingContext, enabled, revealResponse]
   );
 
   const sendQuickReply = useCallback(
@@ -155,7 +213,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
 
     setError(null);
     setIsTyping(true);
-    setTypingLabel("Preparing your intake…");
+    setTypingLabel(ADVISOR_TYPING_LABELS.init);
     sending.current = true;
 
     try {
@@ -165,7 +223,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         init: true,
         bookingContext: bookingContext ?? undefined,
       });
-      applyResponse(res);
+      await revealResponse(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start advisor");
       booted.current = false;
@@ -174,7 +232,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       setTypingLabel(null);
       sending.current = false;
     }
-  }, [enabled, messages.length, sessionId, bookingContext, applyResponse]);
+  }, [enabled, messages.length, sessionId, bookingContext, revealResponse]);
 
   const reset = useCallback(() => {
     if (sessionId) clearChatTranscript(sessionId);

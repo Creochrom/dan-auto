@@ -75,7 +75,7 @@ export function AIQuote() {
               <Bot className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">Dana AI Assistant</p>
+              <p className="text-sm font-medium text-white">Dan Auto Centre assistant</p>
               <p className="text-xs text-zinc-500">Powered by workshop data · Updated live</p>
             </div>
             <span className="ml-auto flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-emerald-400">

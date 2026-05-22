@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Menu, Phone, X } from "lucide-react";
 import { DanAutoCentreLogo } from "@/components/brand/DanAutoCentreLogo";
 import { useI18n } from "@/components/providers/I18nProvider";
+import { useAssistant } from "@/features/assistant/AssistantContext";
 import {
   NAV_MOBILE,
   NAV_MORE,
@@ -79,6 +80,41 @@ function NavDropdown({
   );
 }
 
+function NavItem({
+  href,
+  label,
+  advisor,
+  className,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  advisor?: boolean;
+  className: string;
+  onNavigate?: () => void;
+}) {
+  const { openAssistant } = useAssistant();
+  if (advisor) {
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={() => {
+          openAssistant();
+          onNavigate?.();
+        }}
+      >
+        {label}
+      </button>
+    );
+  }
+  return (
+    <a href={href} className={className} onClick={onNavigate}>
+      {label}
+    </a>
+  );
+}
+
 export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
   const { isLocalizedExperience, messages, returnToEnglish } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -142,8 +178,15 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
         closeDropdowns();
       }
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDropdowns();
+    };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [servicesOpen, moreOpen, closeDropdowns]);
 
   const openMenu = useCallback(() => {
@@ -236,14 +279,14 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
                     </div>
 
                     {NAV_MOBILE.map((link) => (
-                      <a
+                      <NavItem
                         key={link.href}
                         href={link.href}
-                        onClick={closeAll}
-                        className="site-nav-panel-link border-b border-white/[0.06]"
-                      >
-                        {link.label}
-                      </a>
+                        label={link.label}
+                        advisor={"advisor" in link && link.advisor === true}
+                        className="site-nav-panel-link w-full border-b border-white/[0.06] text-left"
+                        onNavigate={closeAll}
+                      />
                     ))}
 
                     <a href={phoneHref} onClick={closeAll} className="site-nav-panel-phone">
@@ -303,19 +346,13 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
                   menuClassName="site-nav-dropdown--left"
                 />
                 {NAV_PRIMARY.map((link) => (
-                  <a
+                  <NavItem
                     key={link.href}
                     href={link.href}
-                    className={`site-nav-link site-nav-link--compact xl:site-nav-link--full ${
-                      link.href === "#about"
-                        ? "hidden lg:inline-flex"
-                        : link.href === "#contact"
-                          ? "site-nav-link--tablet-more hidden min-[960px]:inline-flex"
-                          : ""
-                    }`}
-                  >
-                    {link.label}
-                  </a>
+                    label={link.label}
+                    advisor={"advisor" in link && link.advisor === true}
+                    className="site-nav-link site-nav-link--compact xl:site-nav-link--full"
+                  />
                 ))}
                 {NAV_SECONDARY.map((link) => (
                   <a

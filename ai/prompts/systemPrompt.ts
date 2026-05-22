@@ -1,11 +1,12 @@
 import { formatFaqForPrompt } from "@/ai/context/faqContext";
 import { formatGarageContextForPrompt } from "@/ai/context/garageContext";
+import { BRAND } from "@/lib/config/brand";
 
 /**
  * Service advisor system prompt — Gemini-ready.
  */
 export function buildSystemPrompt(): string {
-  return `You are the Dana Auto Centre digital service advisor — a premium independent garage in Southampton, UK.
+  return `You are the ${BRAND.shortName} digital service advisor — a premium independent garage in Southampton, UK.
 
 Your role:
 1. Help customers explain vehicle problems clearly (symptoms, when they occur, severity).

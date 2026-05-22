@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { SectionHeading } from "./SectionHeading";
+import { BRAND, businessConfig } from "@/lib/config";
 
 const contactItems = [
   {
@@ -13,14 +14,14 @@ const contactItems = [
   {
     icon: Phone,
     label: "Call",
-    value: "01234 567 890",
-    href: "tel:+441234567890",
+    value: BRAND.phone,
+    href: businessConfig.phone.telHref,
   },
   {
     icon: Mail,
     label: "Email",
-    value: "hello@danaauto.co.uk",
-    href: "mailto:hello@danaauto.co.uk",
+    value: BRAND.email,
+    href: `mailto:${BRAND.email}`,
   },
   {
     icon: Clock,

@@ -1,4 +1,4 @@
-# Dana Auto Centre — Platform Architecture
+# Dan Auto Centre — Platform Architecture
 
 Scalable foundation for AI workshop assistant, booking workflow, and future CRM.
 

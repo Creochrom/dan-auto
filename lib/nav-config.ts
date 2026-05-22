@@ -1,32 +1,37 @@
+/** Services dropdown — matches section anchors (desktop nav mega-item) */
 export const SERVICES_CHILDREN = [
-  { href: "#mot", label: "MOT testing" },
   { href: "#services", label: "Servicing & repairs" },
+  { href: "#mot", label: "MOT testing" },
   { href: "#diagnostics", label: "Diagnostics" },
 ] as const;
 
-/** Always visible on tablet (md+) and desktop */
+/** Primary nav links after Services dropdown — no duplicate "Services" */
 export const NAV_PRIMARY = [
   { href: "#mot", label: "MOT" },
   { href: "#diagnostics", label: "Diagnostics" },
-  { href: "#about", label: "About" },
-  { href: "#contact", label: "Contact" },
+  { href: "#booking", label: "Book online" },
+  { href: "#ai-advisor", label: "AI advisor", advisor: true as const },
 ] as const;
 
-/** Desktop (xl+) inline; tablet “More” dropdown; always in mobile panel */
 export const NAV_SECONDARY = [
   { href: "#why-us", label: "Why us" },
-  { href: "#members", label: "Members" },
   { href: "#reviews", label: "Reviews" },
+  { href: "#contact", label: "Contact" },
 ] as const;
 
-/** Tablet “More” menu — items hidden from the inline bar on narrower tablets */
 export const NAV_MORE = [
   { href: "#about", label: "About" },
-  { href: "#contact", label: "Contact" },
-  ...NAV_SECONDARY,
+  { href: "#ai-quote", label: "Get estimate" },
+  { href: "#members", label: "Members" },
 ] as const;
 
+/** Mobile drawer — Services accordion is separate; no duplicate Services link */
 export const NAV_MOBILE = [
   ...NAV_PRIMARY,
-  ...NAV_SECONDARY,
+  { href: "#why-us", label: "Why us" },
+  { href: "#reviews", label: "Reviews" },
+  { href: "#about", label: "About" },
+  { href: "#ai-quote", label: "Get estimate" },
+  { href: "#members", label: "Members" },
+  { href: "#contact", label: "Contact" },
 ] as const;

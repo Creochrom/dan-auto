@@ -15,8 +15,17 @@ export const BOOKING_INTAKE_COPY = {
   timeLabel: "Preferred time",
   continueToIntake: "Continue — describe your vehicle",
   uploadHint:
-    "Upload photos or videos if available — dashboard lights, damage, leaks, smoke, tyre wear, or suspension.",
+    "Photos and short videos help our technicians — dashboard warning lights, unusual noises, leaks, smoke, body damage, or tyre wear.",
+  uploadExamples: [
+    "Warning lights",
+    "Noises",
+    "Leaks",
+    "Smoke",
+    "Damage",
+    "Tyre wear",
+  ] as const,
   uploadButton: "Add photos or video",
+  uploadDrop: "Drop files here or tap to browse",
   modalTitle: "Service advisor",
   modalSubtitle: "Intelligent intake for your booking",
   submitRequest: "Send request to workshop",

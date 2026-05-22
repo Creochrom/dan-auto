@@ -60,7 +60,7 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.2 }}
           className="mt-6 max-w-xl text-base text-zinc-400 md:text-lg"
         >
-          Dana Auto Centre delivers Tesla-grade transparency — instant reg lookup,
+          Dan Auto Centre delivers Tesla-grade transparency — instant reg lookup,
           AI-powered quotes, and concierge booking from your phone.
         </motion.p>
 

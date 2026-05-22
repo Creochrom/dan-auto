@@ -43,7 +43,7 @@ export function Navbar() {
             </span>
             <div className="leading-tight">
               <p className="text-sm font-semibold tracking-tight text-white">
-                Dana Auto Centre
+                Dan Auto Centre
               </p>
               <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
                 Premium Garage

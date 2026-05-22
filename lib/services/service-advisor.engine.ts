@@ -1,3 +1,4 @@
+import { ADVISOR_TYPING_LABELS, advisorIntro } from "@/lib/config/brand";
 import { businessConfig } from "@/lib/config/business";
 import { motPolicy } from "@/lib/config/services";
 import type { BookingChatContext, LeadDraft } from "@/lib/types/chat";
@@ -419,13 +420,13 @@ export function runServiceAdvisorTurn(params: {
       : "";
     const content = forBooking
       ? `${slotLine}\n\nTell us what's happening with the vehicle — symptoms, warning lights, noises, or anything you'd like the technician to know. Upload photos or videos in the panel if you have them.\n\nI'll ask a few focused questions, suggest possible causes, and share rough cost guidance (not a fixed quote). A mechanic can review your request and call you back.`
-      : "I'm your Dana Auto Centre service advisor — here to help you explain what's happening with your vehicle and prepare clear notes for our workshop team.\n\nDescribe the symptom, warning light, noise, or what you'd like booked. I'll ask a few focused questions, suggest likely causes, and give rough cost guidance (not a fixed quote).";
+      : `${advisorIntro(false)}\n\nDescribe the symptom, warning light, noise, or what you'd like booked. I'll ask a few focused questions, suggest likely causes, and give rough cost guidance (not a fixed quote).`;
     return {
       content,
       intakeState: intake,
       leadDraft: draft,
       suggestionChips: WELCOME_CHIPS,
-      typingLabel: "Preparing your intake…",
+      typingLabel: ADVISOR_TYPING_LABELS.init,
       skipUserMessage: true,
     };
   }
@@ -451,7 +452,7 @@ export function runServiceAdvisorTurn(params: {
         { id: "van-repair", label: "Book repair", message: "I need a repair booking instead" },
         { id: "van-callback", label: "Request callback", message: "Please call me back about repairs" },
       ],
-      typingLabel: "Reviewing MOT eligibility…",
+      typingLabel: ADVISOR_TYPING_LABELS.mot,
     };
   }
 
@@ -465,7 +466,7 @@ export function runServiceAdvisorTurn(params: {
           intakeState: intake,
           leadDraft: draft,
           suggestionChips: WELCOME_CHIPS,
-          typingLabel: "Reviewing your notes…",
+          typingLabel: ADVISOR_TYPING_LABELS.symptoms,
         };
       }
       appendSymptom(intake, msg);
@@ -480,7 +481,7 @@ export function runServiceAdvisorTurn(params: {
         intakeState: intake,
         leadDraft: draft,
         suggestionChips: profile.clarifyChips,
-        typingLabel: "Reviewing your symptoms…",
+        typingLabel: ADVISOR_TYPING_LABELS.symptoms,
       };
     }
 
@@ -495,7 +496,7 @@ export function runServiceAdvisorTurn(params: {
         intakeState: intake,
         leadDraft: draft,
         suggestionChips: forBooking ? URGENCY_CHIPS : CALLBACK_CHIPS,
-        typingLabel: "Preparing guidance…",
+        typingLabel: ADVISOR_TYPING_LABELS.estimate,
       };
     }
 
@@ -511,7 +512,7 @@ export function runServiceAdvisorTurn(params: {
           { id: "cb-yes", label: "Yes — pass to workshop", message: "Yes, please pass this to the workshop team" },
           { id: "cb-guidance", label: "Guidance only", message: "I only needed guidance for now" },
         ],
-        typingLabel: "Logging for the workshop…",
+        typingLabel: ADVISOR_TYPING_LABELS.logging,
       };
     }
 
@@ -546,7 +547,7 @@ export function runServiceAdvisorTurn(params: {
           : "Good — I'll pass this to our technicians. What's your first name?",
         intakeState: intake,
         leadDraft: draft,
-        typingLabel: "Logging for the workshop…",
+        typingLabel: ADVISOR_TYPING_LABELS.logging,
       };
     }
 
@@ -565,7 +566,7 @@ export function runServiceAdvisorTurn(params: {
         content: `Thanks, ${name}. What's the best mobile number to reach you on?`,
         intakeState: intake,
         leadDraft: draft,
-        typingLabel: "Logging for the workshop…",
+        typingLabel: ADVISOR_TYPING_LABELS.logging,
       };
     }
 
@@ -662,7 +663,7 @@ export function runServiceAdvisorTurn(params: {
         mechanicSummary: summary,
         shouldCaptureLead: !forBooking,
         intakeComplete: forBooking,
-        typingLabel: "Preparing workshop summary…",
+        typingLabel: ADVISOR_TYPING_LABELS.summary,
       };
     }
 

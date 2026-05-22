@@ -91,7 +91,7 @@ export const reviews = [
     name: "Emma Walsh",
     vehicle: "Mercedes C-Class",
     rating: 5,
-    text: "Alloy refurb looks factory fresh. The team explained everything without jargon. Dana Auto is now our family garage.",
+    text: "Alloy refurb looks factory fresh. The team explained everything without jargon. Dan Auto Centre is now our family garage.",
   },
 ];
 

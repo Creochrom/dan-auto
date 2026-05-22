@@ -356,11 +356,11 @@ export function PremiumHero({
                     priority
                     fetchPriority="high"
                     quality={95}
-                    className="hero-bmw-img max-lg:brightness-[0.66] max-lg:contrast-[1.05] max-lg:saturate-[0.96] sm:max-lg:brightness-[0.68] lg:brightness-100 lg:contrast-100 lg:saturate-100"
+                    className="hero-bmw-img max-lg:brightness-[0.72] max-lg:contrast-[1.04] max-lg:saturate-[0.98] sm:max-lg:brightness-[0.74] lg:brightness-100 lg:contrast-100 lg:saturate-100"
                   />
                   {/* Mobile/tablet scrim — lighter than before; hidden on desktop (mask handles blend) */}
                   <div
-                    className="pointer-events-none absolute inset-0 z-[2] block bg-[linear-gradient(180deg,rgba(3,3,3,0.38)_0%,rgba(3,3,3,0.22)_38%,rgba(3,3,3,0.32)_72%,rgba(3,3,3,0.46)_100%),linear-gradient(90deg,rgba(3,3,3,0.4)_0%,rgba(3,3,3,0.18)_38%,rgba(3,3,3,0.05)_62%,transparent_100%)] max-sm:bg-[linear-gradient(180deg,rgba(3,3,3,0.32)_0%,rgba(3,3,3,0.18)_38%,rgba(3,3,3,0.28)_72%,rgba(3,3,3,0.4)_100%),linear-gradient(90deg,rgba(3,3,3,0.34)_0%,rgba(3,3,3,0.14)_38%,rgba(3,3,3,0.04)_62%,transparent_100%)] lg:hidden"
+                    className="pointer-events-none absolute inset-0 z-[2] block bg-[linear-gradient(180deg,rgba(3,3,3,0.3)_0%,rgba(3,3,3,0.16)_38%,rgba(3,3,3,0.24)_72%,rgba(3,3,3,0.36)_100%),linear-gradient(90deg,rgba(3,3,3,0.32)_0%,rgba(3,3,3,0.12)_38%,rgba(3,3,3,0.04)_62%,transparent_100%)] max-sm:bg-[linear-gradient(180deg,rgba(3,3,3,0.24)_0%,rgba(3,3,3,0.12)_38%,rgba(3,3,3,0.2)_72%,rgba(3,3,3,0.32)_100%),linear-gradient(90deg,rgba(3,3,3,0.26)_0%,rgba(3,3,3,0.1)_38%,rgba(3,3,3,0.03)_62%,transparent_100%)] lg:hidden"
                     aria-hidden
                   />
                 </div>
