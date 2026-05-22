@@ -1,13 +1,13 @@
-import { BOOKING_EMAIL_TO, EMAIL_FROM_DISPLAY } from "@/lib/email/config";
+import { getIntakeEmailTo, getEmailFrom } from "@/lib/email/config";
 import {
   renderBookingIntakeEmailHtml,
   renderBookingIntakeEmailText,
 } from "@/lib/email/templates/booking-intake";
+import type { ChatMessage } from "@/lib/types/chat";
 import type { ServiceIntakeSummary } from "@/lib/types/service-intake";
 
 /**
- * Structured email payload — ready for Resend / SendGrid / Postmark.
- * TODO: send via transactional provider when enabled.
+ * Structured email payload — preview / tests (sending via sendBookingIntakeEmail).
  */
 export type BookingEmailPayload = {
   to: string;
@@ -19,28 +19,27 @@ export type BookingEmailPayload = {
   meta: {
     preparedAt: string;
     bookingId?: string;
-    sendEnabled: false;
   };
 };
 
 export function prepareBookingIntakeEmail(
   summary: ServiceIntakeSummary,
-  bookingId?: string
+  bookingId?: string,
+  transcript?: ChatMessage[]
 ): BookingEmailPayload {
   const reg = summary.registration.replace(/\s/g, "");
-  const subject = `Booking intake · ${reg} · ${summary.bookingSlot.service} · ${summary.customerName}`;
+  const subject = `New AI Service Intake — ${reg} — ${summary.bookingSlot.service}`;
 
   return {
-    to: BOOKING_EMAIL_TO,
-    from: EMAIL_FROM_DISPLAY,
+    to: getIntakeEmailTo(),
+    from: getEmailFrom(),
     subject,
-    text: renderBookingIntakeEmailText(summary),
-    html: renderBookingIntakeEmailHtml(summary),
+    text: renderBookingIntakeEmailText(summary, transcript),
+    html: renderBookingIntakeEmailHtml(summary, transcript),
     summary,
     meta: {
       preparedAt: new Date().toISOString(),
       bookingId,
-      sendEnabled: false,
     },
   };
 }

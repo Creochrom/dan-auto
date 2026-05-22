@@ -114,16 +114,19 @@ export const chatService = {
       .reverse()
       .find((m) => m.role === "user");
 
+    const refreshed = chatRepository.findById(session.id) ?? session;
+
     return {
       sessionId: session.id,
       message: assistantMessage,
       userMessage: isInit ? undefined : lastUser,
       leadDraft: turn.leadDraft,
       intakeState: turn.intakeState,
-      mechanicSummary: turn.mechanicSummary ?? session.mechanicSummary,
+      mechanicSummary: turn.mechanicSummary ?? refreshed.mechanicSummary,
       suggestionChips: turn.suggestionChips,
       typingLabel: turn.typingLabel,
       intakeComplete: turn.intakeComplete ?? turn.intakeState.phase === "complete",
+      intakeEmailed: Boolean(refreshed.intakeEmailedAt),
     };
   },
 };

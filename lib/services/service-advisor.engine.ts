@@ -278,6 +278,13 @@ function extractUkReg(text: string): string | undefined {
   return m?.[1]?.toUpperCase();
 }
 
+function extractEmail(text: string): string | undefined {
+  const m = text.match(
+    /(?:^|\s)([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})(?:\s|$)/i
+  );
+  return m?.[1]?.toLowerCase();
+}
+
 function extractPhone(text: string): string | undefined {
   const m = text.match(/(?:\+44|0)\s*7\d[\d\s]{7,10}\d|(?:\+44|0)\s*\d[\d\s]{8,12}\d/);
   return m?.[0]?.replace(/\s/g, "");
@@ -435,6 +442,8 @@ export function runServiceAdvisorTurn(params: {
   if (reg) draft.registration = reg;
   const phone = extractPhone(msg);
   if (phone) draft.phone = phone;
+  const email = extractEmail(msg);
+  if (email) draft.email = email;
   const model = extractVehicleModel(msg);
   if (model) draft.vehicleModel = model;
 
@@ -662,7 +671,7 @@ export function runServiceAdvisorTurn(params: {
         leadDraft: draft,
         mechanicSummary: summary,
         shouldCaptureLead: !forBooking,
-        intakeComplete: forBooking,
+        intakeComplete: true,
         typingLabel: ADVISOR_TYPING_LABELS.summary,
       };
     }

@@ -7,6 +7,7 @@ import { Bot, MessageCircle, RotateCcw, Send, X } from "lucide-react";
 import { ChatTimeline } from "@/features/chat/components/ChatTimeline";
 import { useAssistant } from "@/features/assistant/AssistantContext";
 import { useChatSession } from "@/features/assistant/hooks/useChatSession";
+import type { IntakeSubmitState } from "@/features/chat/hooks/useAdvisorChat";
 import { BRAND, WHATSAPP_HREF, businessConfig } from "@/lib/config";
 import { LAYER } from "@/lib/ui/layers";
 
@@ -21,6 +22,8 @@ function AdvisorPanel({
   typingLabel,
   suggestionChips,
   error,
+  intakeSubmitState = "idle",
+  onRetrySubmit,
   sendQuickReply,
   isTypingDisabled,
 }: {
@@ -34,6 +37,8 @@ function AdvisorPanel({
   typingLabel: string | null | undefined;
   suggestionChips: ReturnType<typeof useChatSession>["suggestionChips"];
   error: string | null | undefined;
+  intakeSubmitState?: IntakeSubmitState;
+  onRetrySubmit?: () => void;
   sendQuickReply: (chip: (typeof suggestionChips)[0]) => void;
   isTypingDisabled: boolean;
 }) {
@@ -86,6 +91,28 @@ function AdvisorPanel({
       />
 
       <footer className="service-advisor-panel__footer">
+        {intakeSubmitState === "sending" && (
+          <p className="mb-2 text-[10px] font-medium text-[#d4a63c]">
+            Sending workshop intake…
+          </p>
+        )}
+        {intakeSubmitState === "sent" && (
+          <p className="mb-2 text-[10px] font-medium text-emerald-400/90">
+            Intake sent to the workshop team.
+          </p>
+        )}
+        {intakeSubmitState === "error" && onRetrySubmit && (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-red-950/40 px-2.5 py-2">
+            <p className="text-[10px] text-red-300">Could not send intake.</p>
+            <button
+              type="button"
+              onClick={onRetrySubmit}
+              className="text-[10px] font-semibold text-[#d4a63c] hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         <form onSubmit={onSubmit} className="flex gap-2">
           <input
             type="text"
@@ -145,10 +172,12 @@ export function AIChatWidget() {
     typingLabel,
     suggestionChips,
     error,
+    intakeSubmitState,
     send,
     sendQuickReply,
     bootstrap,
     reset,
+    retryIntakeSubmit,
   } = useChatSession();
 
   useEffect(() => setMounted(true), []);
@@ -190,7 +219,9 @@ export function AIChatWidget() {
     suggestionChips,
     error,
     sendQuickReply,
-    isTypingDisabled: isTyping,
+    intakeSubmitState,
+    onRetrySubmit: () => void retryIntakeSubmit(),
+    isTypingDisabled: isTyping || intakeSubmitState === "sending",
   };
 
   const mobileModal =

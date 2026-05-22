@@ -30,6 +30,7 @@ export type ChatMessage = {
 export type LeadDraft = {
   name?: string;
   phone?: string;
+  email?: string;
   registration?: string;
   vehicleModel?: string;
   problemDescription?: string;
@@ -59,6 +60,9 @@ export type ChatSession = {
   mechanicSummary?: MechanicIntakeSummary;
   bookingContext?: BookingChatContext;
   leadCaptured?: boolean;
+  /** Set after workshop email successfully sent */
+  intakeEmailedAt?: string;
+  intakeEmailId?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -89,4 +93,6 @@ export type ChatResponse = {
   suggestionChips?: SuggestionChip[];
   typingLabel?: string;
   intakeComplete?: boolean;
+  /** True when intake email was already sent for this session */
+  intakeEmailed?: boolean;
 };

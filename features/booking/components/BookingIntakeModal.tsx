@@ -31,8 +31,11 @@ export function BookingIntakeModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const chat = useBookingIntakeChat(open ? bookingContext : null);
   const media = useMediaUpload();
+  const chat = useBookingIntakeChat(
+    open ? bookingContext : null,
+    media.uploadIds
+  );
 
   useEffect(() => {
     if (open) void chat.bootstrap();

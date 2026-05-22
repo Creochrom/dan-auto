@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     if (!body.preferredTime?.trim()) return jsonError("preferredTime is required");
     if (!body.chatSessionId?.trim()) return jsonError("chatSessionId is required");
 
-    const result = bookingIntakeService.complete({
+    const result = await bookingIntakeService.complete({
       service: body.service.trim(),
       preferredDate: body.preferredDate.trim(),
       preferredTime: body.preferredTime.trim(),

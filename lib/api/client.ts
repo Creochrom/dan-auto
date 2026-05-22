@@ -5,6 +5,7 @@ import type { ChatRequest, ChatResponse } from "@/lib/types/chat";
 import type { CreateBookingInput } from "@/lib/types/booking";
 import type { CreateLeadInput, Lead } from "@/lib/types/lead";
 import type { CreateUploadResult } from "@/lib/types/upload";
+import type { AiIntakeSubmitInput, AiIntakeSubmitResult } from "@/lib/types/ai-intake";
 import type {
   CompleteBookingIntakeInput,
   CompleteBookingIntakeResult,
@@ -74,6 +75,19 @@ export async function completeBookingIntake(
     body: JSON.stringify(input),
   });
   const json = await parse<CompleteBookingIntakeResult>(res);
+  if (!json.ok) throw new Error(json.error);
+  return json.data;
+}
+
+export async function submitAiIntake(
+  input: AiIntakeSubmitInput
+): Promise<AiIntakeSubmitResult> {
+  const res = await fetch("/api/ai-intake", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await parse<AiIntakeSubmitResult>(res);
   if (!json.ok) throw new Error(json.error);
   return json.data;
 }

@@ -51,4 +51,6 @@ export type CompleteBookingIntakeResult = {
   bookingId: string;
   intakeSummary: ServiceIntakeSummary;
   emailPrepared: boolean;
+  emailSent: boolean;
+  emailId?: string;
 };

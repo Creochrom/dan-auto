@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { sendChatMessage } from "@/lib/api/client";
+import { sendChatMessage, submitAiIntake } from "@/lib/api/client";
 import {
   createOptimisticUserMessage,
   mergeTurnIntoTimeline,
@@ -24,14 +24,22 @@ const TYPING_DELAY_MS = 500;
 
 export type AdvisorChatTheme = "gold" | "cyan";
 
+export type IntakeSubmitState = "idle" | "sending" | "sent" | "error";
+
 export type UseAdvisorChatOptions = {
   bookingContext?: BookingChatContext | null;
   sessionStorageKey?: string;
   enabled?: boolean;
+  uploadIds?: string[];
 };
 
 export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
-  const { bookingContext = null, sessionStorageKey, enabled = true } = options;
+  const {
+    bookingContext = null,
+    sessionStorageKey,
+    enabled = true,
+    uploadIds = [],
+  } = options;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | undefined>(() => {
@@ -43,11 +51,16 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
   const [suggestionChips, setSuggestionChips] = useState<SuggestionChip[]>([]);
   const [mechanicSummary, setMechanicSummary] = useState<MechanicIntakeSummary | undefined>();
   const [intakeComplete, setIntakeComplete] = useState(false);
+  const [intakeSubmitState, setIntakeSubmitState] =
+    useState<IntakeSubmitState>("idle");
   const [error, setError] = useState<string | null>(null);
 
   const booted = useRef(false);
   const sending = useRef(false);
+  const intakeSubmitStarted = useRef(false);
   const chipsRef = useRef<SuggestionChip[]>([]);
+  const uploadIdsRef = useRef(uploadIds);
+  uploadIdsRef.current = uploadIds;
 
   chipsRef.current = suggestionChips;
 
@@ -87,6 +100,85 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     [persist]
   );
 
+  const appendAssistantNotice = useCallback(
+    (content: string, sid: string) => {
+      const notice: ChatMessage = {
+        id: `notice-${Date.now()}`,
+        role: "assistant",
+        content,
+        createdAt: new Date().toISOString(),
+        source: "system",
+      };
+      setMessages((prev) => {
+        const next = [...prev, notice];
+        persist(sid, next);
+        return next;
+      });
+    },
+    [persist]
+  );
+
+  const trySubmitIntake = useCallback(
+    async (res: Awaited<ReturnType<typeof sendChatMessage>>) => {
+      if (bookingContext) return;
+      if (res.intakeEmailed) {
+        setIntakeSubmitState("sent");
+        return;
+      }
+      if (!res.intakeComplete || !res.leadDraft?.name?.trim() || !res.leadDraft?.phone?.trim()) {
+        return;
+      }
+      if (intakeSubmitStarted.current) return;
+      intakeSubmitStarted.current = true;
+      setIntakeSubmitState("sending");
+      setIsTyping(true);
+      setTypingLabel("Sending to the workshop team…");
+      setSuggestionChips([]);
+
+      try {
+        const result = await submitAiIntake({
+          chatSessionId: res.sessionId,
+          uploadIds:
+            uploadIdsRef.current.length > 0 ? uploadIdsRef.current : undefined,
+        });
+        setIntakeSubmitState("sent");
+        appendAssistantNotice(result.confirmationMessage, res.sessionId);
+      } catch (e) {
+        intakeSubmitStarted.current = false;
+        setIntakeSubmitState("error");
+        setError(e instanceof Error ? e.message : "Could not send intake to workshop");
+      } finally {
+        setIsTyping(false);
+        setTypingLabel(null);
+      }
+    },
+    [bookingContext, appendAssistantNotice]
+  );
+
+  const retryIntakeSubmit = useCallback(async () => {
+    if (!sessionId || bookingContext) return;
+    intakeSubmitStarted.current = false;
+    setError(null);
+    setIntakeSubmitState("sending");
+    setIsTyping(true);
+    setTypingLabel("Sending to the workshop team…");
+    try {
+      const result = await submitAiIntake({
+        chatSessionId: sessionId,
+        uploadIds:
+          uploadIdsRef.current.length > 0 ? uploadIdsRef.current : undefined,
+      });
+      setIntakeSubmitState("sent");
+      appendAssistantNotice(result.confirmationMessage, sessionId);
+    } catch (e) {
+      setIntakeSubmitState("error");
+      setError(e instanceof Error ? e.message : "Could not send intake to workshop");
+    } finally {
+      setIsTyping(false);
+      setTypingLabel(null);
+    }
+  }, [sessionId, bookingContext, appendAssistantNotice]);
+
   const revealResponse = useCallback(
     async (
       res: Awaited<ReturnType<typeof sendChatMessage>>,
@@ -96,6 +188,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       const chunks = splitAssistantContent(res.message.content);
       if (chunks.length <= 1) {
         applyResponse(res, optimistic, chipsOffered);
+        await trySubmitIntake(res);
         return;
       }
 
@@ -137,8 +230,10 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
           setSuggestionChips(res.suggestionChips ?? []);
         }
       }
+
+      await trySubmitIntake(res);
     },
-    [applyResponse, persist]
+    [applyResponse, persist, trySubmitIntake]
   );
 
   const send = useCallback(
@@ -242,6 +337,8 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     setSuggestionChips([]);
     setMechanicSummary(undefined);
     setIntakeComplete(false);
+    setIntakeSubmitState("idle");
+    intakeSubmitStarted.current = false;
     booted.current = false;
   }, [sessionId, sessionStorageKey]);
 
@@ -252,11 +349,13 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     suggestionChips,
     mechanicSummary,
     intakeComplete,
+    intakeSubmitState,
     error,
     send,
     sendQuickReply,
     bootstrap,
     reset,
+    retryIntakeSubmit,
     sessionId,
   };
 }

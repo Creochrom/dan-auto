@@ -1,5 +1,5 @@
 import { chatRepository } from "@/lib/repositories/chat.repository";
-import { prepareBookingIntakeEmail } from "@/lib/email";
+import { sendBookingIntakeEmail } from "@/lib/email/send-workshop-intake";
 import { bookingService } from "@/lib/services/booking.service";
 import { uploadService } from "@/lib/services/upload.service";
 import type {
@@ -19,7 +19,9 @@ function parseUrgency(draft?: string, severity?: string): UrgencyLevel {
 }
 
 export const bookingIntakeService = {
-  complete(input: CompleteBookingIntakeInput): CompleteBookingIntakeResult {
+  async complete(
+    input: CompleteBookingIntakeInput
+  ): Promise<CompleteBookingIntakeResult> {
     const session = chatRepository.findById(input.chatSessionId);
     if (!session) {
       throw new Error("Intake session not found");
@@ -101,12 +103,23 @@ export const bookingIntakeService = {
       uploadIds: uploads.map((u) => u.id),
     });
 
-    prepareBookingIntakeEmail(summary, booking.id);
+    if (session.intakeEmailedAt) {
+      throw new Error("This intake was already sent to the workshop");
+    }
+
+    const sent = await sendBookingIntakeEmail(summary, {
+      bookingId: booking.id,
+      transcript: session.messages,
+    });
+
+    chatRepository.markIntakeEmailed(session.id, sent.id);
 
     return {
       bookingId: booking.id,
       intakeSummary: summary,
       emailPrepared: true,
+      emailSent: true,
+      emailId: sent.id,
     };
   },
 };

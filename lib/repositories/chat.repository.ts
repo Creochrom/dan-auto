@@ -85,4 +85,12 @@ export const chatRepository = {
     if (session.intakeState) session.intakeState.leadCaptured = true;
     session.updatedAt = new Date().toISOString();
   },
+
+  markIntakeEmailed(sessionId: string, emailId: string): void {
+    const session = mockStore.chatSessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    session.intakeEmailedAt = new Date().toISOString();
+    session.intakeEmailId = emailId;
+    session.updatedAt = session.intakeEmailedAt;
+  },
 };
