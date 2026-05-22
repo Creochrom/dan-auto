@@ -1,4 +1,5 @@
 export {
+  DEFAULT_EMAIL_FROM,
   getIntakeEmailTo,
   getEmailFrom,
   getEmailApiKey,

@@ -1,6 +1,9 @@
 import { BRAND } from "@/lib/config/brand";
 import { businessConfig } from "@/lib/config/business";
 
+/** Verified Resend sender — danautocentre.co.uk domain */
+export const DEFAULT_EMAIL_FROM = `${BRAND.shortName} <${businessConfig.email}>`;
+
 /** Workshop intake inbox — server env only */
 export function getIntakeEmailTo(): string {
   return (
@@ -10,10 +13,19 @@ export function getIntakeEmailTo(): string {
   );
 }
 
+/** Resend test / unverified senders — never use in production */
+function isDisallowedSender(from: string): boolean {
+  return (
+    /onboarding@resend\.dev/i.test(from) ||
+    /@gmail\.com/i.test(from) ||
+    /@googlemail\.com/i.test(from)
+  );
+}
+
 export function getEmailFrom(): string {
   const from = process.env.EMAIL_FROM?.trim();
-  if (from) return from;
-  return `${BRAND.shortName} <onboarding@resend.dev>`;
+  if (from && !isDisallowedSender(from)) return from;
+  return DEFAULT_EMAIL_FROM;
 }
 
 export function getEmailApiKey(): string | undefined {

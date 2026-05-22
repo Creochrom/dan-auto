@@ -56,6 +56,7 @@ async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
 function sendViaLog(input: SendEmailInput): SendEmailResult {
   const to = Array.isArray(input.to) ? input.to.join(", ") : input.to;
   console.info("[email:log] Transactional intake (dev — not sent via provider)", {
+    from: getEmailFrom(),
     to,
     subject: input.subject,
     textPreview: input.text.slice(0, 500),
