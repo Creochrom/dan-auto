@@ -1,6 +1,6 @@
 /**
  * AI tool definitions for future Gemini function calling.
- * TODO: Implement handlers when connecting Gemini API.
+ * Core chat uses JSON structured intake today; wire tools when CRM actions need function calls.
  */
 
 export type AiToolName =

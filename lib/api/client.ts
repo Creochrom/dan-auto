@@ -79,6 +79,28 @@ export async function completeBookingIntake(
   return json.data;
 }
 
+export type ChatIntakeExport = {
+  sessionId: string;
+  structuredIntake: import("@/lib/types/structured-intake").StructuredIntake;
+  mechanicSummary?: import("@/lib/types/intake").MechanicIntakeSummary;
+  leadDraft?: ChatResponse["leadDraft"];
+  intakeComplete: boolean;
+  intakeEmailed: boolean;
+  messages: ChatResponse["message"][];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchChatIntakeExport(sessionId: string): Promise<ChatIntakeExport> {
+  const res = await fetch(
+    `/api/chat/intake?sessionId=${encodeURIComponent(sessionId)}`,
+    { method: "GET" }
+  );
+  const json = await parse<ChatIntakeExport>(res);
+  if (!json.ok) throw new Error(json.error);
+  return json.data;
+}
+
 export async function submitAiIntake(
   input: AiIntakeSubmitInput
 ): Promise<AiIntakeSubmitResult> {

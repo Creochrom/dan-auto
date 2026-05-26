@@ -25,9 +25,27 @@ function formatTranscriptHtml(messages: ChatMessage[]): string {
     .join("");
 }
 
+const DRIVABILITY_LABEL: Record<AiIntakeWorkshopSummary["drivability"], string> = {
+  drives_normally: "Drives normally",
+  drivable_with_concern: "Drivable — customer has concerns",
+  avoid_driving: "Avoid driving — safety risk",
+  will_not_start: "Will not start / stranded",
+  unknown: "Not confirmed",
+};
+
+const INTENT_LABEL: Record<AiIntakeWorkshopSummary["intent"], string> = {
+  book: "Wants to book a workshop slot",
+  callback: "Wants a callback from the workshop",
+  quote: "Wants an indicative quote first",
+  info_only: "General enquiry — not committing yet",
+  unspecified: "Not yet stated",
+};
+
 export function buildAiIntakeSubject(summary: AiIntakeWorkshopSummary): string {
   const reg = summary.registration.replace(/\s/g, "") || "NO-REG";
-  return `New AI Service Intake — ${reg} — ${summary.serviceRequested}`;
+  const flag = summary.urgency === "high" ? "[URGENT] " : "";
+  const partial = summary.partial ? " [PARTIAL]" : "";
+  return `${flag}New AI Service Intake — ${reg} — ${summary.serviceRequested}${partial}`;
 }
 
 export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): string {
@@ -47,10 +65,36 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
       ? summary.observations.map((o) => `  - ${o}`).join("\n")
       : "  (none)";
 
+  const warningLights =
+    summary.warningLights.length > 0
+      ? summary.warningLights.map((w) => `  - ${w}`).join("\n")
+      : "  (none reported)";
+
+  const partialNotice = summary.partial
+    ? [
+        "*** PARTIAL INTAKE — some fields not collected ***",
+        `Missing: ${summary.missingFields.join(", ")}`,
+        "Please follow up by phone if needed.",
+        "",
+      ]
+    : [];
+
   return [
     `${BRAND.shortName} — AI service intake`,
     `Session: ${summary.chatSessionId}`,
     `Prepared: ${summary.preparedAt}`,
+    "",
+    ...partialNotice,
+    "-----------------------------------",
+    "AI Summary (read first)",
+    "-----------------------------------",
+    summary.aiSummary || "(AI did not produce a narrative summary — see issue description below)",
+    "",
+    `Intent: ${INTENT_LABEL[summary.intent]}`,
+    `Urgency: ${summary.urgency}`,
+    `Drivability: ${DRIVABILITY_LABEL[summary.drivability]}${
+      summary.drivabilityNote ? ` — ${summary.drivabilityNote}` : ""
+    }`,
     "",
     "-----------------------------------",
     "Customer Details",
@@ -67,15 +111,17 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
     `Make/model: ${summary.vehicle ?? "—"}`,
     "",
     "-----------------------------------",
-    "Issue Summary",
+    "Issue Description",
     "-----------------------------------",
     summary.symptoms,
+    "",
+    "Warning lights on dashboard:",
+    warningLights,
     "",
     "-----------------------------------",
     "AI Intake Notes",
     "-----------------------------------",
     `Possible causes: ${summary.possibleCauses.join(", ") || "—"}`,
-    `Urgency: ${summary.urgency}`,
     `Severity: ${summary.severity ?? "—"}`,
     `Guidance range discussed: ${summary.estimatedRange ?? "—"}`,
     `Severity note: ${summary.severityNote ?? "—"}`,
@@ -90,9 +136,10 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
       : "  (none)",
     "",
     "-----------------------------------",
-    "Booking Preference",
+    "Booking / Callback",
     "-----------------------------------",
-    booking,
+    `Preferred slot (customer): ${summary.preferredBookingTime ?? "—"}`,
+    `Booking form selection: ${booking}`,
     `Callback availability: ${summary.callbackAvailability ?? "—"}`,
     "",
     "-----------------------------------",
@@ -110,6 +157,7 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
 export function renderAiIntakeEmailHtml(summary: AiIntakeWorkshopSummary): string {
   const s = summary;
   const causes = s.possibleCauses.map((c) => `<li>${escapeHtml(c)}</li>`).join("");
+  const lights = s.warningLights.map((w) => `<li>${escapeHtml(w)}</li>`).join("");
   const uploads = s.uploadedFiles
     .map(
       (f) =>
@@ -127,11 +175,36 @@ export function renderAiIntakeEmailHtml(summary: AiIntakeWorkshopSummary): strin
     ? `<p>${escapeHtml(s.bookingPreference.service)} · ${escapeHtml(s.bookingPreference.preferredDate)} at ${escapeHtml(s.bookingPreference.preferredTime)}</p>`
     : `<p style="color:#888">Advisor-only intake (no slot selected)</p>`;
 
+  const partialBanner = s.partial
+    ? `<div style="background:#3a1a1a;border:1px solid #6b2a2a;color:#f5c6c6;padding:12px 14px;border-radius:8px;margin:0 0 18px;font-size:13px">
+        <strong style="color:#ff9090">Partial intake</strong> — please follow up by phone.
+        <div style="color:#e2a4a4;margin-top:4px">Missing: ${s.missingFields.map(escapeHtml).join(", ")}</div>
+      </div>`
+    : "";
+
+  const urgencyBadgeBg =
+    s.urgency === "high" ? "#5a1f1f" : s.urgency === "medium" ? "#5a4520" : "#1f3a1f";
+  const urgencyBadgeColor =
+    s.urgency === "high" ? "#ff9090" : s.urgency === "medium" ? "#f0c97b" : "#9ad29a";
+
   return `<!DOCTYPE html>
 <html>
 <body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:24px;line-height:1.5">
   <h1 style="color:#d4a63c;font-size:18px;margin:0 0 8px">New AI Service Intake</h1>
   <p style="color:#888;font-size:12px;margin:0 0 20px">${escapeHtml(BRAND.shortName)} · ${escapeHtml(s.chatSessionId)}</p>
+
+  ${partialBanner}
+
+  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px">AI Summary</h2>
+  <p style="background:#141414;border-left:3px solid #d4a63c;padding:12px 14px;border-radius:6px;margin:0 0 14px">
+    ${escapeHtml(s.aiSummary || "(AI did not produce a narrative — see issue description below)")}
+  </p>
+  <p style="margin:0 0 18px">
+    <span style="display:inline-block;background:${urgencyBadgeBg};color:${urgencyBadgeColor};padding:3px 10px;border-radius:99px;font-size:12px;margin-right:6px">Urgency: ${escapeHtml(s.urgency)}</span>
+    <span style="display:inline-block;background:#1a1a1a;color:#ddd;padding:3px 10px;border-radius:99px;font-size:12px;margin-right:6px">Intent: ${escapeHtml(INTENT_LABEL[s.intent])}</span>
+    <span style="display:inline-block;background:#1a1a1a;color:#ddd;padding:3px 10px;border-radius:99px;font-size:12px">Drivability: ${escapeHtml(DRIVABILITY_LABEL[s.drivability])}</span>
+  </p>
+  ${s.drivabilityNote ? `<p style="color:#aaa;font-size:13px;margin:-6px 0 14px">${escapeHtml(s.drivabilityNote)}</p>` : ""}
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Customer Details</h2>
   <table style="width:100%;border-collapse:collapse">
@@ -147,12 +220,15 @@ export function renderAiIntakeEmailHtml(summary: AiIntakeWorkshopSummary): strin
     <tr><td style="padding:4px 0;color:#888">Make/model</td><td>${escapeHtml(s.vehicle ?? "—")}</td></tr>
   </table>
 
-  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Issue Summary</h2>
-  <p style="background:#111;padding:12px;border-radius:8px">${escapeHtml(s.symptoms)}</p>
+  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Issue Description</h2>
+  <p style="background:#111;padding:12px;border-radius:8px;margin:0 0 12px">${escapeHtml(s.symptoms)}</p>
+  <p style="margin:0 0 6px;color:#bbb;font-size:13px"><strong>Warning lights on dashboard:</strong></p>
+  <ul style="margin:0 0 12px">${lights || `<li style="color:#888">None reported</li>`}</ul>
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">AI Intake Notes</h2>
+  <p style="margin:0 0 4px;color:#bbb;font-size:13px"><strong>Possible causes:</strong></p>
   <ul>${causes || "<li>—</li>"}</ul>
-  <p><strong>Urgency:</strong> ${escapeHtml(s.urgency)} · <strong>Severity:</strong> ${escapeHtml(s.severity ?? "—")}</p>
+  <p><strong>Severity:</strong> ${escapeHtml(s.severity ?? "—")}</p>
   <p><strong>Guidance range:</strong> ${escapeHtml(s.estimatedRange ?? "—")} <span style="color:#888">(indicative)</span></p>
   <p style="color:#aaa;font-size:13px">${escapeHtml(s.severityNote ?? "")}</p>
   <p><strong>Observations</strong></p>
@@ -160,9 +236,17 @@ export function renderAiIntakeEmailHtml(summary: AiIntakeWorkshopSummary): strin
   <p><strong>Clarifications</strong></p>
   <ul>${clar || "<li>—</li>"}</ul>
 
-  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Booking Preference</h2>
-  ${booking}
-  <p><strong>Callback:</strong> ${escapeHtml(s.callbackAvailability ?? "—")}</p>
+  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Booking / Callback</h2>
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="padding:4px 0;color:#888;width:200px">Preferred slot (customer)</td><td>${escapeHtml(s.preferredBookingTime ?? "—")}</td></tr>
+    <tr><td style="padding:4px 0;color:#888">Booking form selection</td><td>${
+      s.bookingPreference
+        ? `${escapeHtml(s.bookingPreference.service)} · ${escapeHtml(s.bookingPreference.preferredDate)} at ${escapeHtml(s.bookingPreference.preferredTime)}`
+        : `<span style="color:#888">None selected</span>`
+    }</td></tr>
+    <tr><td style="padding:4px 0;color:#888">Callback availability</td><td>${escapeHtml(s.callbackAvailability ?? "—")}</td></tr>
+  </table>
+  ${booking === "" ? "" : ""}
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Uploaded Files</h2>
   <ul>${uploads || "<li>None</li>"}</ul>

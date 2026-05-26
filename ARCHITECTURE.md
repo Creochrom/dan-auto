@@ -6,7 +6,8 @@ Scalable foundation for AI workshop assistant, booking workflow, and future CRM.
 
 ```
 app/
-  api/chat/             POST — assistant (mock → Gemini)
+  api/chat/             POST — Gemini service advisor (+ rule fallback)
+  api/chat/intake/      GET — structured intake export
   api/bookings/         GET/POST — booking workflow
   api/leads/            GET/POST — lead capture
   api/vehicles/         GET/POST — vehicle lookup facade
@@ -39,7 +40,8 @@ ai/
 
 | Route | Purpose |
 |-------|---------|
-| `POST /api/chat` | AI assistant (mock → Gemini) |
+| `POST /api/chat` | AI service advisor (Gemini or rule fallback) |
+| `GET /api/chat/intake` | Export structured intake by session |
 | `GET/POST /api/bookings` | Booking list / create |
 | `GET/POST /api/leads` | Lead capture |
 | `GET/POST /api/vehicles` | Vehicle lookup facade |
@@ -47,7 +49,7 @@ ai/
 
 ## Phase 2 TODO
 
-- [ ] `GEMINI_API_KEY` + `lib/services/gemini.service.ts`
+- [x] `GEMINI_API_KEY` + `lib/services/gemini.service.ts` (see `docs/GEMINI_SETUP.md`)
 - [ ] Supabase tables: `bookings`, `leads`, `chat_sessions`, `customers`
 - [ ] Admin auth (middleware + roles)
 - [ ] Twilio / WhatsApp Business webhooks
@@ -58,7 +60,8 @@ ai/
 
 ```env
 NEXT_PUBLIC_WHATSAPP_MOBILE=447XXXXXXXXXX
-# GEMINI_API_KEY=
+GEMINI_API_KEY=
+# GEMINI_MODEL=gemini-2.5-flash
 # SUPABASE_URL=
 # SUPABASE_ANON_KEY=
 ```

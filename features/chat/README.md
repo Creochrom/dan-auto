@@ -18,5 +18,6 @@
 ## Future
 
 - `GET /api/chat/[sessionId]` for full history
-- Gemini streaming append to assistant message
+- Gemini enabled via `GEMINI_API_KEY` (see `docs/GEMINI_SETUP.md`)
+- Optional streaming append to assistant message
 - CRM conversation logs + WhatsApp sync using the same `ChatMessage` shape

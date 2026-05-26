@@ -10,6 +10,7 @@ import type {
   SuggestionChip,
   SymptomCategory,
 } from "@/lib/types/intake";
+import type { StructuredIntake } from "@/lib/types/structured-intake";
 
 const INIT_TOKEN = "__init__";
 
@@ -395,6 +396,7 @@ export type AdvisorTurnResult = {
   intakeState: IntakeState;
   leadDraft?: LeadDraft;
   mechanicSummary?: MechanicIntakeSummary;
+  structuredIntake?: StructuredIntake;
   suggestionChips?: SuggestionChip[];
   typingLabel?: string;
   shouldCaptureLead?: boolean;

@@ -797,7 +797,7 @@ export default function Home() {
             <div className="mt-12 grid gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-2">
               {REVIEWS.map((r, i) => (
                 <motion.blockquote
-                  key={r.name}
+                  key={r.vehicle}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}

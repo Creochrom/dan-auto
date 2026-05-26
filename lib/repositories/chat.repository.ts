@@ -1,6 +1,8 @@
 import { mockStore } from "@/lib/repositories/mock-store";
 import type { BookingChatContext, ChatMessage, ChatSession } from "@/lib/types/chat";
 import type { IntakeState, MechanicIntakeSummary } from "@/lib/types/intake";
+import type { StructuredIntake } from "@/lib/types/structured-intake";
+import type { VehicleMemoryLookupResult } from "@/lib/types/vehicle-memory";
 
 function newId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -12,7 +14,9 @@ export const chatRepository = {
   },
 
   create(
-    initial?: Partial<Pick<ChatSession, "intakeState" | "leadDraft" | "bookingContext">>
+    initial?: Partial<
+      Pick<ChatSession, "intakeState" | "leadDraft" | "bookingContext" | "structuredIntake">
+    >
   ): ChatSession {
     const now = new Date().toISOString();
     const session: ChatSession = {
@@ -21,6 +25,7 @@ export const chatRepository = {
       intakeState: initial?.intakeState,
       leadDraft: initial?.leadDraft,
       bookingContext: initial?.bookingContext,
+      structuredIntake: initial?.structuredIntake,
       createdAt: now,
       updatedAt: now,
     };
@@ -64,6 +69,13 @@ export const chatRepository = {
     session.updatedAt = new Date().toISOString();
   },
 
+  updateStructuredIntake(sessionId: string, intake: StructuredIntake): void {
+    const session = mockStore.chatSessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    session.structuredIntake = intake;
+    session.updatedAt = new Date().toISOString();
+  },
+
   updateMechanicSummary(sessionId: string, summary: MechanicIntakeSummary): void {
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
@@ -92,5 +104,15 @@ export const chatRepository = {
     session.intakeEmailedAt = new Date().toISOString();
     session.intakeEmailId = emailId;
     session.updatedAt = session.intakeEmailedAt;
+  },
+
+  updateVehicleMemory(
+    sessionId: string,
+    lookup: VehicleMemoryLookupResult
+  ): void {
+    const session = mockStore.chatSessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    session.vehicleMemory = lookup;
+    session.updatedAt = new Date().toISOString();
   },
 };

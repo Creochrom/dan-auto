@@ -259,7 +259,7 @@ export function PremiumHero({
         <div className="hero-stage" ref={heroStageRef}>
           <div className="hero-grid">
             <div className="hero-left w-full max-w-none lg:max-w-[560px]">
-              <div className="hero-badge inline-flex w-fit items-center gap-2 rounded-full border border-[#d4a63c]/45 bg-black/65 px-3.5 py-2">
+              <div className="hero-badge inline-flex w-fit items-center gap-2 rounded-full border border-[#d4a63c]/40 bg-black/60 px-3 py-1.5">
                 <Car className="h-3.5 w-3.5 text-[#d4a63c]" aria-hidden />
                 <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#d4a63c]">
                   {badge}
@@ -268,12 +268,12 @@ export function PremiumHero({
 
               <h1
                 id="hero-heading"
-                className="hero-heading mt-3 max-lg:[text-shadow:0_2px_24px_rgba(0,0,0,0.65)] sm:mt-5 lg:mt-7 lg:[text-shadow:none]"
+                className="hero-heading mt-3 max-lg:[text-shadow:0_2px_24px_rgba(0,0,0,0.65)] sm:mt-4 lg:mt-5 lg:[text-shadow:none]"
               >
-                <span className="block text-[clamp(1.5rem,6.2vw,2.1rem)] font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-white sm:text-[clamp(1.85rem,4.8vw,2.5rem)] lg:text-[clamp(2.75rem,4.8vw,4.25rem)] lg:leading-[0.98] lg:tracking-[-0.04em]">
+                <span className="block text-[clamp(1.5rem,6.2vw,2.1rem)] font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-white sm:text-[clamp(1.85rem,4.8vw,2.5rem)] lg:text-[clamp(2.75rem,4.8vw,4.25rem)] lg:leading-[0.96] lg:tracking-[-0.04em]">
                   EXPERT CARE
                 </span>
-                <span className="gold-metallic mt-0.5 block bg-clip-text text-[clamp(1.5rem,6.2vw,2.1rem)] font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-transparent sm:text-[clamp(1.85rem,4.8vw,2.5rem)] lg:text-[clamp(2.75rem,4.8vw,4.25rem)] lg:leading-[0.98] lg:tracking-[-0.04em]">
+                <span className="gold-metallic block bg-clip-text text-[clamp(1.5rem,6.2vw,2.1rem)] font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-transparent sm:text-[clamp(1.85rem,4.8vw,2.5rem)] lg:-mt-1 lg:text-[clamp(2.75rem,4.8vw,4.25rem)] lg:leading-[0.96] lg:tracking-[-0.04em]">
                   FOR YOUR CAR
                 </span>
               </h1>
@@ -284,10 +284,10 @@ export function PremiumHero({
               </p>
 
               <div
-                className={`hero-plate-glass mt-4 w-full max-w-[540px] rounded-2xl border bg-black/78 px-4 pb-5 pt-4 transition-[border-color,box-shadow] duration-300 sm:mt-5 sm:px-5 lg:mt-8 lg:max-w-[540px] ${
+                className={`hero-plate-glass mt-4 w-full max-w-[540px] rounded-2xl border bg-black/78 px-4 py-5 transition-[border-color,box-shadow] duration-300 sm:mt-5 sm:px-5 lg:mt-7 lg:max-w-[540px] ${
                   plateError
                     ? "border-red-500/45 shadow-[0_0_28px_rgba(239,68,68,0.18)]"
-                    : "border-[#d4a63c]/32"
+                    : "border-[#d4a63c]/24"
                 } ${plateShake ? "hero-plate-shake hero-plate-shake--micro" : ""}`}
               >
                 <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#d4a63c]">
@@ -325,19 +325,17 @@ export function PremiumHero({
                     Registration not in demo database — limited analysis shown.
                   </p>
                 )}
-                <p className="hero-plate-trust mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-[#d4a63c]/75 sm:mt-3.5 sm:text-[11px]">
+                <p className="hero-plate-trust mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-[10px] font-medium tracking-[0.01em] text-white/55 sm:mt-4 sm:text-[11px]">
                   <span className="inline-flex items-center gap-1.5">
-                    <Check className="h-3 w-3 text-[#d4a63c]" aria-hidden />
+                    <Check className="h-3 w-3 text-[#d4a63c]/85" aria-hidden />
                     Instant DVLA check
                   </span>
-                  <span className="text-[#d4a63c]/35">·</span>
                   <span className="inline-flex items-center gap-1.5">
-                    <Check className="h-3 w-3 text-[#d4a63c]" aria-hidden />
+                    <Check className="h-3 w-3 text-[#d4a63c]/85" aria-hidden />
                     AI vehicle analysis
                   </span>
-                  <span className="text-[#d4a63c]/35">·</span>
                   <span className="inline-flex items-center gap-1.5">
-                    <Check className="h-3 w-3 text-[#d4a63c]" aria-hidden />
+                    <Check className="h-3 w-3 text-[#d4a63c]/85" aria-hidden />
                     Secure &amp; private
                   </span>
                 </p>

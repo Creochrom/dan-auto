@@ -3,8 +3,11 @@ import { jsonError, jsonOk } from "@/lib/api/response";
 import type { ChatRequest } from "@/lib/types/chat";
 
 /**
- * POST /api/chat — service advisor intake (mock; Gemini-ready).
+ * POST /api/chat — service advisor intake (Gemini when GEMINI_API_KEY is set).
  */
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ChatRequest;
@@ -18,6 +21,7 @@ export async function POST(request: Request) {
       message: body.message?.trim(),
       registration: body.registration,
       init: isInit,
+      bookingContext: body.bookingContext,
     });
 
     return jsonOk(result);

@@ -55,11 +55,14 @@ async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
 
 function sendViaLog(input: SendEmailInput): SendEmailResult {
   const to = Array.isArray(input.to) ? input.to.join(", ") : input.to;
+  // Default preview is short to keep the dev terminal readable; set
+  // EMAIL_LOG_FULL=1 to dump the entire workshop body for verification.
+  const full = process.env.EMAIL_LOG_FULL === "1";
   console.info("[email:log] Transactional intake (dev — not sent via provider)", {
     from: getEmailFrom(),
     to,
     subject: input.subject,
-    textPreview: input.text.slice(0, 500),
+    textPreview: full ? input.text : input.text.slice(0, 500),
   });
   return { id: `log_${Date.now()}`, provider: "log" };
 }

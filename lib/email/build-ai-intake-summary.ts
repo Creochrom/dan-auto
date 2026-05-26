@@ -1,7 +1,12 @@
 import type { ChatSession } from "@/lib/types/chat";
-import type { AiIntakeWorkshopSummary } from "@/lib/types/ai-intake";
+import type {
+  AiIntakeWorkshopSummary,
+  IntakeDrivability,
+  IntakeIntent,
+} from "@/lib/types/ai-intake";
 import type { SymptomCategory } from "@/lib/types/intake";
 import type { UrgencyLevel } from "@/lib/types/service-intake";
+import type { StructuredIntake } from "@/lib/types/structured-intake";
 import { uploadService } from "@/lib/services/upload.service";
 import { sanitizePlainText } from "@/lib/utils/sanitize";
 
@@ -39,6 +44,38 @@ function buildObservations(intake: ChatSession["intakeState"]): string[] {
   return notes;
 }
 
+function resolveDrivability(structured?: StructuredIntake): {
+  status: IntakeDrivability;
+  note?: string;
+} {
+  if (!structured) return { status: "unknown" };
+  const d = structured.issue.drivable;
+  const severity = (structured.issue.severity || structured.aiEstimate.urgencyLevel).toLowerCase();
+  const next = structured.aiEstimate.recommendedNextStep ?? "";
+
+  if (/won.?t start|will not start|not starting|stranded/i.test(next + " " + structured.issue.symptoms.join(" "))) {
+    return { status: "will_not_start", note: next || undefined };
+  }
+  if (d === false || /avoid driving|do not drive|recovery/i.test(next)) {
+    return { status: "avoid_driving", note: next || undefined };
+  }
+  if (d === true && severity === "high") {
+    return { status: "drivable_with_concern", note: next || undefined };
+  }
+  if (d === true) return { status: "drives_normally", note: next || undefined };
+  return { status: "unknown" };
+}
+
+function resolveIntent(structured?: StructuredIntake, session?: ChatSession): IntakeIntent {
+  if (session?.bookingContext) return "book";
+  const raw = (structured?.intent ?? "").toLowerCase();
+  if (raw === "book" || raw === "callback" || raw === "quote" || raw === "info_only") {
+    return raw;
+  }
+  if (structured?.customer.name && structured.customer.contact) return "callback";
+  return "unspecified";
+}
+
 export function buildAiIntakeWorkshopSummary(
   session: ChatSession,
   opts?: { uploadIds?: string[]; customerEmail?: string }
@@ -46,10 +83,20 @@ export function buildAiIntakeWorkshopSummary(
   const draft = session.leadDraft ?? {};
   const mechanic = session.mechanicSummary;
   const intake = session.intakeState;
+  const structured = session.structuredIntake;
   const uploads = uploadService.getByIds(opts?.uploadIds ?? []);
 
+  const customerName = sanitizePlainText(
+    draft.name || structured?.customer.name || mechanic?.customerName || "",
+    80
+  );
+  const customerPhone = sanitizePlainText(
+    draft.phone || structured?.customer.contact || mechanic?.customerPhone || "",
+    32
+  );
+
   const registration = sanitizePlainText(
-    draft.registration ?? mechanic?.registration ?? "TBC",
+    draft.registration || mechanic?.registration || "",
     16
   ).toUpperCase();
 
@@ -61,33 +108,78 @@ export function buildAiIntakeWorkshopSummary(
 
   const formatRange =
     mechanic?.estimatedRange ??
-    (intake
-      ? `£${intake.estimateLow}–£${intake.estimateHigh}`
-      : undefined);
+    (structured?.aiEstimate.estimatedPriceRange ||
+      (intake && (intake.estimateLow || intake.estimateHigh)
+        ? `£${intake.estimateLow}–£${intake.estimateHigh}`
+        : undefined));
+
+  const structuredVehicle = structured
+    ? [structured.vehicle.year, structured.vehicle.make, structured.vehicle.model]
+        .filter(Boolean)
+        .join(" ")
+    : "";
+
+  const symptoms = sanitizePlainText(
+    mechanic?.symptoms ??
+      structured?.issue.symptoms.join("; ") ??
+      draft.problemDescription ??
+      intake?.symptomSummary ??
+      "",
+    2000
+  );
+
+  const warningLights = (structured?.issue.warningLights ?? []).map((l) =>
+    sanitizePlainText(l, 60)
+  );
+  const drivability = resolveDrivability(structured);
+  const intent = resolveIntent(structured, session);
+
+  const aiSummary = sanitizePlainText(
+    structured?.aiEstimate.summary ||
+      structured?.aiEstimate.recommendedNextStep ||
+      mechanic?.severityNote ||
+      "",
+    600
+  );
+
+  const preferredBookingTime =
+    sanitizePlainText(structured?.preferredBookingTime, 120) || undefined;
+
+  const missingFields: string[] = [];
+  if (!customerName) missingFields.push("customer name");
+  if (!customerPhone) missingFields.push("phone number");
+  if (!registration) missingFields.push("registration");
+  if (!symptoms) missingFields.push("issue description");
+  const partial = missingFields.length > 0;
 
   return {
-    customerName: sanitizePlainText(draft.name ?? mechanic?.customerName ?? "Unknown", 80),
-    customerPhone: sanitizePlainText(draft.phone ?? mechanic?.customerPhone ?? "", 32),
+    customerName: customerName || "Not provided",
+    customerPhone: customerPhone || "Not provided",
     customerEmail: opts?.customerEmail
       ? sanitizePlainText(opts.customerEmail, 254)
       : draft.email
         ? sanitizePlainText(draft.email, 254)
         : undefined,
-    registration,
-    vehicle: sanitizePlainText(draft.vehicleModel ?? mechanic?.vehicle, 80) || undefined,
+    registration: registration || "TBC",
+    vehicle:
+      sanitizePlainText(draft.vehicleModel ?? structuredVehicle ?? mechanic?.vehicle, 80) ||
+      undefined,
     serviceRequested: sanitizePlainText(serviceRequested, 120),
-    symptoms: sanitizePlainText(
-      mechanic?.symptoms ??
-        draft.problemDescription ??
-        intake?.symptomSummary ??
-        "Not specified",
-      2000
-    ),
-    possibleCauses: (mechanic?.possibleCauses ?? intake?.possibleCauses ?? []).map((c) =>
-      sanitizePlainText(c, 200)
-    ),
+    symptoms: symptoms || "Not specified — see transcript",
+    warningLights,
+    drivability: drivability.status,
+    drivabilityNote: drivability.note ? sanitizePlainText(drivability.note, 300) : undefined,
+    possibleCauses: (
+      mechanic?.possibleCauses ??
+      structured?.aiEstimate.possibleCauses ??
+      intake?.possibleCauses ??
+      []
+    ).map((c) => sanitizePlainText(c, 200)),
     estimatedRange: formatRange ? sanitizePlainText(formatRange, 80) : undefined,
-    urgency: parseUrgency(draft.urgency, mechanic?.severity ?? intake?.severity),
+    urgency: parseUrgency(
+      draft.urgency ?? structured?.aiEstimate.urgencyLevel,
+      mechanic?.severity ?? intake?.severity
+    ),
     severity: mechanic?.severity ?? intake?.severity,
     severityNote: sanitizePlainText(mechanic?.severityNote, 500) || undefined,
     observations: buildObservations(intake),
@@ -95,6 +187,9 @@ export function buildAiIntakeWorkshopSummary(
     clarificationNotes: (intake?.clarificationNotes ?? []).map((n) =>
       sanitizePlainText(n, 200)
     ),
+    aiSummary,
+    intent,
+    preferredBookingTime,
     callbackAvailability: sanitizePlainText(
       draft.callbackWindow ?? mechanic?.callbackWindow,
       120
@@ -117,5 +212,7 @@ export function buildAiIntakeWorkshopSummary(
     transcript: [...session.messages],
     chatSessionId: session.id,
     preparedAt: new Date().toISOString(),
+    partial,
+    missingFields,
   };
 }

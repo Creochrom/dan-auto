@@ -3,6 +3,9 @@
  */
 
 import type { IntakeState, MechanicIntakeSummary, SuggestionChip } from "@/lib/types/intake";
+import type { AdvisorEngine } from "@/lib/config/advisor";
+import type { StructuredIntake } from "@/lib/types/structured-intake";
+import type { VehicleMemoryLookupResult } from "@/lib/types/vehicle-memory";
 
 export type ChatRole = "user" | "assistant" | "system";
 
@@ -58,11 +61,18 @@ export type ChatSession = {
   leadDraft?: LeadDraft;
   intakeState?: IntakeState;
   mechanicSummary?: MechanicIntakeSummary;
+  /** Gemini-maintained structured intake (parallel to legacy intakeState). */
+  structuredIntake?: StructuredIntake;
   bookingContext?: BookingChatContext;
   leadCaptured?: boolean;
   /** Set after workshop email successfully sent */
   intakeEmailedAt?: string;
   intakeEmailId?: string;
+  /**
+   * Cached result of the most recent registration lookup for this session.
+   * Carried across turns so we don't re-hit DVLA on every message.
+   */
+  vehicleMemory?: VehicleMemoryLookupResult;
   createdAt: string;
   updatedAt: string;
 };
@@ -95,4 +105,7 @@ export type ChatResponse = {
   intakeComplete?: boolean;
   /** True when intake email was already sent for this session */
   intakeEmailed?: boolean;
+  structuredIntake?: StructuredIntake;
+  /** Which engine produced this turn: gemini, rules, or unconfigured (missing API key). */
+  advisorEngine?: AdvisorEngine | "unconfigured";
 };

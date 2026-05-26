@@ -38,9 +38,19 @@ function normaliseLangTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/_/g, "-");
 }
 
-/** Initial hint from browser locale list */
+/** Initial hint from browser locale list.
+ *
+ * NOTE: Node 22+ defines a global `navigator` reflecting the host OS
+ * locale, so `typeof navigator === "undefined"` is no longer a reliable
+ * server check. Gate on `window` instead to ensure this only runs in a
+ * real browser; otherwise SSR can disagree with the client and corrupt
+ * React hydration (which freezes framer-motion `whileInView` sections
+ * at opacity:0).
+ */
 export function inferLayoutFromLanguages(): KeyboardLayoutHint {
-  if (typeof navigator === "undefined") return "en";
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return "en";
+  }
 
   const langs = [...(navigator.languages ?? []), navigator.language].filter(Boolean);
 

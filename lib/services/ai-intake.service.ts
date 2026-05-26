@@ -9,6 +9,7 @@ import {
 } from "@/lib/email/templates/ai-intake";
 import { chatRepository } from "@/lib/repositories/chat.repository";
 import { leadService } from "@/lib/services/lead.service";
+import { vehicleMemoryService } from "@/lib/services/vehicle-memory.service";
 import type { AiIntakeSubmitInput, AiIntakeSubmitResult } from "@/lib/types/ai-intake";
 import { isValidEmail, sanitizePlainText } from "@/lib/utils/sanitize";
 
@@ -26,22 +27,6 @@ export const aiIntakeService = {
       throw new Error("This intake was already sent to the workshop");
     }
 
-    const draft = session.leadDraft;
-    if (!draft?.name?.trim() || !draft?.phone?.trim()) {
-      throw new Error("Complete the service advisor conversation before submitting");
-    }
-
-    const intake = session.intakeState;
-    const ready =
-      intake?.phase === "complete" ||
-      intake?.leadCaptured ||
-      session.leadCaptured ||
-      Boolean(session.mechanicSummary);
-
-    if (!ready) {
-      throw new Error("Intake is not complete yet — finish the advisor conversation");
-    }
-
     if (input.customerEmail?.trim() && !isValidEmail(input.customerEmail.trim())) {
       throw new Error("Invalid email address");
     }
@@ -51,8 +36,22 @@ export const aiIntakeService = {
       customerEmail: input.customerEmail?.trim(),
     });
 
-    if (!summary.symptoms || summary.symptoms === "Not specified") {
-      throw new Error("Symptom description is required");
+    // Graceful partial-data policy: send the lead even if some fields are
+    // missing — the workshop would rather have an incomplete lead than no
+    // lead at all. We only refuse if there is truly nothing actionable
+    // (no contact at all AND no symptoms AND no transcript content).
+    const hasAnyContact =
+      summary.customerName !== "Not provided" ||
+      summary.customerPhone !== "Not provided" ||
+      Boolean(summary.customerEmail);
+    const hasAnyIssueContext =
+      Boolean(summary.symptoms && summary.symptoms !== "Not specified — see transcript") ||
+      summary.warningLights.length > 0 ||
+      summary.possibleCauses.length > 0 ||
+      summary.transcript.some((m) => m.role === "user");
+
+    if (!hasAnyContact && !hasAnyIssueContext) {
+      throw new Error("Nothing collected yet — finish the advisor conversation");
     }
 
     const subject = buildAiIntakeSubject(summary);
@@ -69,6 +68,15 @@ export const aiIntakeService = {
 
     chatRepository.markIntakeEmailed(sessionId, sent.id);
 
+    // Persist into vehicle memory so the next visit greets this customer
+    // as returning. Safe to call with partial data — the service no-ops
+    // on missing/invalid registration.
+    try {
+      vehicleMemoryService.recordIntake(summary);
+    } catch (err) {
+      console.warn("[ai-intake] vehicle memory persistence failed", err);
+    }
+
     if (!session.leadCaptured) {
       leadService.create({
         name: summary.customerName,
@@ -76,14 +84,25 @@ export const aiIntakeService = {
         registration: summary.registration,
         vehicleModel: summary.vehicle,
         problemDescription: summary.symptoms,
-        preferredDate: summary.callbackAvailability,
+        preferredDate: summary.preferredBookingTime ?? summary.callbackAvailability,
         source: "assistant",
         aiSummary: [
+          summary.aiSummary ? `Summary: ${summary.aiSummary}` : null,
           `Service: ${summary.serviceRequested}`,
-          `Causes: ${summary.possibleCauses.join("; ")}`,
+          summary.warningLights.length
+            ? `Warning lights: ${summary.warningLights.join(", ")}`
+            : null,
+          `Drivability: ${summary.drivability}`,
+          `Intent: ${summary.intent}`,
+          summary.possibleCauses.length
+            ? `Causes: ${summary.possibleCauses.join("; ")}`
+            : null,
           `Range: ${summary.estimatedRange ?? "—"}`,
           `Urgency: ${summary.urgency}`,
-        ].join("\n"),
+          summary.partial ? `Partial — missing: ${summary.missingFields.join(", ")}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
       });
       chatRepository.markLeadCaptured(sessionId);
     }
