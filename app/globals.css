@@ -1099,7 +1099,21 @@ body {
   min-height: min(100dvh, var(--hero-viewport-cap));
   max-height: min(100dvh, var(--hero-viewport-cap));
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
   background: #030303;
+}
+
+main {
+  position: relative;
+  z-index: var(--z-content);
+}
+
+main > section,
+main > div#members {
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .hero-landing .hero {

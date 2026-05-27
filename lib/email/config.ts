@@ -4,7 +4,11 @@ import { businessConfig } from "@/lib/config/business";
 /** Verified Resend sender — danautocentre.co.uk domain */
 export const DEFAULT_EMAIL_FROM = `${BRAND.shortName} <${businessConfig.email}>`;
 
-/** Workshop intake inbox — server env only */
+/**
+ * Workshop intake inbox — server env only.
+ * Gmail is fine while the domain is pending: set EMAIL_TO=you@gmail.com (receiving only).
+ * Sending still goes through Resend + verified EMAIL_FROM — see docs/EMAIL_SETUP.md.
+ */
 export function getIntakeEmailTo(): string {
   return (
     process.env.EMAIL_TO?.trim() ||

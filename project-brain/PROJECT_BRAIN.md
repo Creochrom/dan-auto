@@ -117,7 +117,7 @@ Never short-circuit this chain. No direct repository calls from a route. No dire
   - `ADVISOR_ENGINE` — set to `rules` to force the offline fallback.
   - `EMAIL_PROVIDER` — `resend` or `log`.
   - `EMAIL_PROVIDER_API_KEY` (or `RESEND_API_KEY`) — Resend key.
-  - `EMAIL_FROM`, `EMAIL_FROM_DISPLAY`, `INTAKE_EMAIL_TO`, `BOOKING_EMAIL_TO`.
+  - `EMAIL_FROM`, `EMAIL_TO` / `BOOKING_EMAIL_TO` (Gmail inbox OK until domain verified), `RESEND_API_KEY`. See `docs/EMAIL_SETUP.md` and `GET /api/health/email`.
   - `NEXT_PUBLIC_WHATSAPP_MOBILE`.
   - `EMAIL_LOG_FULL` — dev only.
 - Build: `npm run build`. Local dev: `npm run dev`. Lint: `npm run lint`.

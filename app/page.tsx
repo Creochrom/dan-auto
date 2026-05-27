@@ -58,6 +58,10 @@ import {
 import { useRememberedCustomer } from "@/lib/booking-customer-memory";
 import { mockVehicleLookup, SCAN_STEPS } from "@/lib/vehicle-data";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
+import {
+  HomeRenderProbe,
+  installHomeDebugListeners,
+} from "@/components/debug/HomeRenderProbe";
 
 /* ─────────────────────────── Data ─────────────────────────── */
 
@@ -284,6 +288,7 @@ export default function Home() {
 
   useEffect(() => {
     setIsVipMember(readMemberStatus());
+    installHomeDebugListeners();
   }, []);
 
   const [quoteReg, setQuoteReg] = useState("");
@@ -448,6 +453,7 @@ export default function Home() {
       <SiteHeader phone={PHONE} phoneHref={PHONE_HREF} />
 
       <main>
+        <HomeRenderProbe marker="main-start" />
         <PremiumHero
           badge="SOUTHAMPTON'S TRUSTED CAR SPECIALISTS"
           experience={BUSINESS.experience}
@@ -474,9 +480,11 @@ export default function Home() {
           onBookInspection={onHeroBookInspection}
           onMembershipNote={openAccountSignup}
         />
+        <HomeRenderProbe marker="after-hero" />
 
         {/* ── Services ── */}
         <section id="services" className="section-deep relative scroll-mt-nav py-24 sm:py-32">
+          <HomeRenderProbe marker="services-start" />
           <SectionGlow position="top" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <motion.div
