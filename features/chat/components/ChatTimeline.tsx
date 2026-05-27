@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ChatMessageBubble } from "@/features/chat/components/ChatMessageBubble";
-import { ChatQuickReplies } from "@/features/chat/components/ChatQuickReplies";
 import { ChatTypingIndicator } from "@/features/chat/components/ChatTypingIndicator";
 import type { AdvisorChatTheme } from "@/features/chat/hooks/useAdvisorChat";
 import type { ChatMessage } from "@/lib/types/chat";
@@ -13,64 +12,76 @@ type Props = {
   messages: ChatMessage[];
   isTyping: boolean;
   typingLabel?: string | null;
-  suggestionChips: SuggestionChip[];
   onQuickReply?: (chip: SuggestionChip) => void;
   error?: string | null;
   theme?: AdvisorChatTheme;
   quickRepliesDisabled?: boolean;
   className?: string;
+  /** Mode selection hub only — shown when there are no messages yet. */
+  intro?: ReactNode;
+  footer?: ReactNode;
 };
 
 export function ChatTimeline({
   messages,
   isTyping,
   typingLabel,
-  suggestionChips,
   onQuickReply,
   error,
   theme = "gold",
   quickRepliesDisabled,
   className = "",
+  intro,
+  footer,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  let lastAssistantIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]!.role === "assistant") {
+      lastAssistantIdx = i;
+      break;
+    }
+  }
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, isTyping, suggestionChips]);
+  }, [messages, isTyping, footer]);
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
       <div
         ref={scrollRef}
-        className="chat-timeline min-h-0 flex-1 overflow-y-auto px-3.5 py-4 sm:px-4"
+        className="chat-timeline min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-3.5"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
       >
-        <div className="flex flex-col gap-3 sm:gap-3.5">
-          {messages.map((msg) => (
-            <div key={msg.id} className="flex flex-col gap-2">
-              <ChatMessageBubble message={msg} theme={theme} />
-              {msg.role === "assistant" && msg.chipsSnapshot && msg.chipsSnapshot.length > 0 && (
-                <div className="pl-1">
-                  <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
-                    Suggested
-                  </p>
-                  <ChatQuickReplies
-                    chips={msg.chipsSnapshot}
-                    theme={theme}
-                    variant="history"
-                  />
-                </div>
-              )}
-            </div>
-          ))}
+        <div className="flex flex-col gap-2.5">
+          {messages.length === 0 && intro && <div className="pb-0.5">{intro}</div>}
+
+          {messages.map((msg, i) => {
+            const showChips =
+              !isTyping &&
+              msg.role === "assistant" &&
+              i === lastAssistantIdx &&
+              Boolean(msg.chipsSnapshot?.length);
+
+            return (
+              <ChatMessageBubble
+                key={msg.id}
+                message={msg}
+                theme={theme}
+                showInlineChips={showChips}
+                inlineChipsDisabled={quickRepliesDisabled}
+                onInlineChipSelect={onQuickReply}
+              />
+            );
+          })}
 
           <AnimatePresence>
-            {isTyping && (
-              <ChatTypingIndicator label={typingLabel} theme={theme} />
-            )}
+            {isTyping && <ChatTypingIndicator label={typingLabel} theme={theme} />}
           </AnimatePresence>
 
           <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
@@ -83,19 +94,9 @@ export function ChatTimeline({
         )}
       </div>
 
-      {!isTyping && suggestionChips.length > 0 && (
-        <div className="chat-quick-replies border-t border-white/[0.05] px-3.5 py-2.5 sm:px-4">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-600">
-            Quick replies
-          </p>
-          <ChatQuickReplies
-            chips={suggestionChips}
-            onSelect={onQuickReply}
-            disabled={quickRepliesDisabled}
-            theme={theme}
-          />
-        </div>
-      )}
+      {footer ? (
+        <div className="shrink-0 border-t border-white/[0.06] px-3 py-2 sm:px-3.5">{footer}</div>
+      ) : null}
     </div>
   );
 }

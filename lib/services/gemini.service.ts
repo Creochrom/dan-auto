@@ -2,6 +2,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { isGeminiConfigured } from "@/lib/config/advisor";
 import { buildSystemPrompt } from "@/ai/prompts/systemPrompt";
 import { advisorIntro } from "@/lib/config/brand";
+import { formatAdvisorRouteForPrompt } from "@/lib/services/advisor-routing-prompt";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import {
   bookingContextLine,
   isStructuredIntakeReadyForHandoff,
@@ -51,7 +53,7 @@ type GeminiTurnPayload = {
 const JSON_INSTRUCTION = `
 You must respond with a single JSON object (no markdown fences) matching this shape:
 {
-  "assistantMessage": "string — conversational reply, one focused question or step",
+  "assistantMessage": "string — concise customer reply (max 1 short sentence), one focused question or step",
   "suggestionChips": [{"id":"unique","label":"short button text","message":"natural reply sent if tapped"}],
   "structuredIntake": {
     "customer": { "name": "", "contact": "" },
@@ -86,7 +88,8 @@ Rules for structuredIntake (this is the workshop's handoff record — populate d
 - "aiEstimate.estimatedPriceRange": a rough non-binding UK GBP range ("£80–£350 indicative") when you have enough context, else empty.
 - "aiEstimate.possibleCauses": cautious language only ("may indicate", "could point to"), never definitive diagnosis.
 - "aiEstimate.recommendedNextStep": short action ("Bring in for diagnostic scan", "Avoid driving — request recovery", "Routine service check").
-- "aiEstimate.summary": 1–2 sentence neutral narrative written FOR THE MECHANIC (not the customer) — the workshop reads this first. Example: "Customer reports knocking sound from front left when braking at low speed on 2018 BMW 320d. No warning lights, car drives safely. Likely brake hardware — recommend inspection of pads/discs and caliper guides."
+- "aiEstimate.summary": concise mechanic-friendly handoff (max ~4 short lines worth): customer concern, symptoms, urgency, warning lights, likely area, media noted, estimate discussed, intent. NOT a transcript.
+- "media": array of short notes when customer attached or described uploads (e.g. "Photo of engine warning light", "Short video of suspension knock"). Empty if none.
 - "intent": classify the customer's goal:
     "book"       — wants a workshop visit / slot scheduled
     "callback"   — wants a mechanic to phone them back
@@ -96,8 +99,13 @@ Rules for structuredIntake (this is the workshop's handoff record — populate d
 - "preferredBookingTime": free-text the customer named ("Tomorrow afternoon", "Sat morning", "ASAP", "Anytime this week"). Empty if not stated.
 
 Conversation rules:
-- Ask at most one main question per turn.
-- Set "intakeComplete": true once you have name + phone/email + vehicle (make/model OR registration) + a clear symptom AND have offered a workshop handoff. Partial info is fine for an early callback — set intakeComplete true even if some non-critical fields are blank, as long as the workshop has enough to act on.
+- Never introduce yourself as AI/Gemini or explain technology. Workshop static intro already set context.
+- Ask at most one main question per turn. Use INFO: for context; MAIN QUESTION: or QUESTION: for the follow-up.
+- For safety guidance use WARNING:; indicative ranges use ESTIMATE:; clear actions use NEXT STEP:
+- Request photo/video/audio uploads only when helpful (warning light, leak, smoke, noise clip) — not every turn.
+- Keep assistantMessage short: prefer 1 short sentence. If suggestionChips are present, keep it <= 80 characters when possible.
+- Do not use markdown ** in assistantMessage — use these prefixes for emphasis instead.
+- Set "intakeComplete": true ONLY when HANDOFF_POLICY allows it AND the customer has explicitly agreed to workshop handoff with name + phone on file. For HANDOFF_POLICY explicit_only, keep intakeComplete false until the UI callback form is submitted — never mark complete from chat text alone.
 - If safety may be affected (brakes, overheating, flashing EML), tell the customer to avoid driving in assistantMessage and set urgencyLevel="high".
 
 VEHICLE_PROFILE & RETURNING_CUSTOMER (when present in the user turn):
@@ -300,15 +308,21 @@ function buildTurnContext(
     bookingContext?: BookingChatContext;
     leadDraft?: LeadDraft;
     vehicleMemory?: VehicleMemoryLookupResult;
+    advisorRoute?: AdvisorRouteContext;
   }
 ): string {
   const memoryLines = params.vehicleMemory
     ? buildVehicleMemoryBlock(params.vehicleMemory)
     : [];
 
+  const routeBlock = formatAdvisorRouteForPrompt(params.advisorRoute, {
+    isInit: params.isInit,
+  });
+
   const lines = [
     `CURRENT_INTAKE: ${JSON.stringify(currentIntake)}`,
     bookingContextLine(params.bookingContext),
+    routeBlock,
     ...memoryLines,
     params.registrationHint && !params.vehicleMemory?.regDisplay
       ? `Registration hint: ${params.registrationHint}`
@@ -318,20 +332,21 @@ function buildTurnContext(
       : "",
   ].filter(Boolean);
 
-  if (params.isInit) {
+  const isHeroInit =
+    params.isInit &&
+    (params.advisorRoute?.surface === "hero_ai_assistant" ||
+      params.advisorRoute?.entry_point === "hero_ai_assistant");
+
+  if (params.isInit && !isHeroInit) {
     const returningHint =
       params.vehicleMemory?.returning && params.vehicleMemory.customer?.name
-        ? ` This is a RETURNING customer — greet them by first name and reference their ${
-            params.vehicleMemory.vehicle
-              ? `${[params.vehicleMemory.vehicle.year, params.vehicleMemory.vehicle.make, params.vehicleMemory.vehicle.model].filter(Boolean).join(" ")}`
-              : "vehicle"
-          } warmly, then ask what's brought them in today.`
+        ? ` RETURNING customer — greet by first name, reference their vehicle briefly, then one question about today's issue.`
         : params.vehicleMemory?.vehicle?.make
-          ? ` The customer's plate is on file — open by acknowledging their ${[params.vehicleMemory.vehicle.year, params.vehicleMemory.vehicle.make, params.vehicleMemory.vehicle.model].filter(Boolean).join(" ")} and asking what issue they're having (do NOT ask what vehicle they have).`
+          ? ` Plate on file — acknowledge their ${[params.vehicleMemory.vehicle.year, params.vehicleMemory.vehicle.make, params.vehicleMemory.vehicle.model].filter(Boolean).join(" ")} and ask what they need (do NOT ask make/model).`
           : "";
 
     lines.unshift(
-      `Session start. Greet briefly in the style of: "${advisorIntro}"${returningHint || " then ask about their vehicle issue."}`
+      `Session start. Greet briefly: "${advisorIntro(Boolean(params.bookingContext))}"${returningHint || " Then one focused question."}`
     );
   }
 
@@ -349,6 +364,7 @@ export async function runGeminiAdvisorTurn(params: {
   leadDraft?: LeadDraft;
   registrationHint?: string;
   bookingContext?: BookingChatContext;
+  advisorRoute?: AdvisorRouteContext;
   vehicleMemory?: VehicleMemoryLookupResult;
 }): Promise<AdvisorTurnResult> {
   if (!isGeminiConfigured()) {
@@ -369,7 +385,14 @@ export async function runGeminiAdvisorTurn(params: {
   });
 
   const history = toGeminiHistory(params.messages);
-  const context = buildTurnContext(currentIntake, params);
+  const context = buildTurnContext(currentIntake, {
+    isInit: params.isInit,
+    registrationHint: params.registrationHint,
+    bookingContext: params.bookingContext,
+    leadDraft: params.leadDraft,
+    vehicleMemory: params.vehicleMemory,
+    advisorRoute: params.advisorRoute,
+  });
 
   const last = params.messages[params.messages.length - 1];
   const userAlreadyInHistory =
@@ -388,8 +411,13 @@ export async function runGeminiAdvisorTurn(params: {
   const payload = parseGeminiJson(result.response.text());
   const structuredIntake = mergeStructuredIntake(currentIntake, payload.structuredIntake);
 
-  const intakeComplete =
-    payload.intakeComplete === true || isStructuredIntakeReadyForHandoff(structuredIntake);
+  const explicitHandoffOnly =
+    params.advisorRoute?.handoff_policy === "explicit_only";
+
+  const intakeComplete = explicitHandoffOnly
+    ? payload.intakeComplete === true
+    : payload.intakeComplete === true ||
+      isStructuredIntakeReadyForHandoff(structuredIntake);
 
   const leadDraft = structuredIntakeToLeadDraft(structuredIntake, {
     ...params.leadDraft,
@@ -403,6 +431,19 @@ export async function runGeminiAdvisorTurn(params: {
 
   const intakeState = structuredIntakeToIntakeState(structuredIntake, intakeComplete);
 
+  const callbackMode = params.advisorRoute?.concierge_mode === "callback";
+  const hasCallbackIssue =
+    structuredIntake.issue.symptoms.length > 0 ||
+    Boolean(structuredIntake.aiEstimate.summary?.trim()) ||
+    Boolean(leadDraft.problemDescription?.trim());
+  const callbackReady =
+    callbackMode &&
+    (structuredIntake.intent === "callback" || payload.intakeComplete === true) &&
+    Boolean(leadDraft.name?.trim()) &&
+    Boolean(leadDraft.phone?.trim()) &&
+    hasCallbackIssue &&
+    (payload.intakeComplete === true || Boolean(structuredIntake.preferredBookingTime?.trim()));
+
   return {
     content: payload.assistantMessage.trim(),
     suggestionChips: normalizeChips(payload.suggestionChips, payload.quickReplies),
@@ -411,7 +452,11 @@ export async function runGeminiAdvisorTurn(params: {
     leadDraft,
     mechanicSummary,
     intakeComplete,
-    shouldCaptureLead: intakeComplete && Boolean(leadDraft.name && leadDraft.phone),
+    callbackReady,
+    shouldCaptureLead:
+      !explicitHandoffOnly &&
+      intakeComplete &&
+      Boolean(leadDraft.name && leadDraft.phone),
     structuredIntake,
   };
 }

@@ -402,6 +402,7 @@ export type AdvisorTurnResult = {
   shouldCaptureLead?: boolean;
   skipUserMessage?: boolean;
   intakeComplete?: boolean;
+  callbackReady?: boolean;
 };
 
 export function runServiceAdvisorTurn(params: {

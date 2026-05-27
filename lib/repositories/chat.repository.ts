@@ -1,4 +1,5 @@
 import { mockStore } from "@/lib/repositories/mock-store";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type { BookingChatContext, ChatMessage, ChatSession } from "@/lib/types/chat";
 import type { IntakeState, MechanicIntakeSummary } from "@/lib/types/intake";
 import type { StructuredIntake } from "@/lib/types/structured-intake";
@@ -15,7 +16,10 @@ export const chatRepository = {
 
   create(
     initial?: Partial<
-      Pick<ChatSession, "intakeState" | "leadDraft" | "bookingContext" | "structuredIntake">
+      Pick<
+        ChatSession,
+        "intakeState" | "leadDraft" | "bookingContext" | "advisorRoute" | "structuredIntake"
+      >
     >
   ): ChatSession {
     const now = new Date().toISOString();
@@ -25,6 +29,7 @@ export const chatRepository = {
       intakeState: initial?.intakeState,
       leadDraft: initial?.leadDraft,
       bookingContext: initial?.bookingContext,
+      advisorRoute: initial?.advisorRoute,
       structuredIntake: initial?.structuredIntake,
       createdAt: now,
       updatedAt: now,
@@ -87,6 +92,13 @@ export const chatRepository = {
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.bookingContext = ctx;
+    session.updatedAt = new Date().toISOString();
+  },
+
+  updateAdvisorRoute(sessionId: string, route: AdvisorRouteContext): void {
+    const session = mockStore.chatSessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    session.advisorRoute = route;
     session.updatedAt = new Date().toISOString();
   },
 

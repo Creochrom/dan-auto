@@ -3,8 +3,16 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bot, Loader2, Send, Sparkles, X } from "lucide-react";
+import { AdvisorWorkshopIntro } from "@/features/chat/components/AdvisorWorkshopIntro";
 import { ChatTimeline } from "@/features/chat/components/ChatTimeline";
 import { IntakeMediaUpload } from "@/features/booking/components/IntakeMediaUpload";
+import {
+  BOOKING_INTRO_BODY,
+  BOOKING_INTRO_PROMPT,
+  BOOKING_INTRO_TITLE,
+  BOOKING_QUICK_START_ACTIONS,
+  type QuickStartAction,
+} from "@/lib/config/advisor-copy";
 import { useBookingIntakeChat } from "@/features/booking/hooks/useBookingIntakeChat";
 import { useMediaUpload } from "@/features/booking/hooks/useMediaUpload";
 import { completeBookingIntake } from "@/lib/api/client";
@@ -28,6 +36,7 @@ export function BookingIntakeModal({
   onSubmitted,
 }: Props) {
   const [draft, setDraft] = useState("");
+  const [selectedQuickStart, setSelectedQuickStart] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -41,6 +50,15 @@ export function BookingIntakeModal({
     if (open) void chat.bootstrap();
   }, [open, chat.bootstrap]);
 
+  const handleQuickStart = (action: QuickStartAction) => {
+    setSelectedQuickStart(action.id);
+    void chat.send(action.message, {
+      displayContent: action.label,
+      source: "quick_reply",
+      registration: registrationHint,
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
@@ -48,6 +66,18 @@ export function BookingIntakeModal({
     setDraft("");
     void chat.send(text, { registration: registrationHint });
   };
+
+  const bookingIntro = (
+    <AdvisorWorkshopIntro
+      title={BOOKING_INTRO_TITLE}
+      body={BOOKING_INTRO_BODY}
+      prompt={BOOKING_INTRO_PROMPT}
+      actions={BOOKING_QUICK_START_ACTIONS}
+      selectedActionId={chat.messages.length === 0 ? selectedQuickStart : null}
+      onSelectAction={handleQuickStart}
+      disabled={chat.isTyping || submitting}
+    />
+  );
 
   const finalize = async () => {
     if (!chat.sessionId || !chat.intakeComplete) return;
@@ -122,13 +152,13 @@ export function BookingIntakeModal({
                   messages={chat.messages}
                   isTyping={chat.isTyping}
                   typingLabel={chat.typingLabel}
-                  suggestionChips={chat.suggestionChips}
                   onQuickReply={(chip) =>
                     chat.sendQuickReply(chip, registrationHint)
                   }
                   error={chat.error}
                   theme="cyan"
                   quickRepliesDisabled={chat.isTyping || submitting}
+                  intro={bookingIntro}
                 />
 
                 <form

@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       registration: body.registration,
       init: isInit,
       bookingContext: body.bookingContext,
+      advisorRoute: body.advisorRoute,
     });
 
     return jsonOk(result);

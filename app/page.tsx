@@ -648,7 +648,17 @@ export default function Home() {
 
         <MotSection
           onBookMot={() => scrollToBooking("MOT")}
-          onAskAdvisor={openAssistant}
+          onAskAdvisor={() =>
+            openAssistant({
+              registration: bookReg || heroVehicle?.reg,
+              conciergeMode: "booking",
+              advisorRoute: {
+                entry_point: "mot_section",
+                intent: "booking",
+                surface: "mot_help",
+              },
+            })
+          }
         />
 
         {/* ── Diagnostics ── */}
@@ -668,14 +678,34 @@ export default function Home() {
                     . With {BUSINESS.experience} years of experience, we diagnose faults on
                     all makes — warning lights to complex engine and emissions issues.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => scrollToBooking("Diagnostics")}
-                    className="btn-glow mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-black"
-                  >
-                    Book diagnostics
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => scrollToBooking("Diagnostics")}
+                      className="btn-glow inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-black"
+                    >
+                      Book diagnostics
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openAssistant({
+                          registration: bookReg || heroVehicle?.reg,
+                          conciergeMode: "diagnostic",
+                          advisorRoute: {
+                            entry_point: "diagnostics_section",
+                            intent: "diagnostic_help",
+                            surface: "warning_light_help",
+                          },
+                        })
+                      }
+                      className="inline-flex items-center gap-2 rounded-full border border-[#d4a63c]/35 bg-[#d4a63c]/8 px-6 py-3 text-sm font-semibold text-[#e8d5a3] transition hover:border-[#d4a63c]/55 hover:bg-[#d4a63c]/12"
+                    >
+                      <Bot className="h-4 w-4" />
+                      Ask about a warning light
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-col justify-center p-8 sm:p-12">
                   <ul className="space-y-4 text-sm text-zinc-300">
@@ -720,7 +750,16 @@ export default function Home() {
         </section>
 
         <AdvisorSection
-          onOpenAdvisor={openAssistant}
+          onOpenAdvisor={() =>
+            openAssistant({
+              registration: bookReg || heroVehicle?.reg,
+              advisorRoute: {
+                entry_point: "advisor_section",
+                intent: "diagnostic_help",
+                surface: "hero_ai_assistant",
+              },
+            })
+          }
           onBook={() => scrollToBooking()}
         />
 

@@ -1,4 +1,5 @@
-import { BRAND } from "@/lib/config/brand";
+import { CALLBACK_SUBMIT_SUCCESS } from "@/lib/config/callback-flow-copy";
+import { WORKSHOP_SUBMIT_SUCCESS } from "@/lib/config/hero-concierge-copy";
 import { buildAiIntakeWorkshopSummary } from "@/lib/email/build-ai-intake-summary";
 import { getIntakeEmailTo } from "@/lib/email/config";
 import { sendTransactionalEmail } from "@/lib/email/send-transactional";
@@ -12,8 +13,6 @@ import { leadService } from "@/lib/services/lead.service";
 import { vehicleMemoryService } from "@/lib/services/vehicle-memory.service";
 import type { AiIntakeSubmitInput, AiIntakeSubmitResult } from "@/lib/types/ai-intake";
 import { isValidEmail, sanitizePlainText } from "@/lib/utils/sanitize";
-
-const CONFIRMATION_MESSAGE = `Perfect — I've prepared your workshop intake and sent it to the ${BRAND.shortName} team. A mechanic will review the information and contact you shortly.`;
 
 export const aiIntakeService = {
   async submit(input: AiIntakeSubmitInput): Promise<AiIntakeSubmitResult> {
@@ -31,7 +30,33 @@ export const aiIntakeService = {
       throw new Error("Invalid email address");
     }
 
-    const summary = buildAiIntakeWorkshopSummary(session, {
+    const name = input.customerName?.trim();
+    const phone = input.customerPhone?.trim();
+    if (name || phone) {
+      chatRepository.updateLeadDraft(sessionId, {
+        ...(session.leadDraft ?? {}),
+        ...(name ? { name } : {}),
+        ...(phone ? { phone } : {}),
+        ...(input.preferredCallbackTime?.trim()
+          ? { callbackWindow: input.preferredCallbackTime.trim() }
+          : {}),
+      });
+      if (session.structuredIntake && name) {
+        chatRepository.updateStructuredIntake(sessionId, {
+          ...session.structuredIntake,
+          customer: {
+            ...session.structuredIntake.customer,
+            name,
+            contact: phone ?? session.structuredIntake.customer.contact,
+          },
+          intent: session.structuredIntake.intent || "callback",
+        });
+      }
+    }
+
+    const refreshed = chatRepository.findById(sessionId) ?? session;
+
+    const summary = buildAiIntakeWorkshopSummary(refreshed, {
       uploadIds: input.uploadIds,
       customerEmail: input.customerEmail?.trim(),
     });
@@ -107,9 +132,12 @@ export const aiIntakeService = {
       chatRepository.markLeadCaptured(sessionId);
     }
 
+    const confirmationMessage =
+      summary.intent === "callback" ? CALLBACK_SUBMIT_SUCCESS : WORKSHOP_SUBMIT_SUCCESS;
+
     return {
       emailId: sent.id,
-      confirmationMessage: CONFIRMATION_MESSAGE,
+      confirmationMessage,
       summary,
     };
   },

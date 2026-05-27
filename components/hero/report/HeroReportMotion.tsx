@@ -10,5 +10,9 @@ type Props = {
 };
 
 export function HeroReportMotion({ children, className = "" }: Props) {
-  return <div className={className}>{children}</div>;
+  return (
+    <div className={`hero-report-motion-host ${className}`.trim()}>
+      {children}
+    </div>
+  );
 }

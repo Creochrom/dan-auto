@@ -4,6 +4,7 @@
 
 import type { IntakeState, MechanicIntakeSummary, SuggestionChip } from "@/lib/types/intake";
 import type { AdvisorEngine } from "@/lib/config/advisor";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type { StructuredIntake } from "@/lib/types/structured-intake";
 import type { VehicleMemoryLookupResult } from "@/lib/types/vehicle-memory";
 
@@ -64,6 +65,7 @@ export type ChatSession = {
   /** Gemini-maintained structured intake (parallel to legacy intakeState). */
   structuredIntake?: StructuredIntake;
   bookingContext?: BookingChatContext;
+  advisorRoute?: AdvisorRouteContext;
   leadCaptured?: boolean;
   /** Set after workshop email successfully sent */
   intakeEmailedAt?: string;
@@ -90,6 +92,7 @@ export type ChatRequest = {
   registration?: string;
   init?: boolean;
   bookingContext?: BookingChatContext;
+  advisorRoute?: AdvisorRouteContext;
 };
 
 export type ChatResponse = {
@@ -108,4 +111,6 @@ export type ChatResponse = {
   structuredIntake?: StructuredIntake;
   /** Which engine produced this turn: gemini, rules, or unconfigured (missing API key). */
   advisorEngine?: AdvisorEngine | "unconfigured";
+  /** Hero callback flow — client may submit workshop handoff when true. */
+  callbackReady?: boolean;
 };

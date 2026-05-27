@@ -1,272 +1,549 @@
 "use client";
 
-import { useCallback, useRef, useState, type RefObject } from "react";
 import {
-  Bot,
-  FileImage,
-  Film,
-  Send,
-  Upload,
-} from "lucide-react";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { ImagePlus, Send, X } from "lucide-react";
 import type { VehicleResult } from "@/lib/types/vehicle";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
+import type { HeroConciergeMode } from "@/lib/types/hero-concierge";
+import type { HeroIntentCard } from "@/lib/types/hero-concierge";
 import { HeroFloatingWindow } from "@/components/hero/HeroFloatingWindow";
+import { ChatTimeline } from "@/features/chat/components/ChatTimeline";
+import { useAdvisorChat } from "@/features/chat/hooks/useAdvisorChat";
+import { useMediaUpload } from "@/features/booking/hooks/useMediaUpload";
+import { AdvisorConciergeHub } from "@/features/chat/components/AdvisorConciergeHub";
+import { AdvisorCallbackStatus } from "@/features/chat/components/AdvisorCallbackStatus";
+import { HERO_INTENT_CARDS } from "@/lib/config/hero-concierge-copy";
+import {
+  getModeConversationStart,
+  getSafeToDriveConversationStart,
+} from "@/lib/config/concierge-mode-intros";
+import { CALLBACK_CONFIRM_CHIP_ID } from "@/lib/config/callback-flow-copy";
+import {
+  looksLikePhoneInput,
+  parseUkPhone,
+  UK_PHONE_CONFIRMED_PREFIX,
+  UK_PHONE_INVALID_HINT,
+} from "@/lib/validation/uk-phone";
+import { vehicleSnapshotFromLegacy } from "@/lib/services/advisor-routing-prompt";
+import { stripPlate } from "@/lib/format-plate";
+import type { SuggestionChip } from "@/lib/types/intake";
+import {
+  legacyRightPosition,
+  type HeroWindowPosition,
+} from "@/lib/hero-window-position";
 
-type UploadedFile = {
-  id: string;
-  file: File;
-  url: string;
-  kind: "image" | "video";
-};
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-};
+const CUSTOMER_NAME_KEY = "dan-auto-advisor-customer-name";
 
 type Props = {
   vehicle: VehicleResult;
   open: boolean;
-  minimized: boolean;
-  stackDepth: number;
+  stackDepth?: number;
   entranceDelay?: number;
-  focusBoost?: number;
   dragConstraints?: RefObject<HTMLElement | null>;
-  defaultPosition?: { x: number; y: number };
-  onMinimize: () => void;
-  onRestore: () => void;
+  defaultPosition?: HeroWindowPosition;
   onClose: () => void;
   onActivate?: () => void;
+  /** Bumped when opened from elsewhere on the page — starts a fresh concierge flow. */
+  launchId?: number;
+  initialMode?: HeroConciergeMode;
+  routeOverride?: AdvisorRouteContext | null;
 };
+
+function routeForMode(
+  vehicle: VehicleResult,
+  mode: HeroConciergeMode
+): AdvisorRouteContext {
+  const base = {
+    entry_point: "hero_ai_assistant" as const,
+    surface: "hero_ai_assistant" as const,
+    handoff_policy: "explicit_only" as const,
+    vehicle_data: vehicleSnapshotFromLegacy({
+      reg: vehicle.reg,
+      makeModel: vehicle.makeModel,
+      meta: vehicle.meta,
+    }),
+    concierge_mode: mode === "hub" ? undefined : mode,
+  };
+
+  switch (mode) {
+    case "pricing":
+      return { ...base, intent: "general", concierge_mode: "pricing" };
+    case "callback":
+      return { ...base, intent: "general", concierge_mode: "callback" };
+    case "booking":
+      return { ...base, intent: "booking", concierge_mode: "booking" };
+    case "quick_question":
+      return { ...base, intent: "general", concierge_mode: "quick_question" };
+    case "diagnostic":
+    default:
+      return { ...base, intent: "diagnostic_help", concierge_mode: "diagnostic" };
+  }
+}
+
+function mapExternalRoute(
+  vehicle: VehicleResult,
+  override?: AdvisorRouteContext | null,
+  mode?: HeroConciergeMode
+): AdvisorRouteContext {
+  if (override) {
+    return {
+      handoff_policy: "explicit_only",
+      ...override,
+      vehicle_data:
+        override.vehicle_data ??
+        vehicleSnapshotFromLegacy({
+          reg: vehicle.reg,
+          makeModel: vehicle.makeModel,
+          meta: vehicle.meta,
+        }),
+    };
+  }
+  return routeForMode(vehicle, mode ?? "hub");
+}
 
 export function HeroAIChatModal({
   vehicle,
   open,
-  minimized,
-  stackDepth,
+  stackDepth = 2,
   entranceDelay = 0,
-  focusBoost = 0,
   dragConstraints,
-  defaultPosition,
-  onMinimize,
-  onRestore,
+  defaultPosition = legacyRightPosition({ x: 20, y: 88 }),
   onClose,
   onActivate,
+  launchId = 0,
+  initialMode,
+  routeOverride,
 }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [isSending, setIsSending] = useState(false);
-  const [estimateLine, setEstimateLine] = useState<string | null>(null);
+  const [conciergeMode, setConciergeMode] = useState<HeroConciergeMode>("hub");
+  const [selectedIntentId, setSelectedIntentId] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [rememberedName, setRememberedName] = useState("");
+  const [welcomeBack, setWelcomeBack] = useState(false);
 
-  const addFiles = useCallback((list: FileList | null) => {
-    if (!list?.length) return;
-    const next: UploadedFile[] = [];
-    Array.from(list).forEach((file) => {
-      const kind = file.type.startsWith("video/") ? "video" : "image";
-      next.push({
-        id: `${file.name}-${file.lastModified}`,
-        file,
-        url: URL.createObjectURL(file),
-        kind,
-      });
-    });
-    setFiles((prev) => [...prev, ...next].slice(0, 6));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastLaunchId = useRef(launchId);
+
+  const regCanon = stripPlate(vehicle.reg);
+
+  const advisorRoute = useMemo(() => {
+    const base = mapExternalRoute(vehicle, routeOverride, conciergeMode);
+    if (selectedIntentId === "safe_to_drive") {
+      return { ...base, concierge_focus: "safe_to_drive" as const };
+    }
+    return base;
+  }, [vehicle, routeOverride, conciergeMode, selectedIntentId]);
+
+  const sessionKey = `dan-auto-hero-advisor-${regCanon || "unknown"}`;
+  const media = useMediaUpload();
+
+  const uploadsInProgress = media.items.some(
+    (i) => i.status === "uploading" || i.status === "pending"
+  );
+  const imageCount = media.items.length;
+  const latestImage = imageCount ? media.items[imageCount - 1] : null;
+
+  const {
+    messages,
+    isTyping,
+    typingLabel,
+    error,
+    send,
+    sendQuickReply,
+    bootstrap,
+    reset: resetChat,
+    submitWorkshopHandoff,
+    intakeSubmitState,
+    leadDraft,
+    callbackReady,
+    appendLocalAssistant,
+    appendAssistantWithChips,
+  } = useAdvisorChat({
+    sessionStorageKey: sessionKey,
+    enabled: open,
+    registrationHint: vehicle.reg,
+    advisorRoute,
+    uploadIds: media.uploadIds,
+    introMode: "workshop",
+    autoSubmitIntake: false,
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(CUSTOMER_NAME_KEY);
+    if (stored) setRememberedName(stored);
   }, []);
 
-  const removeFile = useCallback((id: string) => {
-    setFiles((prev) => {
-      const item = prev.find((f) => f.id === id);
-      if (item) URL.revokeObjectURL(item.url);
-      return prev.filter((f) => f.id !== id);
+  useEffect(() => {
+    if (open) void bootstrap();
+  }, [open, bootstrap]);
+
+  useEffect(() => {
+    if (galleryOpen && imageCount === 0) setGalleryOpen(false);
+  }, [galleryOpen, imageCount]);
+
+  const beginModeConversation = useCallback(
+    (card: HeroIntentCard) => {
+      setWelcomeBack(false);
+      setConciergeMode(card.mode);
+      setSelectedIntentId(card.id);
+
+      const start =
+        card.id === "safe_to_drive"
+          ? getSafeToDriveConversationStart(vehicle)
+          : getModeConversationStart(card.mode, vehicle);
+
+      appendAssistantWithChips(start.message, start.chips);
+    },
+    [vehicle, appendAssistantWithChips]
+  );
+
+  useEffect(() => {
+    if (launchId === lastLaunchId.current) return;
+    lastLaunchId.current = launchId;
+    if (!initialMode || initialMode === "hub") return;
+
+    const card =
+      routeOverride?.concierge_focus === "safe_to_drive"
+        ? HERO_INTENT_CARDS.find((c) => c.id === "safe_to_drive")
+        : HERO_INTENT_CARDS.find((c) => c.mode === initialMode);
+
+    if (card) beginModeConversation(card);
+  }, [launchId, initialMode, routeOverride?.concierge_focus, beginModeConversation]);
+
+  const resetConciergeUi = useCallback(() => {
+    setConciergeMode("hub");
+    setSelectedIntentId(null);
+    setDraft("");
+    setGalleryOpen(false);
+    setWelcomeBack(true);
+    media.clear();
+    resetChat();
+  }, [media, resetChat]);
+
+  const startIntent = useCallback(
+    (card: HeroIntentCard) => {
+      beginModeConversation(card);
+    },
+    [beginModeConversation]
+  );
+
+  const completeCallbackHandoff = useCallback(async () => {
+    const name = leadDraft.name?.trim();
+    const phone = leadDraft.phone?.trim();
+    if (!name || !phone) return false;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(CUSTOMER_NAME_KEY, name);
+    }
+    setRememberedName(name);
+
+    return submitWorkshopHandoff({
+      name,
+      phone,
+      preferredCallbackTime:
+        leadDraft.callbackWindow ?? leadDraft.preferredDate ?? undefined,
+      skipNotice: true,
     });
-  }, []);
+  }, [leadDraft, submitWorkshopHandoff]);
+
+  const handleQuickReply = useCallback(
+    (chip: SuggestionChip) => {
+      if (chip.id === CALLBACK_CONFIRM_CHIP_ID) {
+        void completeCallbackHandoff();
+        return;
+      }
+      if (chip.id === "escalate-callback") {
+        setConciergeMode("callback");
+        void send(chip.message, {
+          displayContent: chip.label,
+          source: "quick_reply",
+          registration: vehicle.reg,
+        });
+        return;
+      }
+      if (chip.id === "escalate-continue") {
+        void send(chip.message, {
+          displayContent: chip.label,
+          source: "quick_reply",
+          registration: vehicle.reg,
+        });
+        return;
+      }
+      sendQuickReply(chip, vehicle.reg);
+    },
+    [send, sendQuickReply, vehicle.reg, completeCallbackHandoff]
+  );
+
+  useEffect(() => {
+    if (conciergeMode !== "callback") return;
+    if (!callbackReady || intakeSubmitState === "sent" || intakeSubmitState === "sending") {
+      return;
+    }
+    void completeCallbackHandoff();
+  }, [
+    callbackReady,
+    conciergeMode,
+    intakeSubmitState,
+    completeCallbackHandoff,
+  ]);
 
   const handleSend = useCallback(() => {
     const text = draft.trim();
-    if (!text && files.length === 0) return;
-    if (isSending) return;
-
-    setIsSending(true);
-    setEstimateLine(null);
-    const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
-      role: "user",
-      text: text || "Uploaded media for analysis",
-    };
-    setMessages((m) => [...m, userMsg]);
+    if (!text || isTyping || uploadsInProgress) return;
     setDraft("");
 
-    window.setTimeout(() => {
-      const aiMsg: ChatMessage = {
-        id: `a-${Date.now()}`,
-        role: "assistant",
-        text: vehicle.unknown
-          ? "We could not match full DVLA data for this registration. Describe symptoms and our team will verify on inspection."
-          : "Based on the uploaded information, possible causes may include suspension wear, brake imbalance, or wheel alignment issues. A workshop inspection would confirm the exact fault.",
-      };
-      setMessages((m) => [...m, aiMsg]);
-      setEstimateLine(
-        vehicle.unknown
-          ? "Inspection quote from £95"
-          : `Estimated repair cost: £${vehicle.estimatedFrom}–£${vehicle.estimatedTo}`
-      );
-      setIsSending(false);
-    }, 1100);
-  }, [draft, files.length, isSending, vehicle]);
+    if (conciergeMode === "hub") {
+      setConciergeMode("quick_question");
+    }
+
+    if (conciergeMode === "callback" && looksLikePhoneInput(text)) {
+      const parsed = parseUkPhone(text);
+      if (!parsed.valid) {
+        appendLocalAssistant(UK_PHONE_INVALID_HINT);
+        return;
+      }
+      void send(`${UK_PHONE_CONFIRMED_PREFIX} ${parsed.national}.`, {
+        displayContent: parsed.display,
+        registration: vehicle.reg,
+      });
+      return;
+    }
+
+    void send(text, { registration: vehicle.reg });
+  }, [
+    draft,
+    isTyping,
+    send,
+    uploadsInProgress,
+    vehicle.reg,
+    conciergeMode,
+    appendLocalAssistant,
+  ]);
+
+  const showHub = messages.length === 0 && conciergeMode === "hub";
+
+  const intro = showHub ? (
+    <AdvisorConciergeHub
+      onSelectIntent={startIntent}
+      disabled={isTyping}
+      customerName={rememberedName}
+      isReturning={welcomeBack}
+    />
+  ) : null;
+
+  const composerPlaceholder =
+    selectedIntentId === "safe_to_drive"
+      ? "Describe what the vehicle is doing…"
+      : conciergeMode === "callback"
+        ? "Reply to the assistant…"
+        : conciergeMode === "booking"
+          ? "Service or MOT question…"
+          : conciergeMode === "pricing"
+            ? "Describe the repair or symptom…"
+            : conciergeMode === "quick_question"
+              ? "Your quick question…"
+              : "Describe the issue…";
+
+  const showCallbackSent = conciergeMode === "callback" && intakeSubmitState === "sent";
+
+  const openFilePicker = useCallback(() => {
+    if (isTyping) return;
+    fileInputRef.current?.click();
+  }, [isTyping]);
+
+  const galleryPosition: HeroWindowPosition = {
+    ...defaultPosition,
+    y: defaultPosition.y - 28,
+  };
+
+  const handleReset = useCallback(() => {
+    resetConciergeUi();
+  }, [resetConciergeUi]);
 
   if (!open) return null;
 
   return (
-    <HeroFloatingWindow
-      title="AI Vehicle Assistant"
-      windowId="chat"
-      stackDepth={stackDepth}
-      entranceDelay={entranceDelay}
-      focusBoost={focusBoost}
-      dragConstraints={dragConstraints}
-      defaultPosition={defaultPosition}
-      width={380}
-      minimized={minimized}
-      onMinimize={onMinimize}
-      onRestore={onRestore}
-      onClose={onClose}
-      onActivate={onActivate}
-      ariaLabel="AI Vehicle Assistant"
-    >
-      <div className="hero-modal-content flex flex-col gap-3">
-        <div className="shrink-0 border-b border-[#d4a63c]/12 pb-2.5">
-          <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 shrink-0 text-[#d4a63c]" aria-hidden />
-            <p className="text-[11px] text-zinc-400">
-              Describe your issue — attach photos or video for analysis.
-            </p>
-          </div>
-          <p className="mt-1 font-mono text-[10px] text-[#d4a63c]/75">{vehicle.reg}</p>
-        </div>
+    <>
+      <HeroFloatingWindow
+        title="24/7 Service Assistant"
+        windowId="chat"
+        chromeless
+        flatPanel
+        stackDepth={stackDepth}
+        entranceDelay={entranceDelay}
+        dragConstraints={dragConstraints}
+        defaultPosition={defaultPosition}
+        width={380}
+        onReset={handleReset}
+        onClose={onClose}
+        onActivate={onActivate}
+        ariaLabel="24/7 Service Assistant"
+      >
+        <div className="hero-advisor-chat flex min-h-[280px] max-h-[min(52vh,420px)] sm:max-h-[min(58vh,480px)] flex-col">
+          <header className="hero-advisor-chat__header flex shrink-0 items-center justify-between gap-3 px-3 py-1.5 sm:px-4">
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d4a63c]/90">
+              {vehicle.reg}
+            </span>
+            {!vehicle.unknown && (
+              <span className="min-w-0 truncate text-right text-[11px] font-medium text-zinc-400">
+                {vehicle.makeModel}
+              </span>
+            )}
+          </header>
 
-        <div className="flex flex-col gap-2.5">
-          <div className="hero-modal-chat-messages space-y-2 pr-1">
-            {messages.length === 0 && (
-              <p className="text-[12px] text-zinc-500">
-                Tell us what you are experiencing with your{" "}
-                {vehicle.unknown ? "vehicle" : vehicle.makeModel}.
-              </p>
-            )}
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`rounded-xl px-3 py-2 text-[12px] leading-relaxed ${
-                  msg.role === "user"
-                    ? "ml-6 bg-[#d4a63c]/12 text-[#f5e6b8]"
-                    : "mr-4 border border-white/[0.06] bg-black/50 text-zinc-200"
-                }`}
-              >
-                {msg.text}
-              </div>
-            ))}
-            {estimateLine && (
-              <p className="rounded-xl border border-[#d4a63c]/25 bg-[#d4a63c]/8 px-3 py-2 text-[12px] font-semibold text-[#d4a63c]">
-                {estimateLine}
-              </p>
-            )}
-            {isSending && (
-              <p className="text-[11px] text-[#d4a63c]/80">Analysing your message…</p>
-            )}
-          </div>
+          <ChatTimeline
+            messages={messages}
+            isTyping={isTyping}
+            typingLabel={typingLabel}
+            onQuickReply={handleQuickReply}
+            error={error}
+            theme="gold"
+            quickRepliesDisabled={isTyping || uploadsInProgress}
+            intro={intro}
+            className="min-h-0 flex-1"
+          />
 
-          <div
-            className="shrink-0 rounded-xl border border-dashed border-[#d4a63c]/28 bg-black/40 p-3"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              addFiles(e.dataTransfer.files);
-            }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d4a63c]/80">
-                Upload media
-              </p>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#d4a63c]/30 px-2 py-1 text-[10px] font-semibold text-[#d4a63c]"
-              >
-                <Upload className="h-3 w-3" aria-hidden />
-                Browse
-              </button>
-            </div>
+          <div className="hero-advisor-chat__composer shrink-0 border-t border-white/[0.06] px-3 pb-2.5 pt-2 sm:px-4">
+            <AdvisorCallbackStatus visible={showCallbackSent} />
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,video/*"
+              accept="image/*"
+              capture="environment"
               multiple
-              className="hidden"
+              className="sr-only"
+              disabled={isTyping}
               onChange={(e) => {
-                addFiles(e.target.files);
-                e.target.value = "";
+                void media.addFiles(e.target.files ?? []);
+                e.currentTarget.value = "";
               }}
             />
-            {files.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {files.map((f) => (
-                  <div key={f.id} className="relative">
-                    {f.kind === "image" ? (
-                      <img
-                        src={f.url}
-                        alt=""
-                        className="h-12 w-12 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-black/60">
-                        <Film className="h-4 w-4 text-[#d4a63c]" aria-hidden />
-                      </span>
-                    )}
+
+            <form
+              className="flex items-stretch gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+            >
+              <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-[#0a0a0a]/90 px-2 focus-within:border-[#d4a63c]/35 focus-within:ring-1 focus-within:ring-[#d4a63c]/20">
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {latestImage && imageCount > 0 ? (
                     <button
                       type="button"
-                      onClick={() => removeFile(f.id)}
-                      className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black text-[10px] text-white"
-                      aria-label="Remove file"
+                      className="relative h-8 w-8 overflow-hidden rounded-md border border-white/[0.08] bg-black/40 transition hover:border-[#d4a63c]/45"
+                      onClick={() => setGalleryOpen(true)}
+                      aria-label="View uploaded images"
                     >
-                      ×
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={latestImage.previewUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="absolute bottom-0 right-0 rounded-tl-md bg-black/70 px-1 py-0.5 text-[9px] font-bold text-[#e8d4a8]">
+                        {imageCount}
+                      </span>
                     </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="mt-2 flex items-center gap-1 text-[10px] text-zinc-500">
-              <FileImage className="h-3 w-3" aria-hidden />
-              Images and videos accepted
-            </p>
-          </div>
+                  ) : null}
 
-          <div className="flex shrink-0 gap-2">
-            <input
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Describe the issue…"
-              className="min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-black/55 px-3 py-2.5 text-[13px] text-white outline-none focus:border-[#d4a63c]/40"
-            />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={isSending}
-              className="inline-flex shrink-0 items-center justify-center rounded-xl bg-[#d4a63c] px-3.5 text-black disabled:opacity-50"
-              aria-label="Send message"
-            >
-              <Send className="h-4 w-4" aria-hidden />
-            </button>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.08] bg-black/30 text-[#d4a63c]/85 transition hover:border-[#d4a63c]/55 hover:bg-[#d4a63c]/[0.06] disabled:opacity-40"
+                    onClick={openFilePicker}
+                    disabled={isTyping}
+                    aria-label="Attach images"
+                  >
+                    <ImagePlus className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={composerPlaceholder}
+                  className="min-w-0 flex-1 bg-transparent px-0 text-[13px] text-white outline-none placeholder:text-zinc-600"
+                  disabled={isTyping || uploadsInProgress}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isTyping || uploadsInProgress || !draft.trim()}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#d4a63c] text-black transition-opacity disabled:opacity-45"
+                aria-label="Send message"
+              >
+                <Send className="h-4 w-4" aria-hidden />
+              </button>
+            </form>
           </div>
         </div>
-      </div>
-    </HeroFloatingWindow>
+      </HeroFloatingWindow>
+
+      {galleryOpen && imageCount > 0 ? (
+        <HeroFloatingWindow
+          windowId="chat-gallery"
+          title="Uploaded images"
+          chromeless
+          flatPanel
+          flatPanelTier="secondary"
+          stackDepth={stackDepth + 1}
+          entranceDelay={entranceDelay + 0.02}
+          dragConstraints={dragConstraints}
+          defaultPosition={galleryPosition}
+          width={420}
+          onClose={() => setGalleryOpen(false)}
+          ariaLabel="Uploaded images"
+        >
+          <div className="p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                For workshop review
+              </p>
+              <p className="text-[11px] font-medium text-[#d4a63c]/90">
+                {imageCount} attached
+              </p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {media.items.map((item) => (
+                <div
+                  key={item.localId}
+                  className="relative aspect-square overflow-hidden rounded-lg border border-white/[0.08] bg-black/40 transition hover:border-[#d4a63c]/35"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.previewUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+
+                  <button
+                    type="button"
+                    className="absolute right-1 top-1 inline-flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white/90 ring-1 ring-white/10 backdrop-blur hover:bg-black/90"
+                    onClick={() => media.remove(item.localId)}
+                    aria-label={`Remove ${item.file.name}`}
+                    disabled={
+                      item.status === "uploading" || item.status === "pending"
+                    }
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </HeroFloatingWindow>
+      ) : null}
+    </>
   );
 }

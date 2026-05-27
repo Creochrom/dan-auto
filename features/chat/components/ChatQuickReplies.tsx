@@ -5,13 +5,8 @@ import type { SuggestionChip } from "@/lib/types/intake";
 import type { AdvisorChatTheme } from "@/features/chat/hooks/useAdvisorChat";
 
 const CHIP_STYLES: Record<AdvisorChatTheme, string> = {
-  gold: "border-[#d4a63c]/25 bg-[#d4a63c]/[0.06] text-[#e8d4a8] hover:border-[#d4a63c]/45 hover:bg-[#d4a63c]/12",
-  cyan: "border-cyan/25 bg-cyan/8 text-cyan-100 hover:border-cyan/45 hover:bg-cyan/12",
-};
-
-const CHIP_HISTORY: Record<AdvisorChatTheme, string> = {
-  gold: "border-[#d4a63c]/12 bg-[#d4a63c]/[0.03] text-[#d4a63c]/45",
-  cyan: "border-cyan/12 bg-cyan/5 text-cyan-600/80",
+  gold: "border-[#d4a63c]/24 bg-[#d4a63c]/[0.06] text-[#e8d4a8] hover:border-[#d4a63c]/45 hover:bg-[#d4a63c]/10 active:scale-[0.98]",
+  cyan: "border-cyan/24 bg-cyan/8 text-cyan-100 hover:border-cyan/45 hover:bg-cyan/12 active:scale-[0.98]",
 };
 
 type Props = {
@@ -19,7 +14,8 @@ type Props = {
   onSelect?: (chip: SuggestionChip) => void;
   disabled?: boolean;
   theme?: AdvisorChatTheme;
-  variant?: "active" | "history";
+  /** Inline under a message (wrap, max ~2 rows) vs horizontal scroll strip */
+  layout?: "inline" | "scroll";
 };
 
 export function ChatQuickReplies({
@@ -27,40 +23,76 @@ export function ChatQuickReplies({
   onSelect,
   disabled,
   theme = "gold",
-  variant = "active",
+  layout = "inline",
 }: Props) {
   if (!chips.length) return null;
 
-  const isHistory = variant === "history";
+  if (layout === "scroll") {
+    return (
+      <div className="chat-quick-replies-wrap">
+        <div className="chat-quick-replies-fade chat-quick-replies-fade--left" aria-hidden />
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="chat-quick-replies-scroller flex flex-nowrap gap-1.5"
+          role="list"
+        >
+          {chips.map((chip) => (
+            <ChipButton
+              key={chip.id}
+              chip={chip}
+              disabled={disabled}
+              theme={theme}
+              onSelect={onSelect}
+            />
+          ))}
+        </motion.div>
+        <div className="chat-quick-replies-fade chat-quick-replies-fade--right" aria-hidden />
+      </div>
+    );
+  }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-wrap gap-1.5"
+      transition={{ duration: 0.2 }}
+      className="chat-inline-replies"
+      role="list"
     >
-      {chips.map((chip) =>
-        isHistory ? (
-          <span
-            key={chip.id}
-            className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${CHIP_HISTORY[theme]}`}
-          >
-            {chip.label}
-          </span>
-        ) : (
-          <button
-            key={chip.id}
-            type="button"
-            disabled={disabled}
-            onClick={() => onSelect?.(chip)}
-            className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition disabled:opacity-40 ${CHIP_STYLES[theme]}`}
-          >
-            {chip.label}
-          </button>
-        )
-      )}
+      {chips.map((chip) => (
+        <ChipButton
+          key={chip.id}
+          chip={chip}
+          disabled={disabled}
+          theme={theme}
+          onSelect={onSelect}
+        />
+      ))}
     </motion.div>
   );
 }
 
-// fix typo isUser -> removed
+function ChipButton({
+  chip,
+  disabled,
+  theme,
+  onSelect,
+}: {
+  chip: SuggestionChip;
+  disabled?: boolean;
+  theme: AdvisorChatTheme;
+  onSelect?: (chip: SuggestionChip) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="listitem"
+      disabled={disabled}
+      onClick={() => onSelect?.(chip)}
+      className={`chat-inline-replies__chip ${CHIP_STYLES[theme]} ${disabled ? "opacity-40" : ""}`}
+    >
+      {chip.label}
+    </button>
+  );
+}

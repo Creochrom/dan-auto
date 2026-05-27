@@ -8,6 +8,10 @@ export type AiIntakeSubmitInput = {
   uploadIds?: string[];
   /** Optional — overrides draft email */
   customerEmail?: string;
+  /** Optional — merged into session before email (callback form). */
+  customerName?: string;
+  customerPhone?: string;
+  preferredCallbackTime?: string;
 };
 
 /** Customer's overall intent for this intake — drives workshop routing. */

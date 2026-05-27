@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, MessageCircle, RotateCcw, Send, X } from "lucide-react";
+import { MessageCircle, RotateCcw, Send, X } from "lucide-react";
+import { AdvisorMediaBar } from "@/features/chat/components/AdvisorMediaBar";
+import { AdvisorWorkshopIntro } from "@/features/chat/components/AdvisorWorkshopIntro";
 import { ChatTimeline } from "@/features/chat/components/ChatTimeline";
 import { useAssistant } from "@/features/assistant/AssistantContext";
 import { useChatSession } from "@/features/assistant/hooks/useChatSession";
 import type { IntakeSubmitState } from "@/features/chat/hooks/useAdvisorChat";
+import {
+  ADVISOR_QUICK_START_ACTIONS,
+  WORKSHOP_INTRO_BODY,
+  WORKSHOP_INTRO_PROMPT,
+  WORKSHOP_INTRO_TITLE,
+  type QuickStartAction,
+} from "@/lib/config/advisor-copy";
 import { BRAND, WHATSAPP_HREF, businessConfig } from "@/lib/config";
 import { LAYER } from "@/lib/ui/layers";
 
@@ -26,6 +35,10 @@ function AdvisorPanel({
   onRetrySubmit,
   sendQuickReply,
   isTypingDisabled,
+  intro,
+  mediaItems,
+  onMediaAdd,
+  onMediaRemove,
 }: {
   draft: string;
   setDraft: (v: string) => void;
@@ -41,22 +54,24 @@ function AdvisorPanel({
   onRetrySubmit?: () => void;
   sendQuickReply: (chip: (typeof suggestionChips)[0]) => void;
   isTypingDisabled: boolean;
+  intro: ReactNode;
+  mediaItems: ReturnType<typeof useChatSession>["media"]["items"];
+  onMediaAdd: ReturnType<typeof useChatSession>["media"]["addFiles"];
+  onMediaRemove: ReturnType<typeof useChatSession>["media"]["remove"];
 }) {
   return (
     <>
       <header className="service-advisor-panel__header">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#d4a63c]/12 ring-1 ring-[#d4a63c]/30">
-            <Bot className="h-[18px] w-[18px] text-[#d4a63c]" aria-hidden />
-          </span>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#d4a63c]">
-              Service advisor
-            </p>
-            <p className="mt-0.5 text-[11px] leading-snug text-zinc-500">
-              {BRAND.shortName} · Diagnostics & callback
-            </p>
-          </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#d4a63c]/90">
+            Workshop intake
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-white">
+            {WORKSHOP_INTRO_TITLE}
+          </p>
+          <p className="mt-0.5 text-[10px] leading-snug text-zinc-500">
+            {BRAND.shortName} · After-hours support
+          </p>
         </div>
         <div className="flex shrink-0 gap-1">
           <button
@@ -83,14 +98,21 @@ function AdvisorPanel({
         messages={messages}
         isTyping={isTyping}
         typingLabel={typingLabel}
-        suggestionChips={suggestionChips}
         onQuickReply={sendQuickReply}
         error={error}
         theme="gold"
         quickRepliesDisabled={isTypingDisabled}
+        intro={intro}
       />
 
       <footer className="service-advisor-panel__footer">
+        <AdvisorMediaBar
+          items={mediaItems}
+          onAdd={onMediaAdd}
+          onRemove={onMediaRemove}
+          disabled={isTypingDisabled}
+          compact
+        />
         {intakeSubmitState === "sending" && (
           <p className="mb-2 text-[10px] font-medium text-[#d4a63c]">
             Sending workshop intake…
@@ -113,7 +135,7 @@ function AdvisorPanel({
             </button>
           </div>
         )}
-        <form onSubmit={onSubmit} className="flex gap-2">
+        <form onSubmit={onSubmit} className="mt-2 flex gap-2">
           <input
             type="text"
             value={draft}
@@ -163,6 +185,7 @@ function AdvisorPanel({
 export function AIChatWidget() {
   const { open, setOpen, openAssistant } = useAssistant();
   const [draft, setDraft] = useState("");
+  const [selectedQuickStart, setSelectedQuickStart] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -178,7 +201,31 @@ export function AIChatWidget() {
     bootstrap,
     reset,
     retryIntakeSubmit,
+    media,
   } = useChatSession();
+
+  const handleQuickStart = useCallback(
+    (action: QuickStartAction) => {
+      setSelectedQuickStart(action.id);
+      void send(action.message, {
+        displayContent: action.label,
+        source: "quick_reply",
+      });
+    },
+    [send]
+  );
+
+  const intro = (
+    <AdvisorWorkshopIntro
+      title={WORKSHOP_INTRO_TITLE}
+      body={WORKSHOP_INTRO_BODY}
+      prompt={WORKSHOP_INTRO_PROMPT}
+      actions={ADVISOR_QUICK_START_ACTIONS}
+      selectedActionId={messages.length === 0 ? selectedQuickStart : null}
+      onSelectAction={handleQuickStart}
+      disabled={isTyping}
+    />
+  );
 
   useEffect(() => setMounted(true), []);
 
@@ -190,10 +237,6 @@ export function AIChatWidget() {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  useEffect(() => {
-    if (open) void bootstrap();
-  }, [open, bootstrap]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
@@ -203,6 +246,8 @@ export function AIChatWidget() {
   };
 
   const handleReset = () => {
+    setSelectedQuickStart(null);
+    media.clear();
     reset();
     void bootstrap();
   };
@@ -222,6 +267,10 @@ export function AIChatWidget() {
     intakeSubmitState,
     onRetrySubmit: () => void retryIntakeSubmit(),
     isTypingDisabled: isTyping || intakeSubmitState === "sending",
+    intro,
+    mediaItems: media.items,
+    onMediaAdd: media.addFiles,
+    onMediaRemove: media.remove,
   };
 
   const mobileModal =
@@ -282,7 +331,15 @@ export function AIChatWidget() {
         {!open && (
           <motion.button
             type="button"
-            onClick={openAssistant}
+            onClick={() =>
+              openAssistant({
+                advisorRoute: {
+                  entry_point: "floating_widget",
+                  intent: "general",
+                  surface: "floating_widget",
+                },
+              })
+            }
             whileTap={{ scale: 0.97 }}
             className={`service-advisor-fab pointer-events-auto ${LAYER.fab}`}
             aria-expanded={open}

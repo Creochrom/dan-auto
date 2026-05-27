@@ -10,7 +10,15 @@ export function useBookingIntakeChat(
 ) {
   return useAdvisorChat({
     bookingContext,
+    advisorRoute: bookingContext
+      ? {
+          entry_point: "booking_form_help",
+          intent: "booking",
+          surface: "booking_flow",
+        }
+      : null,
     enabled: Boolean(bookingContext),
     uploadIds,
+    introMode: "workshop",
   });
 }

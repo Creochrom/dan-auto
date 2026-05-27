@@ -9,7 +9,7 @@ import type { MediaUpload } from "@/lib/types/upload";
 export const uploadService = {
   async storeFile(file: File): Promise<MediaUpload> {
     if (!isAllowedMimeType(file.type)) {
-      throw new Error("Only images and videos are accepted");
+      throw new Error("Only images, short videos and audio notes are accepted");
     }
     if (file.size > UPLOAD_MAX_BYTES) {
       throw new Error("File exceeds 25 MB limit");

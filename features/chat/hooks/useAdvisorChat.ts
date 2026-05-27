@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { sendChatMessage, submitAiIntake } from "@/lib/api/client";
 import {
+  clearAllChipsSnapshots,
   createOptimisticUserMessage,
   mergeTurnIntoTimeline,
   saveChatTranscript,
@@ -13,9 +14,11 @@ import {
   REVEAL_BETWEEN_MS,
 } from "@/lib/chat";
 import { ADVISOR_TYPING_LABELS } from "@/lib/config/brand";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type {
   BookingChatContext,
   ChatMessage,
+  LeadDraft,
   SendChatOptions,
 } from "@/lib/types/chat";
 import type { MechanicIntakeSummary, SuggestionChip } from "@/lib/types/intake";
@@ -26,20 +29,45 @@ export type AdvisorChatTheme = "gold" | "cyan";
 
 export type IntakeSubmitState = "idle" | "sending" | "sent" | "error";
 
+export type AdvisorIntroMode = "workshop" | "gemini";
+
+export type WorkshopHandoffInput = {
+  name: string;
+  phone: string;
+  preferredCallbackTime?: string;
+  customerEmail?: string;
+  confirmationMessage?: string;
+  /** When true, only updates status — assistant already confirmed in chat. */
+  skipNotice?: boolean;
+};
+
 export type UseAdvisorChatOptions = {
   bookingContext?: BookingChatContext | null;
+  advisorRoute?: AdvisorRouteContext | null;
+  registrationHint?: string;
   sessionStorageKey?: string;
   enabled?: boolean;
   uploadIds?: string[];
+  /** `workshop` = static terminal intro; first user message starts the AI. */
+  introMode?: AdvisorIntroMode;
+  /** When false, workshop email only via submitWorkshopHandoff(). Hero concierge uses false. */
+  autoSubmitIntake?: boolean;
 };
 
 export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
   const {
     bookingContext = null,
+    advisorRoute = null,
+    registrationHint,
     sessionStorageKey,
     enabled = true,
     uploadIds = [],
+    introMode = "gemini",
+    autoSubmitIntake = true,
   } = options;
+
+  const autoSubmitRef = useRef(autoSubmitIntake);
+  autoSubmitRef.current = autoSubmitIntake;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | undefined>(() => {
@@ -54,15 +82,14 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
   const [intakeSubmitState, setIntakeSubmitState] =
     useState<IntakeSubmitState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [leadDraft, setLeadDraft] = useState<LeadDraft>({});
+  const [callbackReady, setCallbackReady] = useState(false);
 
   const booted = useRef(false);
   const sending = useRef(false);
   const intakeSubmitStarted = useRef(false);
-  const chipsRef = useRef<SuggestionChip[]>([]);
   const uploadIdsRef = useRef(uploadIds);
   uploadIdsRef.current = uploadIds;
-
-  chipsRef.current = suggestionChips;
 
   const persist = useCallback(
     (sid: string, msgs: ChatMessage[]) => {
@@ -82,8 +109,10 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     ) => {
       setSessionId(res.sessionId);
       setSuggestionChips(res.suggestionChips ?? []);
+      if (res.leadDraft) setLeadDraft(res.leadDraft);
       if (res.mechanicSummary) setMechanicSummary(res.mechanicSummary);
       if (res.intakeComplete) setIntakeComplete(true);
+      setCallbackReady(Boolean(res.callbackReady));
 
       setMessages((prev) => {
         const merged = mergeTurnIntoTimeline(prev, {
@@ -101,7 +130,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
   );
 
   const appendAssistantNotice = useCallback(
-    (content: string, sid: string) => {
+    (content: string, sid?: string) => {
       const notice: ChatMessage = {
         id: `notice-${Date.now()}`,
         role: "assistant",
@@ -111,15 +140,56 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       };
       setMessages((prev) => {
         const next = [...prev, notice];
-        persist(sid, next);
+        const id = sid ?? sessionId;
+        if (id) persist(id, next);
         return next;
       });
     },
-    [persist]
+    [persist, sessionId]
+  );
+
+  const appendLocalAssistant = useCallback(
+    (content: string) => {
+      const notice: ChatMessage = {
+        id: `local-a-${Date.now()}`,
+        role: "assistant",
+        content,
+        createdAt: new Date().toISOString(),
+        source: "system",
+      };
+      setMessages((prev) => {
+        const next = [...clearAllChipsSnapshots(prev), notice];
+        if (sessionId) persist(sessionId, next);
+        return next;
+      });
+      setSuggestionChips([]);
+    },
+    [persist, sessionId]
+  );
+
+  const appendAssistantWithChips = useCallback(
+    (content: string, chips: SuggestionChip[]) => {
+      const notice: ChatMessage = {
+        id: `local-a-${Date.now()}`,
+        role: "assistant",
+        content,
+        createdAt: new Date().toISOString(),
+        source: "system",
+        chipsSnapshot: chips,
+      };
+      setMessages((prev) => {
+        const next = [...clearAllChipsSnapshots(prev), notice];
+        if (sessionId) persist(sessionId, next);
+        return next;
+      });
+      setSuggestionChips([]);
+    },
+    [persist, sessionId]
   );
 
   const trySubmitIntake = useCallback(
     async (res: Awaited<ReturnType<typeof sendChatMessage>>) => {
+      if (!autoSubmitRef.current) return;
       if (bookingContext) return;
       if (res.intakeEmailed) {
         setIntakeSubmitState("sent");
@@ -193,8 +263,10 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       }
 
       setSessionId(res.sessionId);
+      if (res.leadDraft) setLeadDraft(res.leadDraft);
       if (res.mechanicSummary) setMechanicSummary(res.mechanicSummary);
       if (res.intakeComplete) setIntakeComplete(true);
+      setCallbackReady(Boolean(res.callbackReady));
 
       const label = res.typingLabel ?? ADVISOR_TYPING_LABELS.symptoms;
       await new Promise((r) => setTimeout(r, REVEAL_FIRST_MS));
@@ -241,7 +313,6 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       const trimmed = content.trim();
       if (!trimmed || sending.current || !enabled) return;
 
-      const chipsOffered = [...chipsRef.current];
       setError(null);
       setIsTyping(true);
       setTypingLabel(ADVISOR_TYPING_LABELS.symptoms);
@@ -252,18 +323,19 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         displayContent: sendOpts?.displayContent ?? trimmed,
         source: sendOpts?.source ?? "typed",
       });
-      setMessages((m) => [...m, optimistic]);
+      setMessages((m) => [...clearAllChipsSnapshots(m), optimistic]);
 
       try {
         await new Promise((r) => setTimeout(r, TYPING_DELAY_MS));
         const res = await sendChatMessage({
           sessionId,
           message: trimmed,
-          registration: sendOpts?.registration,
+          registration: sendOpts?.registration ?? registrationHint,
           bookingContext: bookingContext ?? undefined,
+          advisorRoute: advisorRoute ?? undefined,
         });
         setTypingLabel(res.typingLabel ?? null);
-        await revealResponse(res, optimistic, chipsOffered);
+        await revealResponse(res, optimistic, res.suggestionChips);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Message failed");
         setMessages((m) =>
@@ -277,7 +349,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         sending.current = false;
       }
     },
-    [sessionId, bookingContext, enabled, revealResponse]
+    [sessionId, bookingContext, advisorRoute, registrationHint, enabled, revealResponse]
   );
 
   const sendQuickReply = useCallback(
@@ -295,8 +367,6 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     if (!enabled || booted.current || sending.current) return;
     if (messages.length > 0) return;
 
-    booted.current = true;
-
     if (sessionId) {
       const restored = loadChatTranscript(sessionId);
       if (restored?.length) {
@@ -304,6 +374,12 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         booted.current = true;
         return;
       }
+    }
+
+    booted.current = true;
+
+    if (introMode === "workshop") {
+      return;
     }
 
     setError(null);
@@ -316,7 +392,9 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       const res = await sendChatMessage({
         sessionId,
         init: true,
+        registration: registrationHint,
         bookingContext: bookingContext ?? undefined,
+        advisorRoute: advisorRoute ?? undefined,
       });
       await revealResponse(res);
     } catch (e) {
@@ -327,7 +405,68 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       setTypingLabel(null);
       sending.current = false;
     }
-  }, [enabled, messages.length, sessionId, bookingContext, revealResponse]);
+  }, [
+    enabled,
+    messages.length,
+    sessionId,
+    bookingContext,
+    advisorRoute,
+    registrationHint,
+    introMode,
+    revealResponse,
+  ]);
+
+  const submitWorkshopHandoff = useCallback(
+    async (input: WorkshopHandoffInput) => {
+      if (!sessionId) {
+        setError("Start a conversation before sending to the workshop");
+        return false;
+      }
+      if (intakeSubmitStarted.current && intakeSubmitState === "sent") {
+        return true;
+      }
+
+      intakeSubmitStarted.current = true;
+      setIntakeSubmitState("sending");
+      setError(null);
+      setIsTyping(true);
+      setTypingLabel("Sending to the workshop team…");
+      setSuggestionChips([]);
+
+      try {
+        const result = await submitAiIntake({
+          chatSessionId: sessionId,
+          uploadIds:
+            uploadIdsRef.current.length > 0 ? uploadIdsRef.current : undefined,
+          customerName: input.name,
+          customerPhone: input.phone,
+          preferredCallbackTime: input.preferredCallbackTime,
+          customerEmail: input.customerEmail,
+        });
+        setIntakeSubmitState("sent");
+        setIntakeComplete(true);
+        setCallbackReady(false);
+        if (!input.skipNotice) {
+          appendAssistantNotice(
+            input.confirmationMessage ?? result.confirmationMessage,
+            sessionId
+          );
+        }
+        return true;
+      } catch (e) {
+        intakeSubmitStarted.current = false;
+        setIntakeSubmitState("error");
+        setError(
+          e instanceof Error ? e.message : "Could not send intake to workshop"
+        );
+        return false;
+      } finally {
+        setIsTyping(false);
+        setTypingLabel(null);
+      }
+    },
+    [sessionId, intakeSubmitState, appendAssistantNotice]
+  );
 
   const reset = useCallback(() => {
     if (sessionId) clearChatTranscript(sessionId);
@@ -338,9 +477,15 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     setMechanicSummary(undefined);
     setIntakeComplete(false);
     setIntakeSubmitState("idle");
+    setLeadDraft({});
+    setCallbackReady(false);
+    setError(null);
     intakeSubmitStarted.current = false;
     booted.current = false;
-  }, [sessionId, sessionStorageKey]);
+    sending.current = false;
+    setIsTyping(false);
+    setTypingLabel(null);
+  }, [sessionStorageKey, sessionId]);
 
   return {
     messages,
@@ -356,6 +501,11 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     bootstrap,
     reset,
     retryIntakeSubmit,
+    submitWorkshopHandoff,
     sessionId,
+    leadDraft,
+    callbackReady,
+    appendLocalAssistant,
+    appendAssistantWithChips,
   };
 }

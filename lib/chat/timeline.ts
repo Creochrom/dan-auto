@@ -64,6 +64,18 @@ export function snapshotChipsOnLastAssistant(
   );
 }
 
+/** Remove quick-reply chips from all messages when the user sends a new turn. */
+export function clearAllChipsSnapshots(messages: ChatMessage[]): ChatMessage[] {
+  let changed = false;
+  const next = messages.map((m) => {
+    if (!m.chipsSnapshot?.length) return m;
+    changed = true;
+    const { chipsSnapshot: _, ...rest } = m;
+    return rest;
+  });
+  return changed ? next : messages;
+}
+
 export function mergeTurnIntoTimeline(
   messages: ChatMessage[],
   params: {
@@ -74,11 +86,7 @@ export function mergeTurnIntoTimeline(
     chipsOffered?: SuggestionChip[];
   }
 ): ChatMessage[] {
-  let next = messages;
-
-  if (params.chipsOffered?.length) {
-    next = snapshotChipsOnLastAssistant(next, params.chipsOffered);
-  }
+  let next = clearAllChipsSnapshots(messages);
 
   if (params.optimisticId && params.optimisticUser) {
     const withoutTmp = next.filter((m) => m.id !== params.optimisticId);
@@ -93,5 +101,11 @@ export function mergeTurnIntoTimeline(
   if (last?.id === params.assistant.id && last.role === "assistant") {
     return next;
   }
-  return [...next, params.assistant];
+
+  let assistantMsg = params.assistant;
+  if (params.chipsOffered?.length) {
+    assistantMsg = { ...params.assistant, chipsSnapshot: params.chipsOffered };
+  }
+
+  return [...next, assistantMsg];
 }

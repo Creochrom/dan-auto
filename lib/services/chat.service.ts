@@ -74,7 +74,8 @@ async function runAdvisorTurn(
   session: ChatSession,
   userText: string,
   isInit: boolean,
-  registrationHint?: string
+  registrationHint?: string,
+  advisorRoute = session.advisorRoute
 ): Promise<{ turn: AdvisorTurnResult; advisorEngine: AdvisorEngine | "unconfigured" }> {
   const engine = getAdvisorEngine();
 
@@ -105,6 +106,7 @@ async function runAdvisorTurn(
       leadDraft: session.leadDraft ?? {},
       registrationHint,
       bookingContext: session.bookingContext,
+      advisorRoute,
       vehicleMemory: session.vehicleMemory,
     });
     return { advisorEngine: "gemini", turn };
@@ -184,12 +186,18 @@ export const chatService = {
         intakeState: createInitialIntakeState(),
         structuredIntake: createEmptyStructuredIntake(),
         bookingContext: request.bookingContext,
+        advisorRoute: request.advisorRoute,
       });
     }
 
     if (request.bookingContext && !session.bookingContext) {
       chatRepository.updateBookingContext(session.id, request.bookingContext);
       session.bookingContext = request.bookingContext;
+    }
+
+    if (request.advisorRoute) {
+      chatRepository.updateAdvisorRoute(session.id, request.advisorRoute);
+      session.advisorRoute = request.advisorRoute;
     }
 
     if (!session.intakeState) {
@@ -233,7 +241,8 @@ export const chatService = {
       refreshedForTurn,
       userText,
       isInit,
-      request.registration
+      request.registration,
+      refreshedForTurn.advisorRoute
     );
 
     chatRepository.updateIntakeState(session.id, turn.intakeState);
@@ -313,6 +322,7 @@ export const chatService = {
       intakeComplete: turn.intakeComplete ?? turn.intakeState.phase === "complete",
       intakeEmailed: Boolean(refreshed.intakeEmailedAt),
       advisorEngine,
+      callbackReady: turn.callbackReady,
     };
   },
 

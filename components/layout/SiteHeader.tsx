@@ -100,7 +100,13 @@ function NavItem({
         type="button"
         className={className}
         onClick={() => {
-          openAssistant();
+          openAssistant({
+            advisorRoute: {
+              entry_point: "floating_widget",
+              intent: "general",
+              surface: "floating_widget",
+            },
+          });
           onNavigate?.();
         }}
       >
