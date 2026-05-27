@@ -552,7 +552,7 @@ function PremiumHeroInner({
                       onBookMot={() => onHeroServiceSelect("MOT")}
                     />
                   )}
-                  <p className="hero-plate-trust mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-medium tracking-[0.01em] text-white/55 sm:text-[10px]">
+                  <p className="hero-plate-trust mt-3 text-[10px] font-medium tracking-[0.01em] text-white/55 sm:text-[10px]">
                     <span className="inline-flex items-center gap-1">
                       <Check className="h-3 w-3 text-[#d4a63c]/85" aria-hidden />
                       Instant DVLA check

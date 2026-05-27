@@ -2,18 +2,50 @@ import type { VehicleReport } from "@/lib/types/vehicle-report";
 
 export const MOT_HISTORY_URL = "https://www.gov.uk/check-mot-history";
 
+export function vehicleIdentity(report: VehicleReport): {
+  title: string;
+  meta: string;
+} {
+  const { profile } = report;
+  const metaParts: string[] = [String(profile.year), profile.fuel];
+
+  const engine = profile.engine.trim();
+  if (engine.length > 0 && !engine.toLowerCase().includes("unavailable")) {
+    const litres = engine.match(/[\d.]+L/i)?.[0];
+    metaParts.push(litres ?? engine);
+  }
+
+  return {
+    title: profile.makeModel,
+    meta: metaParts.join(" • "),
+  };
+}
+
+/** @deprecated Use vehicleIdentity */
 export function vehicleQuickLabel(report: VehicleReport): {
   primary: string;
   secondary: string;
 } {
-  const { profile } = report;
-  const engine = profile.engine.trim();
-  const hasEngine =
-    engine.length > 0 && !engine.toLowerCase().includes("unavailable");
+  const { title, meta } = vehicleIdentity(report);
+  return { primary: title, secondary: meta };
+}
 
+export function motCountdownDisplay(
+  motDays: number,
+  motStatus: "valid" | "due_soon" | "urgent"
+): { headline: string } {
+  if (motStatus === "urgent" || motDays <= 0) {
+    return { headline: "MOT overdue" };
+  }
+  if (motDays === 1) {
+    return { headline: "1 day left" };
+  }
+  if (motDays <= 45) {
+    return { headline: `${motDays} days left` };
+  }
+  const months = Math.max(1, Math.round(motDays / 30));
   return {
-    primary: profile.makeModel,
-    secondary: hasEngine ? engine : `${profile.year} ${profile.fuel}`,
+    headline: months === 1 ? "1 month left" : `${months} months left`,
   };
 }
 
