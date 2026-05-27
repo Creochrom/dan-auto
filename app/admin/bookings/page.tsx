@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { adminFetch } from "@/lib/admin/client";
 import { BookingCard } from "@/features/booking/components/BookingCard";
 import type { Booking } from "@/lib/types/booking";
 
@@ -10,17 +12,24 @@ import type { Booking } from "@/lib/types/booking";
  * TODO: Auth, filters, status updates, Supabase sync.
  */
 export default function AdminBookingsPage() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void fetch("/api/bookings")
-      .then((r) => r.json())
+    void adminFetch("/api/bookings")
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/admin/login");
+          return null;
+        }
+        return r.json();
+      })
       .then((json) => {
-        if (json.ok) setBookings(json.data);
+        if (json?.ok) setBookings(json.data);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">

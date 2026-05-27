@@ -21,7 +21,7 @@ export type SendEmailResult = {
 async function sendViaResend(input: SendEmailInput): Promise<SendEmailResult> {
   const apiKey = getEmailApiKey();
   if (!apiKey) {
-    throw new Error("EMAIL_PROVIDER_API_KEY (or RESEND_API_KEY) is not configured");
+    throw new Error("RESEND_API_KEY is not configured");
   }
 
   const to = Array.isArray(input.to) ? input.to : [input.to];

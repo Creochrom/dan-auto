@@ -22,12 +22,19 @@ const KEY_LEN = 32;
 const DIGEST = "sha256";
 const EXPECTED_FORMAT = "pbkdf2:sha256:<iterations>:<salt_hex>:<hash_hex>";
 
-/**
- * Verifies a plaintext password against the stored PBKDF2 hash string.
- * Uses crypto.timingSafeEqual to prevent timing attacks.
- * Throws if ADMIN_PASSWORD_HASH is missing or malformed.
- */
-export function verifyAdminPassword(password: string): boolean {
+function verifyPlainPassword(password: string): boolean {
+  const expected = process.env.ADMIN_PASSWORD;
+  if (!expected?.trim()) {
+    throw new Error(
+      "[admin] Set ADMIN_PASSWORD (dev) or ADMIN_PASSWORD_HASH (production)"
+    );
+  }
+  const a = crypto.createHash("sha256").update(password, "utf8").digest();
+  const b = crypto.createHash("sha256").update(expected.trim(), "utf8").digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+function verifyHashedPassword(password: string): boolean {
   const stored = process.env.ADMIN_PASSWORD_HASH?.trim();
   if (!stored) {
     throw new Error(
@@ -54,6 +61,16 @@ export function verifyAdminPassword(password: string): boolean {
 
   const derived = crypto.pbkdf2Sync(password, salt, iterations, KEY_LEN, DIGEST);
   return crypto.timingSafeEqual(derived, storedHash);
+}
+
+/**
+ * Verifies password: prefers ADMIN_PASSWORD_HASH, else ADMIN_PASSWORD (dev/local).
+ */
+export function verifyAdminPassword(password: string): boolean {
+  if (process.env.ADMIN_PASSWORD_HASH?.trim()) {
+    return verifyHashedPassword(password);
+  }
+  return verifyPlainPassword(password);
 }
 
 /**

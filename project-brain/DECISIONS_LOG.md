@@ -4,6 +4,18 @@ Short, dated entries. One decision per block. New entries go at the top.
 
 ---
 
+## 2026-05-27 — Production admin auth (httpOnly cookie + middleware)
+
+- **Why:** Admin used cosmetic sessionStorage; GET leads/bookings were public. Needed server-enforced sessions without NextAuth/Clerk.
+- **Impact:**
+  - `middleware.ts` guards `/admin/*` (except login) and GET `/api/leads` + `/api/bookings`; POST stays public.
+  - `POST /api/admin/login` + `POST /api/admin/logout` + `GET /api/admin/me`; signed cookie via `lib/admin/session.ts` (Edge-safe HMAC).
+  - Credentials: `ADMIN_USERNAME` + `ADMIN_PASSWORD` (dev) or `ADMIN_PASSWORD_HASH` (prod); `ADMIN_SESSION_SECRET` required.
+  - `lib/enterprise/auth.ts` — display-only sessionStorage; no hardcoded accounts.
+  - Admin UI uses `adminFetch` (`credentials: "include"`). See `docs/ADMIN_AUTH.md`.
+
+---
+
 ## 2026-05-27 — Centralized booking notification flow
 
 - **Why:** The direct booking form (`POST /api/bookings`) had no workshop notification. Every booking was silently persisted. The AI intake path had its own richer email but no customer confirmation and was not centralized.

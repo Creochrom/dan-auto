@@ -52,7 +52,11 @@ export function assessEmailHealth(): EmailHealthReport {
   }
 
   if (provider === "resend" && !hasApiKey) {
-    warnings.push("RESEND_API_KEY (or EMAIL_PROVIDER_API_KEY) is missing.");
+    warnings.push("RESEND_API_KEY is missing.");
+  }
+
+  if (!to) {
+    warnings.push("BOOKING_EMAIL_TO is missing.");
   }
 
   if (!fromAllowed) {
@@ -75,9 +79,7 @@ export function assessEmailHealth(): EmailHealthReport {
     provider,
     hasApiKey,
     intakeToDomain: domainFromAddress(to),
-    intakeToConfigured: Boolean(
-      process.env.EMAIL_TO?.trim() || process.env.BOOKING_EMAIL_TO?.trim()
-    ),
+    intakeToConfigured: Boolean(process.env.BOOKING_EMAIL_TO?.trim()),
     fromDomain: domainFromAddress(from),
     fromAllowed,
     ready,

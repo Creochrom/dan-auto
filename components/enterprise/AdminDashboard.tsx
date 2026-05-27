@@ -17,10 +17,12 @@ import {
 import { loadPlatformStore, savePlatformStore, createPromo } from "@/lib/platform/store";
 import { DEFAULT_PROMOS } from "@/lib/platform/seed";
 import type { PromoCode, PromoType } from "@/lib/platform/types";
+import { adminFetch } from "@/lib/admin/client";
 import {
   canManageStaff,
-  clearSession,
-  loadSession,
+  clearAdminDisplay,
+  loadAdminDisplay,
+  saveAdminDisplay,
   type AuthUser,
 } from "@/lib/enterprise/auth";
 import {
@@ -54,15 +56,35 @@ export function AdminDashboard() {
   const [bugBody, setBugBody] = useState("");
 
   useEffect(() => {
-    const session = loadSession();
-    if (!session) {
-      router.replace("/admin/login");
+    const display = loadAdminDisplay();
+    if (display) {
+      setUser(display);
+      setPlatform(loadPlatformStore());
+      setEnterprise(loadEnterprise());
+      setHydrated(true);
       return;
     }
-    setUser(session);
-    setPlatform(loadPlatformStore());
-    setEnterprise(loadEnterprise());
-    setHydrated(true);
+
+    void adminFetch("/api/admin/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.ok) {
+          const u = json.data as AuthUser;
+          saveAdminDisplay(u);
+          setUser(u);
+        } else {
+          setUser({
+            login: "admin",
+            displayName: "Workshop Admin",
+            role: "admin",
+          });
+        }
+      })
+      .finally(() => {
+        setPlatform(loadPlatformStore());
+        setEnterprise(loadEnterprise());
+        setHydrated(true);
+      });
   }, [router]);
 
   const persistPlatform = useCallback((next: ReturnType<typeof loadPlatformStore>) => {
@@ -133,8 +155,8 @@ export function AdminDashboard() {
           <button
             type="button"
             onClick={async () => {
-              clearSession();
-              await fetch("/api/admin/logout", { method: "POST" });
+              clearAdminDisplay();
+              await adminFetch("/api/admin/logout", { method: "POST" });
               router.replace("/admin/login");
             }}
             className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-zinc-400"

@@ -5,15 +5,13 @@ import { businessConfig } from "@/lib/config/business";
 export const DEFAULT_EMAIL_FROM = `${BRAND.shortName} <${businessConfig.email}>`;
 
 /**
- * Workshop intake inbox — server env only.
- * Gmail is fine while the domain is pending: set EMAIL_TO=you@gmail.com (receiving only).
- * Sending still goes through Resend + verified EMAIL_FROM — see docs/EMAIL_SETUP.md.
+ * Workshop inbox for booking notifications (server env only).
+ * Set BOOKING_EMAIL_TO on Vercel production.
  */
 export function getIntakeEmailTo(): string {
   return (
-    process.env.EMAIL_TO?.trim() ||
     process.env.BOOKING_EMAIL_TO?.trim() ||
-    "creochrome@gmail.com"
+    (process.env.NODE_ENV === "development" ? "creochrome@gmail.com" : "")
   );
 }
 
@@ -33,11 +31,7 @@ export function getEmailFrom(): string {
 }
 
 export function getEmailApiKey(): string | undefined {
-  return (
-    process.env.EMAIL_PROVIDER_API_KEY?.trim() ||
-    process.env.RESEND_API_KEY?.trim() ||
-    undefined
-  );
+  return process.env.RESEND_API_KEY?.trim() || undefined;
 }
 
 export function getEmailProvider(): "resend" | "log" {
@@ -47,8 +41,5 @@ export function getEmailProvider(): "resend" | "log" {
   if (process.env.NODE_ENV === "development") return "log";
   return "resend";
 }
-
-/** @deprecated Use getIntakeEmailTo() on the server */
-export const BOOKING_EMAIL_TO = "creochrome@gmail.com";
 
 export const EMAIL_FROM_DISPLAY = businessConfig.shortName;

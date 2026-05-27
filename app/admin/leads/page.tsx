@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { adminFetch } from "@/lib/admin/client";
 import type { Lead } from "@/lib/types/lead";
 
 /**
@@ -9,17 +11,24 @@ import type { Lead } from "@/lib/types/lead";
  * TODO: AI summaries, assignment, Twilio/WhatsApp threads.
  */
 export default function AdminLeadsPage() {
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void fetch("/api/leads")
-      .then((r) => r.json())
+    void adminFetch("/api/leads")
+      .then((r) => {
+        if (r.status === 401) {
+          router.replace("/admin/login");
+          return null;
+        }
+        return r.json();
+      })
       .then((json) => {
-        if (json.ok) setLeads(json.data);
+        if (json?.ok) setLeads(json.data);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">

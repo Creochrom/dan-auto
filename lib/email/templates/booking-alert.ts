@@ -100,17 +100,16 @@ export function renderCustomerConfirmationText(booking: Booking): string {
   return [
     `Hi ${booking.customerName},`,
     "",
-    `Thanks for submitting your booking request at ${BRAND.shortName}.`,
+    `We received your request. Our team will contact you shortly.`,
     "",
-    "YOUR BOOKING DETAILS",
+    "YOUR REQUEST DETAILS",
     `Service:       ${booking.service}`,
-    `Date:          ${booking.preferredDate}`,
-    `Time:          ${booking.preferredTime}`,
+    `Preferred date: ${booking.preferredDate}`,
+    `Preferred time: ${booking.preferredTime}`,
     `Registration:  ${booking.registration}`,
     "",
-    "Our team will review your request and confirm your appointment shortly.",
-    `If you need to make any changes, please call us on ${businessConfig.phone.display}`,
-    `or reply to this email.`,
+    "This is not a confirmed appointment time — we will be in touch to arrange your visit.",
+    `If you need to reach us sooner, call ${businessConfig.phone.display}.`,
     "",
     `— ${BRAND.shortName}`,
     businessConfig.address.line,
@@ -125,7 +124,8 @@ export function renderCustomerConfirmationHtml(booking: Booking): string {
   <p style="color:#71717a;font-size:14px;margin:0 0 20px">${escapeHtml(BRAND.shortName)}</p>
 
   <p>Hi ${escapeHtml(booking.customerName)},</p>
-  <p>Thanks for submitting your booking request. We'll review it and confirm your appointment shortly.</p>
+  <p>We received your request. Our team will contact you shortly.</p>
+  <p style="font-size:13px;color:#a1a1aa">This is not a confirmed appointment time — we will be in touch to arrange your visit.</p>
 
   <h2 style="font-size:14px;color:#d4a63c;margin:20px 0 8px">Your booking details</h2>
   <table style="width:100%;border-collapse:collapse">

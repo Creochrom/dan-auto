@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Lock, Loader2 } from "lucide-react";
+import { adminFetch } from "@/lib/admin/client";
 import { saveAdminDisplay, type AdminDisplayUser } from "@/lib/enterprise/auth";
 
 export default function AdminLoginPage() {
@@ -20,7 +21,7 @@ export default function AdminLoginPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/admin/login", {
+      const res = await adminFetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login, password }),

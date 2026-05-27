@@ -4,7 +4,7 @@ import type { CompleteBookingIntakeInput } from "@/lib/types/service-intake";
 
 /**
  * POST /api/booking-intake — finalize AI-assisted booking request.
- * Prepares email payload (not sent until provider wired).
+ * Persists via bookingService.create() (workshop + customer notifications).
  */
 export async function POST(request: Request) {
   try {

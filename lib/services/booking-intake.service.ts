@@ -1,5 +1,4 @@
 import { chatRepository } from "@/lib/repositories/chat.repository";
-import { sendBookingIntakeEmail } from "@/lib/email/send-workshop-intake";
 import { bookingService } from "@/lib/services/booking.service";
 import { uploadService } from "@/lib/services/upload.service";
 import type {
@@ -25,6 +24,10 @@ export const bookingIntakeService = {
     const session = chatRepository.findById(input.chatSessionId);
     if (!session) {
       throw new Error("Intake session not found");
+    }
+
+    if (session.intakeEmailedAt) {
+      throw new Error("This intake was already sent to the workshop");
     }
 
     const draft = session.leadDraft;
@@ -88,11 +91,9 @@ export const bookingIntakeService = {
       .filter(Boolean)
       .join("\n");
 
-    // suppressWorkshopEmail: true — this service sends its own richer
-    // notification (sendBookingIntakeEmail below) that includes the full
-    // conversation transcript. Customer confirmation still fires from
-    // bookingService if customerEmail is present on the booking.
-    const booking = await bookingService.create(
+    const customerEmail = draft.email?.trim() || undefined;
+
+    const { booking, notifications } = await bookingService.create(
       {
         service: input.service,
         registration: summary.registration,
@@ -102,31 +103,31 @@ export const bookingIntakeService = {
         duration: "1h",
         customerName: summary.customerName,
         customerPhone: summary.customerPhone,
+        customerEmail,
         notes,
         source: "website",
         intakeSummary: summary,
         uploadIds: uploads.map((u) => u.id),
       },
-      { suppressWorkshopEmail: true }
+      {
+        intakeNotification: {
+          summary,
+          transcript: session.messages,
+        },
+      }
     );
 
-    if (session.intakeEmailedAt) {
-      throw new Error("This intake was already sent to the workshop");
+    const workshop = notifications.workshop;
+    if (workshop?.sent && workshop.messageId) {
+      chatRepository.markIntakeEmailed(session.id, workshop.messageId);
     }
-
-    const sent = await sendBookingIntakeEmail(summary, {
-      bookingId: booking.id,
-      transcript: session.messages,
-    });
-
-    chatRepository.markIntakeEmailed(session.id, sent.id);
 
     return {
       bookingId: booking.id,
       intakeSummary: summary,
       emailPrepared: true,
-      emailSent: true,
-      emailId: sent.id,
+      emailSent: Boolean(workshop?.sent),
+      emailId: workshop?.messageId,
     };
   },
 };

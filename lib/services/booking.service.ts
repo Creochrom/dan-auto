@@ -1,20 +1,39 @@
 import { bookingsRepository } from "@/lib/repositories/bookings.repository";
+import { getStorageBackend } from "@/lib/repositories/backend";
 import {
   sendCustomerBookingConfirmation,
   sendWorkshopBookingAlert,
+  type NotificationSendResult,
 } from "@/lib/email/send-booking-alert";
+import { sendWorkshopIntakeEmail } from "@/lib/email/send-workshop-intake";
+import { getEmailProvider } from "@/lib/email/config";
+import { logBookingEvent } from "@/lib/logging/booking-events";
+import type { ChatMessage } from "@/lib/types/chat";
 import type { Booking, BookingStatus, CreateBookingInput } from "@/lib/types/booking";
+import type { ServiceIntakeSummary } from "@/lib/types/service-intake";
 
 /**
  * Service-layer options for booking creation.
  * Not persisted — controls side-effects only.
- *
- * suppressWorkshopEmail: set to true when the caller already sends its own
- * richer workshop notification (e.g. bookingIntakeService which includes the
- * full conversation transcript). Customer confirmation still fires regardless.
  */
 export type BookingCreateOptions = {
+  /** Skip standard workshop alert when a richer intake email is sent instead. */
   suppressWorkshopEmail?: boolean;
+  /** AI intake path — sends transcript-rich workshop email from this service. */
+  intakeNotification?: {
+    summary: ServiceIntakeSummary;
+    transcript?: ChatMessage[];
+  };
+};
+
+export type BookingCreateNotifications = {
+  workshop?: NotificationSendResult;
+  customer?: NotificationSendResult;
+};
+
+export type BookingCreateResult = {
+  booking: Booking;
+  notifications: BookingCreateNotifications;
 };
 
 export const bookingService = {
@@ -22,17 +41,48 @@ export const bookingService = {
     return bookingsRepository.list(status);
   },
 
-  async create(input: CreateBookingInput, opts?: BookingCreateOptions): Promise<Booking> {
+  /**
+   * 1. Persist booking
+   * 2. Notify workshop (standard alert or AI intake email)
+   * 3. Optional customer confirmation
+   * Email failures never roll back persistence.
+   */
+  async create(
+    input: CreateBookingInput,
+    opts?: BookingCreateOptions
+  ): Promise<BookingCreateResult> {
     const booking = await bookingsRepository.create(input);
 
-    // Run notifications concurrently; both swallow errors internally so a
-    // transient email failure never rolls back a successfully persisted booking.
-    await Promise.all([
-      opts?.suppressWorkshopEmail ? Promise.resolve() : sendWorkshopBookingAlert(booking),
-      sendCustomerBookingConfirmation(booking),
-    ]);
+    logBookingEvent("booking.created", {
+      bookingId: booking.id,
+      storageBackend: getStorageBackend(),
+      provider: getEmailProvider(),
+      source: booking.source,
+      registration: booking.registration,
+      hasCustomerEmail: Boolean(booking.customerEmail),
+    });
 
-    return booking;
+    const notifications: BookingCreateNotifications = {};
+
+    if (opts?.intakeNotification) {
+      notifications.workshop = await sendWorkshopIntakeEmail(
+        booking,
+        opts.intakeNotification.summary,
+        { transcript: opts.intakeNotification.transcript }
+      );
+    } else if (!opts?.suppressWorkshopEmail) {
+      notifications.workshop = await sendWorkshopBookingAlert(booking);
+    } else {
+      logBookingEvent("notification.skipped", {
+        kind: "workshop",
+        bookingId: booking.id,
+        reason: "suppressWorkshopEmail",
+      });
+    }
+
+    notifications.customer = await sendCustomerBookingConfirmation(booking);
+
+    return { booking, notifications };
   },
 
   updateStatus(id: string, status: BookingStatus): Promise<Booking | null> {

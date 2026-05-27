@@ -4,11 +4,10 @@ export {
   getEmailFrom,
   getEmailApiKey,
   getEmailProvider,
-  BOOKING_EMAIL_TO,
   EMAIL_FROM_DISPLAY,
 } from "@/lib/email/config";
 export { sendTransactionalEmail } from "@/lib/email/send-transactional";
-export { sendBookingIntakeEmail } from "@/lib/email/send-workshop-intake";
+export { sendWorkshopIntakeEmail } from "@/lib/email/send-workshop-intake";
 export {
   sendWorkshopBookingAlert,
   sendCustomerBookingConfirmation,

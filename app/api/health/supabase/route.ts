@@ -1,3 +1,4 @@
+import { getStorageBackend } from "@/lib/repositories/backend";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { jsonError, jsonOk } from "@/lib/api/response";
 
@@ -17,6 +18,18 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
+  const storageBackend = getStorageBackend();
+
+  if (storageBackend !== "supabase") {
+    return jsonOk({
+      storageBackend,
+      connected: false,
+      schemaReady: false,
+      message:
+        "STORAGE_BACKEND is not supabase — bookings use in-memory mock storage.",
+    });
+  }
+
   try {
     const supabase = getSupabaseServerClient();
     const start = Date.now();
@@ -26,16 +39,27 @@ export async function GET() {
     const latencyMs = Date.now() - start;
 
     if (!error) {
-      return jsonOk({ connected: true, schemaReady: true, latencyMs });
+      return jsonOk({
+        storageBackend,
+        connected: true,
+        schemaReady: true,
+        latencyMs,
+      });
     }
 
     // 42P01 = undefined_table — Supabase is reachable but schema not yet migrated.
     if (error.code === "42P01") {
-      return jsonOk({ connected: true, schemaReady: false, latencyMs });
+      return jsonOk({
+        storageBackend,
+        connected: true,
+        schemaReady: false,
+        latencyMs,
+      });
     }
 
     // Any other Supabase/PostgREST error still proves network connectivity.
     return jsonOk({
+      storageBackend,
       connected: true,
       schemaReady: false,
       latencyMs,

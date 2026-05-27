@@ -1,101 +1,86 @@
-# Email setup — Resend + Vercel (Gmail inbox interim)
+# Email setup — Resend + Vercel
 
-Workshop notifications (bookings, AI intake) go **to** your inbox via Resend. They are **sent from** a verified domain address — not from Gmail.
-
-Until `danautocentre.co.uk` is verified in Resend, you can keep receiving everything on **Gmail**.
+Workshop notifications (every booking) go **to** `BOOKING_EMAIL_TO` via Resend. Sent **from** a verified domain (`EMAIL_FROM`).
 
 ---
 
-## Interim: Gmail inbox (now)
+## Required environment variables (production)
 
-| Variable | Value |
-|----------|--------|
-| `EMAIL_TO` | Your Gmail (e.g. `you@gmail.com`) |
+| Variable | Example / notes |
+|----------|-----------------|
 | `EMAIL_PROVIDER` | `resend` |
 | `RESEND_API_KEY` | From [Resend → API Keys](https://resend.com/api-keys) |
-| `EMAIL_FROM` | Leave unset until domain is verified — defaults to `Dan Auto Centre <contact@danautocentre.co.uk>` once DNS is done |
+| `EMAIL_FROM` | `Dan Auto Centre <contact@danautocentre.co.uk>` (verified domain) |
+| `BOOKING_EMAIL_TO` | Workshop inbox (Gmail OK for receiving) |
 
-**Do not** set `EMAIL_FROM` to a `@gmail.com` address — Resend rejects it and the app blocks it on purpose.
-
-Optional duplicate: `BOOKING_EMAIL_TO` (same as `EMAIL_TO` if you only use one inbox).
+**Do not** set `EMAIL_FROM` to `@gmail.com` — Resend rejects it.
 
 Local dev without sending:
 
 ```env
 EMAIL_PROVIDER=log
-EMAIL_TO=your@gmail.com
+BOOKING_EMAIL_TO=your@gmail.com
 ```
-
-Emails print in the terminal instead of sending.
 
 ---
 
-## Health check
+## Storage (production)
+
+| Variable | Value |
+|----------|--------|
+| `STORAGE_BACKEND` | `supabase` |
+| `SUPABASE_URL` | Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key |
+
+Run migration once: `supabase/migrations/001_leads_bookings.sql`
+
+---
+
+## Health checks
 
 ```text
 GET /api/health/email
-GET /api/health/email?probe=1   # also pings Resend API (domains)
+GET /api/health/email?probe=1
+GET /api/health/supabase
 ```
 
-Example when ready for production send:
+`/api/health/supabase` reports `storageBackend` and whether `leads`/`bookings` schema is reachable.
 
-```json
-{
-  "ok": true,
-  "data": {
-    "provider": "resend",
-    "hasApiKey": true,
-    "intakeToDomain": "gmail.com",
-    "intakeToConfigured": true,
-    "fromDomain": "danautocentre.co.uk",
-    "fromAllowed": true,
-    "ready": true,
-    "warnings": []
-  }
-}
-```
+---
 
-`ready: false` with warnings → fix env vars before relying on booking emails.
+## Booking notification flow
+
+All paths use **`bookingService.create()`** (not routes):
+
+1. Validate input (route)
+2. Persist booking (repository → Supabase when `STORAGE_BACKEND=supabase`)
+3. Workshop email (standard alert or AI intake transcript email)
+4. Customer confirmation if `customerEmail` present — request received, **not** a confirmed slot
+5. Return booking — email failures are logged and **do not** roll back persistence
+
+| Flow | Endpoint | Workshop | Customer |
+|------|----------|----------|----------|
+| Direct booking | `POST /api/bookings` | Standard alert | If email provided |
+| AI booking intake | `POST /api/booking-intake` | Rich intake email | If draft email captured |
+| AI callback | `POST /api/ai-intake` | Lead email (not a booking) | N/A |
+
+Structured logs: `scope: "booking"` JSON events (`booking.created`, `notification.sent`, `notification.failed`).
 
 ---
 
 ## Vercel checklist (Production)
 
-1. **Settings → Environment Variables** (Production):
-   - `RESEND_API_KEY` — required
-   - `EMAIL_PROVIDER` = `resend` (not `log`)
-   - `EMAIL_TO` = Gmail inbox for Dan until workshop domain mail is ready
-   - `EMAIL_FROM` — only after Resend domain verification (see below)
-2. **Redeploy** after changing env vars.
-3. Open `https://your-site.vercel.app/api/health/email?probe=1` — confirm `ready: true` and `resendProbe.ok: true`.
-4. Submit a test booking on production; check Gmail inbox + Resend → Emails dashboard.
-5. Check spam if nothing arrives within a minute.
-
-Preview / Development can use `EMAIL_PROVIDER=log` if you prefer no real sends.
-
----
-
-## Resend domain (when customer DNS is ready)
-
-1. Resend → **Domains** → add `danautocentre.co.uk`.
-2. Add DNS records (SPF, DKIM, etc.) at the domain host.
-3. Wait until Resend shows **Verified**.
-4. Set in Vercel:
-   - `EMAIL_FROM=Dan Auto Centre <contact@danautocentre.co.uk>`
-5. Redeploy and re-run `/api/health/email?probe=1`.
-
----
-
-## What sends email today
-
-| Flow | Endpoint / service | Workshop email |
-|------|-------------------|----------------|
-| AI booking intake (modal) | `POST /api/booking-intake` | Yes |
-| AI advisor handoff | `POST /api/ai-intake` | Yes |
-| Direct booking form | `POST /api/bookings` | **No** (save only — add notification when prioritised) |
-| Contact form | `POST /api/leads` | **No** |
-
-Customer **confirmation** emails are not implemented yet — only workshop intake notifications.
+1. **Environment Variables** (Production):
+   - `STORAGE_BACKEND=supabase`
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+   - `RESEND_API_KEY`
+   - `EMAIL_PROVIDER=resend`
+   - `BOOKING_EMAIL_TO` = workshop inbox
+   - `EMAIL_FROM` after domain verified
+2. **Redeploy**
+3. `GET /api/health/supabase` → `storageBackend: "supabase"`, `schemaReady: true`
+4. `GET /api/health/email?probe=1` → `ready: true`
+5. Submit test booking; check inbox + Vercel logs for `notification.sent`
 
 ---
 
@@ -103,16 +88,15 @@ Customer **confirmation** emails are not implemented yet — only workshop intak
 
 | Symptom | Likely cause |
 |---------|----------------|
-| Health `ready: false`, no API key | Missing `RESEND_API_KEY` on Vercel |
-| Resend probe 401 | Invalid or revoked API key |
-| Resend send fails “domain not verified” | `EMAIL_FROM` domain not verified yet — finish DNS or omit `EMAIL_FROM` until verified |
-| Booking saved, no email | Used direct `/api/bookings` only, or intake modal not completed |
-| Dev works, prod silent | `EMAIL_PROVIDER=log` in production or wrong `EMAIL_TO` |
+| Bookings not in Supabase | `STORAGE_BACKEND` not `supabase` on Vercel |
+| Health `ready: false` | Missing `RESEND_API_KEY` or invalid `EMAIL_FROM` |
+| Booking saved, no email | Missing `BOOKING_EMAIL_TO` or `EMAIL_PROVIDER=log` in prod |
+| Customer no confirmation | No `customerEmail` on request / intake draft |
 
 ---
 
 ## Related
 
-- `lib/email/config.ts` — provider and address helpers
+- `lib/services/booking.service.ts` — notification orchestration
+- `lib/email/config.ts` — env helpers
 - `docs/GEMINI_SETUP.md` — AI advisor env
-- `GET /api/health/supabase` — database connectivity
