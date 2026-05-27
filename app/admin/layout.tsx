@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 /**
  * Admin shell — CRM modules mount here.
- * TODO: Server-side auth guard + role-based access.
+ * Page access is enforced by middleware + httpOnly session cookie.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

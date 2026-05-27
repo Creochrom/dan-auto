@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { BookVisitLink } from "@/features/booking/components/BookVisitLink";
+import { formatPlate } from "@/lib/format-plate";
 import {
   AlertTriangle,
   ArrowRight,
@@ -104,13 +106,13 @@ export function VehicleResultCard({ vehicle }: Props) {
         </p>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-          <a
-            href="#booking"
+          <BookVisitLink
+            prefill={{ registration: formatPlate(vehicle.reg) }}
             className="btn-glow flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-black"
           >
             Book this vehicle
             <ArrowRight className="h-4 w-4" />
-          </a>
+          </BookVisitLink>
           <a
             href="#ai-quote"
             className="btn-ghost flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm text-white"

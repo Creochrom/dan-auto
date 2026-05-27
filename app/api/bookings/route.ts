@@ -1,13 +1,18 @@
+import { requireAdminSession } from "@/lib/admin/guard";
 import { bookingService } from "@/lib/services/booking.service";
 import { jsonError, jsonOk } from "@/lib/api/response";
 import type { BookingStatus, CreateBookingInput } from "@/lib/types/booking";
 
 /**
- * GET /api/bookings — list bookings (admin-ready).
- * POST /api/bookings — create booking request.
- * TODO: Add auth middleware for GET; persist to Supabase.
+ * GET /api/bookings — list bookings (admin session required).
+ * POST /api/bookings — create booking request (public).
  */
+export const runtime = "nodejs";
+
 export async function GET(request: Request) {
+  const { unauthorized } = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") as BookingStatus | null;
   const bookings = await bookingService.list(status ?? undefined);

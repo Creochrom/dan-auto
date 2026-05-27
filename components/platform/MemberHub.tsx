@@ -17,6 +17,7 @@ import {
   UserPlus,
   Wallet,
 } from "lucide-react";
+import { BookVisitLink } from "@/features/booking/components/BookVisitLink";
 import { generateGarageInsights } from "@/lib/platform/insights";
 import { REFERRAL_CREDIT_GBP } from "@/lib/platform/seed";
 import {
@@ -667,10 +668,10 @@ function GarageIntelligencePanel({
         ))}
       </ul>
       <div className="border-t border-white/8 p-6">
-        <a href="#booking" className="btn-glow inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-black">
+        <BookVisitLink className="btn-glow inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-black">
           Book recommended work
           <Link2 className="h-4 w-4" />
-        </a>
+        </BookVisitLink>
       </div>
     </div>
   );

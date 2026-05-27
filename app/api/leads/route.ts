@@ -1,12 +1,17 @@
+import { requireAdminSession } from "@/lib/admin/guard";
 import { leadService } from "@/lib/services/lead.service";
 import { jsonError, jsonOk } from "@/lib/api/response";
 import type { CreateLeadInput } from "@/lib/types/lead";
 
 /**
- * GET /api/leads — list leads (CRM-ready).
- * POST /api/leads — capture lead from forms or assistant.
+ * GET /api/leads — list leads (admin session required).
+ * POST /api/leads — capture lead from forms or assistant (public).
  */
+export const runtime = "nodejs";
+
 export async function GET() {
+  const { unauthorized } = await requireAdminSession();
+  if (unauthorized) return unauthorized;
   return jsonOk(await leadService.list());
 }
 

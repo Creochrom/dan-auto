@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Lock, Loader2 } from "lucide-react";
-import { saveSession } from "@/lib/enterprise/auth";
-import type { AuthUser } from "@/lib/enterprise/auth";
+import { saveAdminDisplay, type AdminDisplayUser } from "@/lib/enterprise/auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -28,7 +27,7 @@ export default function AdminLoginPage() {
       });
 
       const json = (await res.json()) as
-        | { ok: true; data: Pick<AuthUser, "login" | "displayName" | "role"> }
+        | { ok: true; data: Pick<AdminDisplayUser, "login" | "displayName" | "role"> }
         | { ok: false; error: string };
 
       if (!json.ok) {
@@ -39,7 +38,11 @@ export default function AdminLoginPage() {
 
       // Preserve client-side session for display (dashboard name/role).
       // The httpOnly cookie set by the server is the actual security boundary.
-      saveSession({ id: json.data.login, ...json.data });
+      saveAdminDisplay({
+        login: json.data.login,
+        displayName: json.data.displayName,
+        role: "admin",
+      });
       router.replace("/admin");
     } catch {
       setError("Network error — please try again");

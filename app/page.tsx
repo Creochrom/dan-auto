@@ -36,8 +36,10 @@ import { AdvisorSection } from "@/features/marketing/components/AdvisorSection";
 import { MotSection } from "@/features/marketing/components/MotSection";
 import { useAssistant } from "@/features/assistant/AssistantContext";
 import {
+  BookVisitLink,
   BookingIntakeFlow,
   BookingIntakeSidebar,
+  useBookVisit,
 } from "@/features/booking";
 import { useI18n } from "@/components/providers/I18nProvider";
 import type { SavedVehicle } from "@/lib/platform/types";
@@ -48,13 +50,12 @@ import { createLead } from "@/lib/api/client";
 import {
   BUSINESS,
   WHATSAPP_HREF,
-  bookingServiceOptions,
   businessConfig,
   openingHours,
   quoteServiceOptions,
   siteServices,
 } from "@/lib/config";
-import { useRememberedRegistration } from "@/lib/registration-memory";
+import { useRememberedCustomer } from "@/lib/booking-customer-memory";
 import { mockVehicleLookup, SCAN_STEPS } from "@/lib/vehicle-data";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
 
@@ -118,22 +119,6 @@ const SERVICING_TIERS = [
       "Thorough maintenance covering safety, fluids, filters, and wear items.",
   },
 ] as const;
-
-const BOOKING_SERVICE_ALIASES: Record<string, string> = {
-  "DPF Deep Clean": "DPF cleaning",
-};
-
-function resolveBookingService(label?: string): string {
-  if (!label) return bookingServiceOptions[0];
-  if (BOOKING_SERVICE_ALIASES[label]) return BOOKING_SERVICE_ALIASES[label];
-  if (bookingServiceOptions.includes(label)) return label;
-  const fuzzy = bookingServiceOptions.find(
-    (o) =>
-      label.toLowerCase().includes(o.toLowerCase()) ||
-      o.toLowerCase().includes(label.toLowerCase())
-  );
-  return fuzzy ?? label;
-}
 
 const WORKSHOP_JOBS = [
   {
@@ -292,15 +277,14 @@ export default function Home() {
   const [heroVehicle, setHeroVehicle] = useState<VehicleResult | null>(null);
   const [isVipMember, setIsVipMember] = useState(false);
 
+  const { customer: rememberedCustomer } = useRememberedCustomer();
+  const bookVisit = useBookVisit();
+  const registrationHint =
+    rememberedCustomer.registration ?? heroVehicle?.reg ?? undefined;
+
   useEffect(() => {
     setIsVipMember(readMemberStatus());
   }, []);
-
-  const {
-    value: bookReg,
-    setValue: setBookReg,
-    fromMemory: registrationFromMemory,
-  } = useRememberedRegistration();
 
   const [quoteReg, setQuoteReg] = useState("");
   const [quoteService, setQuoteService] = useState<string>(quoteServiceOptions[0]);
@@ -308,7 +292,6 @@ export default function Home() {
   const [quoteText, setQuoteText] = useState<string | null>(null);
   const [quoteDisplayed, setQuoteDisplayed] = useState("");
 
-  const [bookService, setBookService] = useState<string>(bookingServiceOptions[0]);
   const [bookDoneTick, setBookDoneTick] = useState(0);
 
   const [contactName, setContactName] = useState("");
@@ -379,9 +362,9 @@ export default function Home() {
       setHeroVehicle(mockVehicleLookup(canon).vehicle);
       setHeroScanPhase("done");
       setHeroScanStep(SCAN_STEPS.length - 1);
-      setBookReg(formatPlate(canon));
+      bookVisit({ registration: formatPlate(canon) }, { scroll: false });
     }, 1200);
-  }, []);
+  }, [bookVisit]);
 
   const onBookingIntakeComplete = useCallback(() => {
     setBookDoneTick((t) => t + 1);
@@ -404,14 +387,6 @@ export default function Home() {
     }
     setContactSent(true);
   };
-
-  const scrollToBooking = useCallback(
-    (service?: string) => {
-      if (service) setBookService(resolveBookingService(service));
-      scrollTo("booking");
-    },
-    [scrollTo]
-  );
 
   const openAccountSignup = useCallback(() => {
     setMemberStatus(true);
@@ -448,11 +423,11 @@ export default function Home() {
           : heroVehicle.suggestedRepairs[0]?.toLowerCase().includes("service")
             ? "Servicing — full"
             : "Diagnostics";
-      scrollToBooking(label);
+      bookVisit({ serviceLabel: label }, { preferToday: true });
       return;
     }
-    scrollToBooking();
-  }, [heroVehicle, scrollToBooking]);
+    bookVisit(undefined, { preferToday: true });
+  }, [heroVehicle, bookVisit]);
 
   const handleHeroPlateChangeWithReset = useCallback(
     (v: string) => {
@@ -490,8 +465,10 @@ export default function Home() {
           onPlateFocus={handleHeroPlateFocus}
           onPlateBlur={handlePlateBlur}
           onCreateAccount={openAccountSignup}
-          onBookNow={() => scrollToBooking()}
-          onHeroServiceSelect={(label) => scrollToBooking(label)}
+          onBookNow={() => bookVisit()}
+          onHeroServiceSelect={(label) =>
+            bookVisit({ serviceLabel: label }, { preferToday: true })
+          }
           onDiscussAI={onHeroDiscussAI}
           onEstimateRepair={onHeroEstimateRepair}
           onBookInspection={onHeroBookInspection}
@@ -520,7 +497,12 @@ export default function Home() {
               </p>
             </motion.div>
 
-            <ServiceGridPremium services={siteServices} />
+            <ServiceGridPremium
+              services={siteServices}
+              onBookService={(title) =>
+                bookVisit({ serviceLabel: title }, { preferToday: true })
+              }
+            />
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -550,16 +532,16 @@ export default function Home() {
 
             <BookingCTAStrip
               className="mt-12"
-              onBook={() => scrollToBooking()}
+              onBook={() => bookVisit()}
             />
           </div>
         </section>
 
         <MotSection
-          onBookMot={() => scrollToBooking("MOT")}
+          onBookMot={() => bookVisit({ service: "MOT" }, { preferToday: true })}
           onAskAdvisor={() =>
             openAssistant({
-              registration: bookReg || heroVehicle?.reg,
+              registration: registrationHint,
               conciergeMode: "booking",
               advisorRoute: {
                 entry_point: "mot_section",
@@ -590,7 +572,9 @@ export default function Home() {
                   <div className="mt-8 flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={() => scrollToBooking("Diagnostics")}
+                      onClick={() =>
+                        bookVisit({ service: "Diagnostics" }, { preferToday: true })
+                      }
                       className="btn-glow inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-black"
                     >
                       Book diagnostics
@@ -600,7 +584,7 @@ export default function Home() {
                       type="button"
                       onClick={() =>
                         openAssistant({
-                          registration: bookReg || heroVehicle?.reg,
+                          registration: registrationHint,
                           conciergeMode: "diagnostic",
                           advisorRoute: {
                             entry_point: "diagnostics_section",
@@ -640,7 +624,7 @@ export default function Home() {
         <AdvisorSection
           onOpenAdvisor={() =>
             openAssistant({
-              registration: bookReg || heroVehicle?.reg,
+              registration: registrationHint,
               advisorRoute: {
                 entry_point: "advisor_section",
                 intent: "diagnostic_help",
@@ -648,7 +632,7 @@ export default function Home() {
               },
             })
           }
-          onBook={() => scrollToBooking()}
+          onBook={() => bookVisit()}
         />
 
         {/* ── Booking ── */}
@@ -661,13 +645,7 @@ export default function Home() {
                   <BookingIntakeSidebar />
                 </div>
                 <div className="p-6 sm:p-10">
-                  <BookingIntakeFlow
-                    registration={bookReg}
-                    onRegistrationChange={setBookReg}
-                    registrationFromMemory={registrationFromMemory}
-                    initialService={bookService}
-                    onComplete={onBookingIntakeComplete}
-                  />
+                  <BookingIntakeFlow onComplete={onBookingIntakeComplete} />
                 </div>
               </div>
             </div>
@@ -878,9 +856,9 @@ export default function Home() {
               className="mt-8 text-center text-sm text-zinc-500"
             >
               Walk-ins welcome subject to availability —{" "}
-              <a href="#booking" className="text-cyan hover:underline">
+              <BookVisitLink className="text-cyan hover:underline">
                 book ahead to guarantee your bay
-              </a>
+              </BookVisitLink>
             </motion.p>
           </div>
         </section>
@@ -1010,7 +988,7 @@ export default function Home() {
             <BookingCTAStrip
               title="Need help with your car?"
               subtitle="Choose a slot, describe what's happening, and upload photos — a mechanic will review and call you back."
-              onBook={() => scrollToBooking()}
+              onBook={() => bookVisit()}
             />
           </div>
         </section>
@@ -1248,13 +1226,10 @@ export default function Home() {
             <MessageCircle className="h-4 w-4" />
             WhatsApp
           </a>
-          <a
-            href="#booking"
-            className="btn-glow flex flex-1 items-center justify-center gap-1.5 rounded-full py-3 text-xs font-semibold text-black sm:text-sm"
-          >
+          <BookVisitLink className="btn-glow flex flex-1 items-center justify-center gap-1.5 rounded-full py-3 text-xs font-semibold text-black sm:text-sm">
             <Calendar className="h-4 w-4" />
             Book
-          </a>
+          </BookVisitLink>
         </div>
       </motion.div>
     </>

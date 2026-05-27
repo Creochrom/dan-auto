@@ -11,6 +11,8 @@ import {
 import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type { BookingChatContext } from "@/lib/types/chat";
 import type { HeroConciergeMode } from "@/lib/types/hero-concierge";
+import { mergeBookingPrefill } from "@/lib/booking-prefill";
+import { formatPlate } from "@/lib/format-plate";
 
 export type OpenAssistantOptions = {
   registration?: string;
@@ -74,6 +76,19 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
     setRegistrationHint(options?.registration);
     setBookingContext(options?.bookingContext);
+
+    if (options?.bookingContext) {
+      mergeBookingPrefill({
+        service: options.bookingContext.service,
+        preferredDate: options.bookingContext.preferredDate,
+        preferredTime: options.bookingContext.preferredTime,
+      });
+    }
+    if (options?.registration) {
+      mergeBookingPrefill({
+        registration: formatPlate(options.registration),
+      });
+    }
     setAdvisorRoute(route);
     setHeroConciergeMode(
       inferConciergeMode(route, options?.conciergeMode)

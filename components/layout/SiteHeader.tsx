@@ -1,12 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, Phone, X } from "lucide-react";
 import { DanAutoCentreLogo } from "@/components/brand/DanAutoCentreLogo";
 import { useI18n } from "@/components/providers/I18nProvider";
 import { NAV_HOME_SECTION_ID, NAV_MAIN } from "@/lib/nav-config";
+import { useBookVisit } from "@/features/booking/hooks/useBookVisit";
 import { handleSectionNavClick } from "@/lib/scroll-to-section";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -43,17 +51,25 @@ function SectionCta({
   className,
   children,
   onNavigate,
+  onClick,
 }: {
   href: string;
   className: string;
   children: ReactNode;
   onNavigate?: () => void;
+  onClick?: (e: MouseEvent<HTMLAnchorElement>, onNavigate?: () => void) => void;
 }) {
   return (
     <a
       href={href}
       className={className}
-      onClick={(e) => handleSectionNavClick(e, href, onNavigate)}
+      onClick={(e) => {
+        if (onClick) {
+          onClick(e, onNavigate);
+          return;
+        }
+        handleSectionNavClick(e, href, onNavigate);
+      }}
     >
       {children}
     </a>
@@ -62,6 +78,7 @@ function SectionCta({
 
 export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
   const { isLocalizedExperience, messages, returnToEnglish } = useI18n();
+  const bookVisit = useBookVisit();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -94,6 +111,16 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
   const closeAll = useCallback(() => {
     setMenuOpen(false);
   }, []);
+
+  const handleBookNav = useCallback(
+    (e: MouseEvent<HTMLAnchorElement>, onNavigate?: () => void) => {
+      handleSectionNavClick(e, "#booking", () => {
+        bookVisit(undefined, { scroll: false });
+        onNavigate?.();
+      });
+    },
+    [bookVisit]
+  );
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -172,6 +199,7 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
                       href="#booking"
                       className="site-nav-book site-nav-panel-cta"
                       onNavigate={closeAll}
+                      onClick={handleBookNav}
                     >
                       Book your visit
                     </SectionCta>
@@ -240,7 +268,11 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
                   )}
                 </a>
 
-                <SectionCta href="#booking" className="site-nav-book">
+                <SectionCta
+                  href="#booking"
+                  className="site-nav-book"
+                  onClick={handleBookNav}
+                >
                   <span className="hidden sm:inline">Book your visit</span>
                   <span className="sm:hidden">Book</span>
                 </SectionCta>

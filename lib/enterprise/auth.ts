@@ -1,63 +1,54 @@
-export type Role = "owner" | "developer" | "admin" | "worker";
+/**
+ * Client-side admin display session only (name / role in the dashboard UI).
+ * Security is enforced by the httpOnly `dan_admin_session` cookie + middleware.
+ * Do not store passwords or verify credentials here.
+ */
 
-export type AuthUser = {
-  id: string;
+export type AdminRole = "admin";
+
+export type AdminDisplayUser = {
   login: string;
   displayName: string;
-  role: Role;
+  role: AdminRole;
 };
 
-const ACCOUNTS: { login: string; password: string; user: AuthUser }[] = [
-  {
-    login: "Dan",
-    password: "Auto",
-    user: { id: "owner-1", login: "Dan", displayName: "Dan (Owner)", role: "owner" },
-  },
-  {
-    login: "Monochrome",
-    password: "Design",
-    user: {
-      id: "dev-1",
-      login: "Monochrome",
-      displayName: "Monochrome (Developer)",
-      role: "developer",
-    },
-  },
-];
+/** @deprecated Use AdminDisplayUser — kept for existing admin UI imports. */
+export type AuthUser = AdminDisplayUser;
 
-const SESSION_KEY = "dan_enterprise_session";
+const SESSION_KEY = "dan_admin_display";
 
-export function authenticate(login: string, password: string): AuthUser | null {
-  const found = ACCOUNTS.find(
-    (a) => a.login.toLowerCase() === login.trim().toLowerCase() && a.password === password
-  );
-  return found?.user ?? null;
-}
-
-export function saveSession(user: AuthUser) {
+export function saveAdminDisplay(user: AdminDisplayUser): void {
   if (typeof window === "undefined") return;
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
 }
 
-export function loadSession(): AuthUser | null {
+export function loadAdminDisplay(): AdminDisplayUser | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as AuthUser) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AdminDisplayUser;
+    if (parsed.role !== "admin" || !parsed.login) return null;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-export function clearSession() {
+export function clearAdminDisplay(): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(SESSION_KEY);
 }
 
-export function canAccessAdmin(role: Role) {
-  return role === "owner" || role === "developer" || role === "admin";
-}
+/** @deprecated Use saveAdminDisplay */
+export const saveSession = saveAdminDisplay;
 
-export function canManageStaff(role: Role) {
-  return role === "owner" || role === "admin";
+/** @deprecated Use loadAdminDisplay */
+export const loadSession = loadAdminDisplay;
+
+/** @deprecated Use clearAdminDisplay */
+export const clearSession = clearAdminDisplay;
+
+export function canManageStaff(role: AdminRole): boolean {
+  return role === "admin";
 }

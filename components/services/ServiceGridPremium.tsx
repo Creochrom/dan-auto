@@ -18,9 +18,10 @@ export type ServiceItem = {
 
 type Props = {
   services: ServiceItem[];
+  onBookService?: (title: string) => void;
 };
 
-export function ServiceGridPremium({ services }: Props) {
+export function ServiceGridPremium({ services, onBookService }: Props) {
   const [active, setActive] = useState<ServiceItem | null>(null);
   const detail = active ? getServiceDetail(active.title) : null;
 
@@ -158,13 +159,16 @@ export function ServiceGridPremium({ services }: Props) {
               </div>
 
               <div className="mt-8 flex flex-wrap gap-3">
-                <a
-                  href="#booking"
-                  onClick={() => setActive(null)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onBookService?.(active.title);
+                    setActive(null);
+                  }}
                   className="btn-glow rounded-full px-6 py-3 text-sm font-semibold text-black"
                 >
                   Book {active.title}
-                </a>
+                </button>
                 <button
                   type="button"
                   onClick={() => setActive(null)}
