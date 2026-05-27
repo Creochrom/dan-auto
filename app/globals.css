@@ -163,6 +163,9 @@ body {
 }
 
 .hero-plate-glass {
+  container-type: inline-size;
+  container-name: hero-plate;
+  overflow-x: clip;
   box-shadow:
     inset 0 1px 0 rgba(236, 217, 154, 0.08),
     0 20px 55px rgba(0, 0, 0, 0.45),
@@ -2176,7 +2179,19 @@ body {
   }
 }
 
+.hero-plate-label {
+  display: block;
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.28em;
+  /* Compensate trailing letter-spacing so uppercase label looks optically centered */
+  padding-inline-end: 0.28em;
+}
+
 .hero-plate-field {
+  --hero-plate-field-radius: 16px;
+  --hero-plate-inset: 6px;
   display: flex;
   height: 74px;
   min-height: 74px;
@@ -2184,7 +2199,7 @@ body {
   align-items: center;
   gap: 0;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: var(--hero-plate-field-radius);
   border: 1px solid rgba(212, 166, 60, 0.32);
   background: rgba(4, 4, 4, 0.78);
   box-shadow:
@@ -2367,9 +2382,18 @@ body {
 }
 
 .hero-plate-field--invalid {
-  animation:
-    hero-plate-invalid-flash 0.18s ease-out,
-    hero-plate-field-nudge 0.22s ease-out;
+  border-color: rgba(239, 68, 68, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 220, 0.06),
+    0 0 22px rgba(239, 68, 68, 0.24),
+    0 12px 36px rgba(0, 0, 0, 0.35);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.hero-plate-field--shake {
+  animation: hero-plate-field-nudge 0.38s ease-in-out;
 }
 
 @keyframes hero-plate-invalid-flash {
@@ -2410,16 +2434,21 @@ body {
   position: relative;
   z-index: 2;
   display: flex;
-  width: 42px;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  height: calc(100% - 12px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
   flex-shrink: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   align-self: center;
-  margin: 0 4px 0 10px;
-  padding: 7px 6px;
-  border-radius: 6px;
+  margin: var(--hero-plate-inset, 6px) 0 var(--hero-plate-inset, 6px) 10px;
+  padding: 4px;
+  border-radius: calc(var(--hero-plate-field-radius, 16px) - var(--hero-plate-inset, 6px));
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #0f3a8f 0%, #0b2c78 52%, #081f58 100%);
   box-shadow:
@@ -2462,13 +2491,17 @@ body {
   background: linear-gradient(180deg, #1c1c1c 0%, #101010 100%);
 }
 
-.hero-plate-kbd--highlight {
-  border-color: rgba(212, 166, 60, 0.72) !important;
+.hero-plate-kbd--warning {
+  border-color: rgba(248, 113, 113, 0.82) !important;
+  background: linear-gradient(180deg, #5c1818 0%, #3a0c0c 52%, #240808 100%) !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 0 16px rgba(212, 166, 60, 0.45),
-    0 0 8px rgba(239, 68, 68, 0.2) !important;
-  animation: hero-plate-kbd-highlight 0.22s ease-out;
+    inset 0 1px 0 rgba(255, 210, 210, 0.14),
+    0 0 18px rgba(239, 68, 68, 0.42),
+    0 0 8px rgba(251, 146, 60, 0.28) !important;
+}
+
+.hero-plate-kbd--highlight {
+  animation: hero-plate-kbd-highlight 0.28s ease-out;
 }
 
 @keyframes hero-plate-kbd-highlight {
@@ -2501,6 +2534,28 @@ body {
 
 .hero-plate-kbd-globe {
   opacity: 0.9;
+}
+
+.hero-plate-kbd-warn-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: rgba(254, 226, 226, 0.95);
+}
+
+.hero-plate-kbd-warn-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 0.625rem;
+  height: 0.625rem;
+  color: #fbbf24;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.65));
+}
+
+.hero-plate-kbd--warning .hero-plate-kbd-label {
+  color: #fecaca;
+  letter-spacing: 0;
 }
 
 @media (min-width: 1024px) {
@@ -2770,9 +2825,11 @@ body {
       0 0 0 1px rgba(201, 162, 39, 0.08);
   }
 
+  .hero-plate-glass > .hero-plate-label,
   .hero-plate-glass > p:first-of-type {
     font-size: var(--hero-sm-plate-label);
     letter-spacing: clamp(0.2em, 0.5vw, 0.28em);
+    padding-inline-end: clamp(0.2em, 0.5vw, 0.28em);
   }
 
   .hero-plate-glass .relative {
@@ -2786,10 +2843,12 @@ body {
   }
 
   .hero-plate-field {
+    --hero-plate-field-radius: 14px;
+    --hero-plate-inset: 5px;
     height: var(--hero-sm-plate-field-h);
     min-height: var(--hero-sm-plate-field-h);
     max-height: var(--hero-sm-plate-field-h);
-    border-radius: 14px;
+    border-radius: var(--hero-plate-field-radius);
   }
 
   .hero-plate-input {
@@ -2807,10 +2866,17 @@ body {
     font-size: var(--hero-sm-plate-submit-fs, 11px);
   }
 
-  .hero-plate-gb {
-    width: 36px;
-    margin: 0 2px 0 8px;
-    padding: 6px 5px;
+  .hero-plate-gb,
+  .hero-plate-kbd {
+    height: calc(100% - 10px);
+    margin: var(--hero-plate-inset, 5px) 0 var(--hero-plate-inset, 5px) 8px;
+    padding: 3px;
+    border-radius: calc(var(--hero-plate-field-radius, 14px) - var(--hero-plate-inset, 5px));
+  }
+
+  .hero-plate-kbd-warn-icon {
+    width: 0.875rem;
+    height: 0.875rem;
   }
 
   .hero-overlay-stage .hero-floating-window,
@@ -3065,42 +3131,60 @@ body {
   );
 }
 
-.hero-vehicle-info-bar__track {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  gap: 0.625rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding-bottom: 3px;
-  margin-inline: -1px;
+/* Compact vehicle info chips — always 3-across inside registration panel width */
+.hero-vehicle-info-bar {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  box-sizing: border-box;
+  --hero-vic-height: 3.5rem;
+  --hero-vic-pad-y: 0.3125rem;
+  --hero-vic-pad-x: 0.25rem;
+  --hero-vic-icon-size: 0px;
+  --hero-vic-inner-gap: 0;
+  --hero-vic-text-gap: 0.0625rem;
+  --hero-vic-label-fs: 6.5px;
+  --hero-vic-title-fs: 8.5px;
+  --hero-vic-footer-fs: 7px;
+  --hero-vic-track-gap: 0.1875rem;
 }
 
-.hero-vehicle-info-bar__track::-webkit-scrollbar {
-  display: none;
+.hero-vehicle-info-bar__track {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  gap: var(--hero-vic-track-gap);
+  overflow: hidden;
+  overflow-x: clip;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.hero-vehicle-info-bar__track > .hero-vehicle-info-card {
+  min-width: 0;
 }
 
 .hero-vehicle-info-card {
   display: flex;
-  flex: 0 0 auto;
-  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: clamp(9.75rem, 42vw, 11.5rem);
-  min-width: clamp(9.75rem, 42vw, 11.5rem);
-  min-height: 5.75rem;
-  max-width: none;
-  padding: 1rem 1.125rem;
-  border-radius: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: var(--hero-vic-height);
+  min-height: var(--hero-vic-height);
+  max-height: var(--hero-vic-height);
+  padding: var(--hero-vic-pad-y) var(--hero-vic-pad-x);
+  border-radius: 0.5rem;
   border: 1px solid rgba(212, 166, 60, 0.18);
-  text-align: left;
-  overflow: visible;
+  text-align: center;
+  overflow: hidden;
   box-sizing: border-box;
-  scroll-snap-align: start;
   transition:
     border-color 0.22s ease,
     background-color 0.22s ease,
@@ -3109,35 +3193,41 @@ body {
 
 .hero-vehicle-info-card__inner {
   display: flex;
+  flex-direction: column;
   width: 100%;
+  height: 100%;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0.875rem;
+  justify-content: center;
+  gap: var(--hero-vic-inner-gap);
 }
 
 .hero-vehicle-info-card__icon-slot {
-  display: flex;
-  flex: 0 0 3rem;
-  width: 3rem;
-  height: 3rem;
+  display: none;
+  flex: 0 0 auto;
+  width: var(--hero-vic-icon-size);
+  height: var(--hero-vic-icon-size);
+  min-width: 0;
+  max-width: var(--hero-vic-icon-size);
   align-items: center;
   justify-content: center;
-  align-self: center;
+  overflow: hidden;
 }
 
 .hero-vehicle-info-card__brand-logo {
-  width: 2rem;
-  height: 2rem;
+  width: 1.125rem;
+  height: 1.125rem;
   max-width: 100%;
   max-height: 100%;
-  flex-shrink: 0;
+  flex-shrink: 1;
   object-fit: contain;
   color: rgba(212, 166, 60, 0.9);
 }
 
 .hero-vehicle-info-card__icon-svg {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1rem;
+  height: 1rem;
   flex-shrink: 0;
   color: rgba(212, 166, 60, 0.88);
 }
@@ -3145,53 +3235,86 @@ body {
 .hero-vehicle-info-card__body {
   display: flex;
   min-width: 0;
-  flex: 1 1 auto;
+  max-width: 100%;
+  flex: 0 1 auto;
   flex-direction: column;
   justify-content: center;
-  align-items: flex-start;
-  gap: 0.25rem;
+  align-items: center;
+  gap: var(--hero-vic-text-gap);
+  overflow: hidden;
+  text-align: center;
 }
 
 .hero-vehicle-info-card__label {
   display: block;
-  font-size: 9px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  text-align: center;
+  font-size: var(--hero-vic-label-fs);
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.42);
-  line-height: 1.35;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero-vehicle-info-card__title {
   display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
   margin: 0;
-  font-size: 12.5px;
+  text-align: center;
+  font-size: var(--hero-vic-title-fs);
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.15;
   color: rgba(255, 255, 255, 0.96);
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero-vehicle-info-card__footer {
   display: block;
-  min-height: 1.125rem;
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1.35;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  min-height: 0;
+  text-align: center;
+  font-size: var(--hero-vic-footer-fs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-transform: uppercase;
   color: rgba(255, 255, 255, 0.55);
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero-vehicle-info-card__action {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
   color: rgba(212, 166, 60, 0.82);
-  line-height: 1.35;
+}
+
+.hero-vic-action--narrow {
+  display: none;
 }
 
 .hero-vehicle-info-card--vehicle {
@@ -3199,8 +3322,14 @@ body {
 }
 
 .hero-vehicle-info-card--mot {
-  text-decoration: none;
   cursor: pointer;
+  min-width: 0;
+  border: 1px solid rgba(212, 166, 60, 0.18);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .hero-vehicle-info-card--mot:hover {
@@ -3209,12 +3338,18 @@ body {
   box-shadow: 0 0 18px rgba(212, 166, 60, 0.1);
 }
 
+.hero-vehicle-info-card--mot:focus-visible {
+  outline: 2px solid rgba(212, 166, 60, 0.55);
+  outline-offset: 2px;
+}
+
 .hero-vehicle-info-card--mot:hover .hero-vehicle-info-card__action {
   color: rgba(212, 166, 60, 0.98);
 }
 
 .hero-vehicle-info-card--cta {
   cursor: pointer;
+  min-width: 0;
   border-color: rgba(212, 166, 60, 0.38);
   background: linear-gradient(
     155deg,
@@ -3254,13 +3389,21 @@ body {
 .hero-vehicle-info-card__cta {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  justify-content: center;
+  gap: 0.125rem;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
   color: #d4a63c;
-  line-height: 1.35;
+}
+
+.hero-vehicle-info-card__cta svg {
+  width: 0.625rem;
+  height: 0.625rem;
+  flex-shrink: 0;
 }
 
 .hero-plate-trust {
@@ -3278,32 +3421,114 @@ body {
   gap: 0.25rem;
 }
 
-@media (min-width: 640px) and (max-width: 1023px) {
-  .hero-vehicle-info-card {
-    width: clamp(10.25rem, 32vw, 12.5rem);
-    min-width: clamp(10.25rem, 32vw, 12.5rem);
-    min-height: 6rem;
-    padding: 1.0625rem 1.1875rem;
+/* Scale with registration panel width (not viewport) */
+@container hero-plate (max-width: 15.99rem) {
+  .hero-vehicle-info-bar {
+    --hero-vic-height: 3.25rem;
+    --hero-vic-pad-y: 0.25rem;
+    --hero-vic-pad-x: 0.1875rem;
+    --hero-vic-track-gap: 0.125rem;
+    --hero-vic-label-fs: 6px;
+    --hero-vic-title-fs: 8px;
+    --hero-vic-footer-fs: 6.5px;
+    --hero-vic-text-gap: 0;
   }
 
-  .hero-vehicle-info-card__title {
-    font-size: 13px;
+  .hero-vic-action--wide {
+    display: none;
+  }
+
+  .hero-vic-action--narrow {
+    display: inline;
   }
 }
 
-@media (min-width: 1024px) {
-  .hero-vehicle-info-bar__track {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(8.75rem, 1fr));
-    gap: 0.625rem;
-    overflow-x: auto;
-    scroll-snap-type: none;
+@container hero-plate (max-width: 17.99rem) and (min-width: 16rem) {
+  .hero-vic-action--wide {
+    display: none;
   }
 
-  .hero-vehicle-info-card {
-    width: auto;
-    min-width: 0;
-    max-width: none;
+  .hero-vic-action--narrow {
+    display: inline;
+  }
+}
+
+@container hero-plate (min-width: 16rem) {
+  .hero-vehicle-info-bar {
+    --hero-vic-height: 3.75rem;
+    --hero-vic-pad-x: 0.3125rem;
+    --hero-vic-track-gap: 0.25rem;
+    --hero-vic-label-fs: 7px;
+    --hero-vic-title-fs: 9px;
+    --hero-vic-footer-fs: 7.5px;
+  }
+}
+
+@container hero-plate (min-width: 20rem) {
+  .hero-vehicle-info-bar {
+    --hero-vic-height: 4.125rem;
+    --hero-vic-pad-y: 0.375rem;
+    --hero-vic-pad-x: 0.375rem;
+    --hero-vic-track-gap: 0.3125rem;
+    --hero-vic-label-fs: 7.5px;
+    --hero-vic-title-fs: 10px;
+    --hero-vic-footer-fs: 8.5px;
+  }
+}
+
+@container hero-plate (min-width: 24rem) {
+  .hero-vehicle-info-bar {
+    --hero-vic-height: 4.5rem;
+    --hero-vic-pad-y: 0.4375rem;
+    --hero-vic-pad-x: 0.4375rem;
+    --hero-vic-track-gap: 0.375rem;
+    --hero-vic-label-fs: 8px;
+    --hero-vic-title-fs: 11px;
+    --hero-vic-footer-fs: 9px;
+  }
+}
+
+/* Desktop: icons only when panel is wide enough */
+@media (min-width: 1024px) {
+  @container hero-plate (min-width: 22rem) {
+    .hero-vehicle-info-bar {
+      --hero-vic-height: 5.25rem;
+      --hero-vic-pad-y: 0.5rem;
+      --hero-vic-pad-x: 0.4375rem;
+      --hero-vic-icon-size: 1.625rem;
+      --hero-vic-inner-gap: 0.375rem;
+      --hero-vic-text-gap: 0.0625rem;
+      --hero-vic-label-fs: 8px;
+      --hero-vic-title-fs: 11.5px;
+      --hero-vic-footer-fs: 9px;
+      --hero-vic-track-gap: 0.375rem;
+    }
+
+    .hero-vehicle-info-card__icon-slot {
+      display: flex;
+    }
+
+    .hero-vehicle-info-card__brand-logo {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  @container hero-plate (min-width: 28rem) {
+    .hero-vehicle-info-bar {
+      --hero-vic-height: 5.5rem;
+      --hero-vic-pad-x: 0.5rem;
+      --hero-vic-icon-size: 1.875rem;
+      --hero-vic-inner-gap: 0.4375rem;
+      --hero-vic-label-fs: 8.5px;
+      --hero-vic-title-fs: 12px;
+      --hero-vic-footer-fs: 9.5px;
+    }
+
+    .hero-vehicle-info-card__brand-logo {
+      width: 1.375rem;
+      height: 1.375rem;
+    }
   }
 }
 
@@ -3443,6 +3668,20 @@ body {
   opacity: 0.04;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 128px 128px;
+}
+
+/* Ambient section glows (no backdrop-filter — gradient only) */
+.section-glow--top {
+  top: 0;
+}
+
+.section-glow--bottom {
+  bottom: 0;
+}
+
+.section-glow--center {
+  top: 14%;
+  height: min(380px, 52vh);
 }
 
 .grid-bg {
@@ -4795,5 +5034,88 @@ body.advisor-open {
 
   .premium-card:hover {
     transform: none;
+  }
+}
+
+/* ── Mobile/tablet GPU compositing stability (Android Chrome) ── */
+@media (max-width: 1023px) {
+  /* feTurbulence + mix-blend-overlay causes banding/texture corruption while scrolling */
+  .noise-overlay {
+    display: none;
+  }
+
+  .site-nav,
+  .site-nav--scrolled {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(4, 4, 4, 0.94);
+  }
+
+  .site-nav--scrolled {
+    background: rgba(0, 0, 0, 0.96);
+  }
+
+  .site-nav-overlay-dismiss,
+  .site-nav-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .site-nav-overlay-dismiss {
+    background: rgba(0, 0, 0, 0.78);
+  }
+
+  .site-nav-panel {
+    background: rgba(6, 6, 6, 0.98);
+  }
+
+  .mobile-sticky-cta {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(0, 0, 0, 0.97);
+  }
+
+  /* Mask-composite card borders glitch on mobile GPUs */
+  .premium-card::before {
+    display: none;
+  }
+
+  .premium-card:hover {
+    transform: none;
+  }
+
+  .section-glow--center {
+    top: 14%;
+    transform: none;
+    height: min(360px, 50vh);
+  }
+
+  /* Reviews: isolate layer stack; avoid nested transforms + text clip artifacts */
+  .reviews-section {
+    isolation: isolate;
+  }
+
+  .reviews-section .section-glow {
+    opacity: 0.7;
+    will-change: auto;
+  }
+
+  .reviews-section .reviews-card {
+    transform: none !important;
+  }
+
+  .reviews-section .quote-mark {
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: rgba(232, 197, 71, 0.38);
+  }
+}
+
+@media (min-width: 1024px) {
+  .section-glow--center {
+    top: 50%;
+    transform: translateY(-50%);
+    height: 420px;
   }
 }

@@ -338,15 +338,9 @@ function SectionGlow({
 }: {
   position?: "top" | "center" | "bottom";
 }) {
-  const pos =
-    position === "top"
-      ? "top-0"
-      : position === "bottom"
-        ? "bottom-0"
-        : "top-1/2 -translate-y-1/2";
   return (
-    <motion.div
-      className={`pointer-events-none absolute inset-x-0 ${pos} h-[420px] bg-[radial-gradient(ellipse_70%_60%_at_50%_50%,rgba(201,162,39,0.08),transparent)]`}
+    <div
+      className={`section-glow section-glow--${position} pointer-events-none absolute inset-x-0 h-[420px] bg-[radial-gradient(ellipse_70%_60%_at_50%_50%,rgba(201,162,39,0.08),transparent)]`}
       aria-hidden
     />
   );
@@ -422,6 +416,15 @@ export default function Home() {
 
   const [plateFocus, setPlateFocus] = useState<"hero" | "quote" | null>(null);
   const [accountSignupFocus, setAccountSignupFocus] = useState(false);
+  const [liteSectionMotion, setLiteSectionMotion] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setLiteSectionMotion(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const handlePlateBlur = useCallback(() => setPlateFocus(null), []);
   const handleHeroPlateFocus = useCallback(() => setPlateFocus("hero"), []);
@@ -799,7 +802,10 @@ export default function Home() {
         </section>
 
         {/* ── Reviews ── */}
-        <section id="reviews" className="section-deep relative scroll-mt-28 py-20 sm:py-28">
+        <section
+          id="reviews"
+          className="reviews-section section-deep relative scroll-mt-28 py-20 sm:py-28"
+        >
           <SectionGlow position="top" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <SectionHeader
@@ -813,10 +819,10 @@ export default function Home() {
               href={BUSINESS.googleReviewsHref}
               target="_blank"
               rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={liteSectionMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
+              whileInView={liteSectionMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="premium-card mx-auto mt-10 flex max-w-md items-center justify-center gap-4 rounded-2xl px-6 py-5 transition hover:border-cyan/30"
+              className="reviews-card premium-card mx-auto mt-10 flex max-w-md items-center justify-center gap-4 rounded-2xl px-6 py-5 transition hover:border-cyan/30"
             >
               <div className="flex gap-0.5">
                 {Array.from({ length: 5 }).map((_, j) => (
@@ -837,11 +843,11 @@ export default function Home() {
               {REVIEWS.map((r, i) => (
                 <motion.blockquote
                   key={r.vehicle}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
+                  initial={liteSectionMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
+                  whileInView={liteSectionMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.06, duration: 0.45 }}
-                  className="premium-card relative rounded-2xl p-6 sm:p-8"
+                  className="reviews-card premium-card relative rounded-2xl p-6 sm:p-8"
                 >
                   <span className="quote-mark pointer-events-none absolute -top-2 left-4 select-none" aria-hidden>
                     &ldquo;
@@ -1315,7 +1321,7 @@ export default function Home() {
         initial={{ y: 80 }}
         animate={{ y: 0 }}
         transition={{ delay: 0.8, duration: 0.5, ease: EASE }}
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-amber-500/20 bg-black/95 p-3 shadow-[0_-12px_48px_rgba(201,162,39,0.1)] backdrop-blur-xl lg:hidden"
+        className="mobile-sticky-cta fixed inset-x-0 bottom-0 z-50 border-t border-amber-500/20 bg-black/95 p-3 shadow-[0_-12px_48px_rgba(201,162,39,0.1)] backdrop-blur-xl lg:hidden"
       >
         <div className="mx-auto flex max-w-lg gap-2">
           <a

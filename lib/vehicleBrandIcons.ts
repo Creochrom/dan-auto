@@ -1,52 +1,72 @@
-import type { HeroBrandId } from "@/lib/hero-content";
+import type { VehicleBrandLogoKey } from "@/components/hero/vehicle-brand-logos";
 
-/** Extended brand keys for vehicle lookup cards (includes makes outside hero ribbon). */
-export type VehicleBrandIconKey = HeroBrandId | "vauxhall" | "ford" | "nissan" | "honda";
+export type { VehicleBrandLogoKey };
 
 /**
- * Brand icon registry — keys map to inline SVG components in VehicleBrandIcon.
- * Public SVG paths can be added later under /public/brands/ without changing callers.
+ * Brand icon registry — SVG components live in vehicle-brand-logos.tsx.
+ * Paths reserved for optional /public/brands/*.svg assets later.
  */
-export const brandIconKeys: Record<VehicleBrandIconKey, string> = {
+export const brandIconPaths: Record<VehicleBrandLogoKey, string> = {
   bmw: "/brands/bmw.svg",
   audi: "/brands/audi.svg",
   mercedes: "/brands/mercedes.svg",
   volkswagen: "/brands/vw.svg",
-  mini: "/brands/mini.svg",
-  "land-rover": "/brands/land-rover.svg",
-  porsche: "/brands/porsche.svg",
-  toyota: "/brands/toyota.svg",
   vauxhall: "/brands/vauxhall.svg",
   ford: "/brands/ford.svg",
+  toyota: "/brands/toyota.svg",
   nissan: "/brands/nissan.svg",
   honda: "/brands/honda.svg",
+  peugeot: "/brands/peugeot.svg",
+  renault: "/brands/renault.svg",
+  kia: "/brands/kia.svg",
+  hyundai: "/brands/hyundai.svg",
+  skoda: "/brands/skoda.svg",
+  seat: "/brands/seat.svg",
+  mini: "/brands/mini.svg",
+  "land-rover": "/brands/land-rover.svg",
+  lexus: "/brands/lexus.svg",
+  porsche: "/brands/porsche.svg",
 };
 
-const MAKE_ALIASES: ReadonlyArray<{ match: RegExp; brand: VehicleBrandIconKey }> = [
-  { match: /^bmw\b/i, brand: "bmw" },
-  { match: /^audi\b/i, brand: "audi" },
-  { match: /^(mercedes|mercedes-benz)\b/i, brand: "mercedes" },
-  { match: /^(volkswagen|vw)\b/i, brand: "volkswagen" },
-  { match: /^vauxhall\b/i, brand: "vauxhall" },
-  { match: /^mini\b/i, brand: "mini" },
-  { match: /^(land rover|landrover)\b/i, brand: "land-rover" },
-  { match: /^porsche\b/i, brand: "porsche" },
-  { match: /^toyota\b/i, brand: "toyota" },
-  { match: /^ford\b/i, brand: "ford" },
-  { match: /^nissan\b/i, brand: "nissan" },
-  { match: /^honda\b/i, brand: "honda" },
+/** Ordered rules — more specific patterns first. */
+const MAKE_RULES: ReadonlyArray<{ match: RegExp; brand: VehicleBrandLogoKey }> = [
+  { match: /mercedes[\s-]?benz|mercedes/i, brand: "mercedes" },
+  { match: /land[\s-]?rover/i, brand: "land-rover" },
+  { match: /volkswagen|\bvw\b/i, brand: "volkswagen" },
+  { match: /\bmini\b/i, brand: "mini" },
+  { match: /\bbmw\b/i, brand: "bmw" },
+  { match: /\baudi\b/i, brand: "audi" },
+  { match: /\bvauxhall\b/i, brand: "vauxhall" },
+  { match: /\bpeugeot\b/i, brand: "peugeot" },
+  { match: /\brenault\b/i, brand: "renault" },
+  { match: /\bporsche\b/i, brand: "porsche" },
+  { match: /\btoyota\b/i, brand: "toyota" },
+  { match: /\bnissan\b/i, brand: "nissan" },
+  { match: /\bhonda\b/i, brand: "honda" },
+  { match: /\bhyundai\b/i, brand: "hyundai" },
+  { match: /\bford\b/i, brand: "ford" },
+  { match: /\bkia\b/i, brand: "kia" },
+  { match: /\bskoda\b|škoda/i, brand: "skoda" },
+  { match: /\bseat\b/i, brand: "seat" },
+  { match: /\blexus\b/i, brand: "lexus" },
 ];
 
-export function isHeroBrandId(brand: VehicleBrandIconKey): brand is HeroBrandId {
-  return brand !== "vauxhall" && brand !== "ford" && brand !== "nissan" && brand !== "honda";
+function normalizeMake(raw: string): string {
+  return raw
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Resolve manufacturer from DVLA make / makeModel string. */
-export function resolveVehicleBrandIcon(manufacturer: string): VehicleBrandIconKey | null {
-  const normalized = manufacturer.toLowerCase().trim();
+export function resolveVehicleBrandIcon(manufacturer: string): VehicleBrandLogoKey | null {
+  const normalized = normalizeMake(manufacturer);
   if (!normalized) return null;
 
-  for (const { match, brand } of MAKE_ALIASES) {
+  for (const { match, brand } of MAKE_RULES) {
     if (match.test(normalized)) return brand;
   }
 

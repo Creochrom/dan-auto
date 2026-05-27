@@ -1,11 +1,10 @@
 "use client";
 
-import type { ReactNode, SVGProps } from "react";
+import type { ReactNode } from "react";
 import { ArrowRight, Calendar } from "lucide-react";
 import { VehicleBrandIcon } from "@/components/hero/VehicleBrandIcon";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
 import {
-  MOT_HISTORY_URL,
   formatMotDueDate,
   motCountdownDisplay,
   vehicleIdentity,
@@ -14,6 +13,7 @@ import {
 type Props = {
   report: VehicleReport;
   onBookMot: () => void;
+  onOpenMotHistory: () => void;
 };
 
 function CardInner({
@@ -39,7 +39,7 @@ function CardInner({
   );
 }
 
-export function HeroVehicleInfoBar({ report, onBookMot }: Props) {
+export function HeroVehicleInfoBar({ report, onBookMot, onOpenMotHistory }: Props) {
   const { title, meta } = vehicleIdentity(report);
   const motDue = formatMotDueDate(
     report.profile.motExpiryDate,
@@ -63,19 +63,24 @@ export function HeroVehicleInfoBar({ report, onBookMot }: Props) {
           />
         </div>
 
-        <a
-          href={MOT_HISTORY_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hero-vehicle-info-card hero-vehicle-info-card--mot hero-stat-chip"
+        <button
+          type="button"
+          onClick={onOpenMotHistory}
+          className="hero-vehicle-info-card hero-vehicle-info-card--mot hero-stat-chip cursor-pointer"
+          aria-label="Open MOT history"
         >
           <CardInner
             icon={<Calendar className="hero-vehicle-info-card__icon-svg" aria-hidden />}
             label="MOT due"
             value={motDue}
-            footer={<span className="hero-vehicle-info-card__action">View MOT history</span>}
+            footer={
+              <span className="hero-vehicle-info-card__action">
+                <span className="hero-vic-action--wide">View MOT history</span>
+                <span className="hero-vic-action--narrow">MOT history</span>
+              </span>
+            }
           />
-        </a>
+        </button>
 
         <button
           type="button"
@@ -91,7 +96,7 @@ export function HeroVehicleInfoBar({ report, onBookMot }: Props) {
             footer={
               <span className="hero-vehicle-info-card__cta">
                 Book MOT
-                <ArrowRight className="h-3 w-3 shrink-0" aria-hidden />
+                <ArrowRight aria-hidden />
               </span>
             }
           />

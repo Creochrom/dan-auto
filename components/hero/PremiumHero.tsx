@@ -417,27 +417,38 @@ function PremiumHeroInner({
     setFocusedWindowId("inspection");
   }, []);
 
+  const openReportWindow = useCallback(
+    (windowId: string) => {
+      setVisibleInsightWindows((prev) => {
+        const next = new Set(prev);
+        next.add(windowId);
+        return next;
+      });
+      setClosedReportWindows((prev) => {
+        if (!prev.has(windowId)) return prev;
+        const next = new Set(prev);
+        next.delete(windowId);
+        return next;
+      });
+      bringToFront(windowId);
+      activateWindow(windowId);
+    },
+    [bringToFront, activateWindow]
+  );
+
   const openInsightDetail = useCallback(
     (categoryId: HeroInsightCategoryId) => {
       const cat = HERO_INSIGHT_CATEGORIES.find((c) => c.id === categoryId);
       if (!cat) return;
       setSelectedInsightCategory(categoryId);
-      setVisibleInsightWindows((prev) => {
-        const next = new Set(prev);
-        next.add(cat.windowId);
-        return next;
-      });
-      setClosedReportWindows((prev) => {
-        if (!prev.has(cat.windowId)) return prev;
-        const next = new Set(prev);
-        next.delete(cat.windowId);
-        return next;
-      });
-      bringToFront(cat.windowId);
-      activateWindow(cat.windowId);
+      openReportWindow(cat.windowId);
     },
-    [bringToFront, activateWindow]
+    [openReportWindow]
   );
+
+  const openMotHistory = useCallback(() => {
+    openInsightDetail("mot");
+  }, [openInsightDetail]);
 
   const handleOnboardingAction = useCallback(
     (id: HeroOnboardingActionId) => {
@@ -513,7 +524,7 @@ function PremiumHeroInner({
                       : "border-[#d4a63c]/24"
                   } ${plateShake ? "hero-plate-shake hero-plate-shake--micro" : ""}`}
                 >
-                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#d4a63c]">
+                  <p className="hero-plate-label text-[11px] font-bold uppercase text-[#d4a63c]">
                     Enter your registration
                   </p>
                   <div className="relative mt-3">
@@ -550,6 +561,7 @@ function PremiumHeroInner({
                     <HeroVehicleInfoBar
                       report={vehicleReport}
                       onBookMot={() => onHeroServiceSelect("MOT")}
+                      onOpenMotHistory={openMotHistory}
                     />
                   )}
                   <p className="hero-plate-trust mt-3 text-[10px] font-medium tracking-[0.01em] text-white/55 sm:text-[10px]">

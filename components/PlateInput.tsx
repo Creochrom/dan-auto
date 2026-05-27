@@ -12,9 +12,14 @@ import { Loader2, Search } from "lucide-react";
 import { PlateKeyboardIndicator } from "@/components/PlateKeyboardIndicator";
 import { useKeyboardLayoutIndicator } from "@/hooks/useKeyboardLayoutIndicator";
 import { formatPlate, stripPlate } from "@/lib/format-plate";
-import { playPlateInvalidBeep, primePlateAudio } from "@/lib/plate-input-feedback";
+import {
+  playPlateInvalidBeep,
+  primePlateAudio,
+  pulsePlateInvalidHaptic,
+} from "@/lib/plate-input-feedback";
 import {
   findInvalidPlateChars,
+  hasInvalidPlateChars,
   isAllowedPlateChar,
   isInvalidPlateChar,
 } from "@/lib/plate-input-rules";
@@ -78,9 +83,10 @@ function PlateInputInner({
 }: PlateInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cursorAlnumTarget = useRef(0);
-  const [invalidFlash, setInvalidFlash] = useState(false);
+  const [layoutWarning, setLayoutWarning] = useState(false);
+  const [fieldShake, setFieldShake] = useState(false);
   const [validTypingGlow, setValidTypingGlow] = useState(false);
-  const invalidFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const validGlowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { layout: keyboardLayout, observeKey } = useKeyboardLayoutIndicator();
 
@@ -88,17 +94,23 @@ function PlateInputInner({
     (keySample?: string) => {
       if (keySample) observeKey(keySample);
       setValidTypingGlow(false);
+      setLayoutWarning(true);
       playPlateInvalidBeep();
+      pulsePlateInvalidHaptic();
       onInvalidInput?.();
-      setInvalidFlash(true);
-      if (invalidFlashTimer.current) clearTimeout(invalidFlashTimer.current);
-      invalidFlashTimer.current = setTimeout(() => setInvalidFlash(false), 220);
+
+      if (shakeTimer.current) clearTimeout(shakeTimer.current);
+      setFieldShake(false);
+      requestAnimationFrame(() => {
+        setFieldShake(true);
+        shakeTimer.current = setTimeout(() => setFieldShake(false), 380);
+      });
     },
     [observeKey, onInvalidInput]
   );
 
   const acknowledgeValidTyping = useCallback(() => {
-    setInvalidFlash(false);
+    setLayoutWarning(false);
     setValidTypingGlow(true);
     if (validGlowTimer.current) clearTimeout(validGlowTimer.current);
     validGlowTimer.current = setTimeout(() => setValidTypingGlow(false), 280);
@@ -142,7 +154,6 @@ function PlateInputInner({
       if (e.key.length !== 1) return;
 
       if (isInvalidPlateChar(e.key)) {
-        e.preventDefault();
         triggerInvalidFeedback(e.key);
         return;
       }
@@ -179,9 +190,8 @@ function PlateInputInner({
       const formatted = formatPlate(merged);
       cursorAlnumTarget.current = stripPlate(formatted).length;
       onChange(formatted);
-      acknowledgeValidTyping();
     },
-    [onChange, triggerInvalidFeedback, acknowledgeValidTyping]
+    [onChange, triggerInvalidFeedback]
   );
 
   const handleCompositionEnd = useCallback(
@@ -199,8 +209,10 @@ function PlateInputInner({
     `hero-plate-field ${
       focused || loading ? "hero-plate-field--focused" : ""
     } ${loading ? "hero-plate-field--loading" : ""} ${
-      invalidFlash ? "hero-plate-field--invalid" : ""
-    } ${validTypingGlow && !invalidFlash ? "hero-plate-field--valid-typing" : ""}`;
+      layoutWarning ? "hero-plate-field--invalid" : ""
+    } ${fieldShake ? "hero-plate-field--shake" : ""} ${
+      validTypingGlow && !layoutWarning ? "hero-plate-field--valid-typing" : ""
+    }`;
 
   const luxury = variant === "luxury";
   const isHero = id === "hero";
@@ -227,7 +239,7 @@ function PlateInputInner({
         <div className={plateFieldClass}>
           <PlateKeyboardIndicator
             layout={keyboardLayout}
-            highlighted={invalidFlash}
+            highlighted={layoutWarning}
           />
           <input
             ref={inputRef as RefObject<HTMLInputElement | null>}
@@ -256,7 +268,13 @@ function PlateInputInner({
             }}
             readOnly={loading}
             aria-busy={loading}
-            onBlur={onBlur}
+            onBlur={(e) => {
+              if (!hasInvalidPlateChars(e.target.value)) {
+                setLayoutWarning(false);
+                setFieldShake(false);
+              }
+              onBlur();
+            }}
             className="hero-plate-input"
             aria-label="UK vehicle registration"
           />

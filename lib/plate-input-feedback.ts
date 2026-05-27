@@ -81,3 +81,13 @@ export function playPlateInvalidBeep(): void {
     /* Audio unavailable — visual feedback still applies */
   }
 }
+
+/** Subtle haptic tick on supported mobile browsers. */
+export function pulsePlateInvalidHaptic(): void {
+  if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
+  try {
+    navigator.vibrate(40);
+  } catch {
+    /* noop */
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Globe } from "lucide-react";
+import { AlertTriangle, Globe, Languages } from "lucide-react";
 import {
   KEYBOARD_LAYOUT_LABELS,
   type KeyboardLayoutHint,
@@ -136,19 +136,33 @@ const FLAG_BY_LAYOUT: Record<
 };
 
 export function PlateKeyboardIndicator({ layout, highlighted = false }: Props) {
-  const Flag =
-    layout === "other" ? null : FLAG_BY_LAYOUT[layout];
+  const Flag = layout === "other" ? null : FLAG_BY_LAYOUT[layout];
+
+  if (highlighted) {
+    return (
+      <div
+        className="hero-plate-kbd hero-plate-kbd--warning hero-plate-kbd--highlight"
+        role="img"
+        aria-label="Wrong keyboard layout — use English letters and numbers only"
+        title="Wrong keyboard layout — use English letters and numbers only"
+      >
+        <Languages className="hero-plate-kbd-warn-icon" strokeWidth={2.25} aria-hidden />
+        <AlertTriangle className="hero-plate-kbd-warn-badge" strokeWidth={2.5} aria-hidden />
+        <span className="hero-plate-kbd-label">!</span>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`hero-plate-kbd hero-plate-kbd--${layout} ${
-        highlighted ? "hero-plate-kbd--highlight" : ""
-      }`}
+      className={`hero-plate-kbd hero-plate-kbd--${layout}`}
       role="img"
       aria-label={KEYBOARD_LAYOUT_LABELS[layout]}
       title={KEYBOARD_LAYOUT_LABELS[layout]}
     >
-      {Flag ? <Flag /> : (
+      {Flag ? (
+        <Flag />
+      ) : (
         <Globe
           className="hero-plate-kbd-globe h-3.5 w-3.5 text-white/85"
           strokeWidth={2}
