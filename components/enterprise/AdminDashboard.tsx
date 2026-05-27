@@ -132,8 +132,9 @@ export function AdminDashboard() {
           </div>
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               clearSession();
+              await fetch("/api/admin/logout", { method: "POST" });
               router.replace("/admin/login");
             }}
             className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-zinc-400"

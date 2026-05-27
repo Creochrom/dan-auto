@@ -2,6 +2,69 @@
 
 Short, dated entries. One decision per block. New entries go at the top.
 
+---
+
+## 2026-05-27 — Centralized booking notification flow
+
+- **Why:** The direct booking form (`POST /api/bookings`) had no workshop notification. Every booking was silently persisted. The AI intake path had its own richer email but no customer confirmation and was not centralized.
+- **Impact:**
+  - `lib/email/templates/booking-alert.ts` — two new templates: **workshop alert** (subject, text, HTML for direct bookings) and **customer confirmation** (subject, text, HTML). Follows the existing `escapeHtml`/`sanitizePlainText` pattern.
+  - `lib/email/send-booking-alert.ts` — `sendWorkshopBookingAlert(booking)` + `sendCustomerBookingConfirmation(booking)`. Both swallow errors with structured `console.error` logging — a transient email failure must never roll back an already-persisted booking. `sendCustomerBookingConfirmation` is a no-op when `customerEmail` is absent.
+  - `lib/services/booking.service.ts` — `create()` now accepts an optional `BookingCreateOptions` parameter (`suppressWorkshopEmail?: boolean`). After persisting, it runs both notifications concurrently with `Promise.all`. Default (no opts): workshop alert + customer confirmation both fire.
+  - `lib/services/booking-intake.service.ts` — passes `{ suppressWorkshopEmail: true }` to prevent double workshop email; its existing `sendBookingIntakeEmail()` (richer, includes transcript) is unchanged. Customer confirmation still fires via `bookingService.create()` if the customer email is on the booking record.
+  - **Notification matrix after this change:**
+    | Path | Workshop notification | Customer confirmation |
+    |---|---|---|
+    | Direct form (`POST /api/bookings`) | ✓ Workshop alert (new) | ✓ If email present (new) |
+    | AI intake (`/api/booking-intake`) | ✓ Richer intake email (unchanged) | ✓ If email present (new) |
+  - `lib/email/index.ts` — exports updated.
+  - No route changes, no frontend changes, no `CreateBookingInput` type changes, no repository changes.
+  - **Future extension points:** `BookingCreateOptions` can accept `workshopNote` to inject extra context into the workshop email. The `sendWorkshopBookingAlert` recipient reads `getIntakeEmailTo()` (env var `BOOKING_EMAIL_TO`).
+
+---
+
+## 2026-05-27 — Admin route protection (middleware + httpOnly cookie session)
+
+- **Why:** The existing admin "auth" was entirely client-side: `sessionStorage` + hardcoded plaintext credentials in `lib/enterprise/auth.ts`, visible in the JS bundle and trivially bypassed by direct navigation. ROADMAP priority #2.
+- **Impact:**
+  - `middleware.ts` (project root) — Next.js Edge middleware guards all `/admin/*` routes. Allows `/admin/login` through; all other paths require a valid signed session cookie. Redirects to `/admin/login?from=<path>` on failure.
+  - `lib/admin/session.ts` — stateless session token: `base64url(JSON payload) + "." + base64url(HMAC-SHA256 sig)`. Uses `crypto.subtle` only — Edge-safe. 8-hour TTL. `ADMIN_SESSION_SECRET` env var required.
+  - `lib/admin/credentials.ts` — PBKDF2-SHA256 (100k iterations) password verification via Node.js built-in `crypto`. No extra dependencies. `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` env vars required.
+  - `app/api/admin/login/route.ts` — POST handler (`runtime: nodejs`). Verifies credentials, sets httpOnly + Secure + SameSite=lax session cookie. Returns minimal user object for client-side display. 400ms constant-delay on failure (timing attack mitigation).
+  - `app/api/admin/logout/route.ts` — POST handler. Clears the session cookie (`maxAge: 0`).
+  - `app/admin/login/page.tsx` — submit handler changed from `authenticate()` (client-side) to `fetch('/api/admin/login', ...)`. UI unchanged.
+  - `components/enterprise/AdminDashboard.tsx` — sign-out button now calls `fetch('/api/admin/logout', ...)` before redirect. UI unchanged.
+  - `lib/enterprise/auth.ts` — NOT modified. `loadSession()`/`saveSession()`/`clearSession()` kept for client-side display (name, role). `authenticate()` is now dead code; will be removed when Supabase Auth lands.
+  - New env vars required: `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET`. Fallback: if env vars absent the login API returns 500 (safe fail — admin is inaccessible, not unguarded).
+  - No Supabase Auth, no third-party auth library, no role system, no user management.
+
+---
+
+## 2026-05-27 — Supabase migration Phase 2: leads + bookings persistence
+
+- **Why:** First real tables in Supabase. `leads` and `bookings` chosen because they are the highest-value data (customer contacts, booking requests) and have the cleanest repository isolation — no dependency on chat sessions or uploads.
+- **Impact:**
+  - `supabase/migrations/001_leads_bookings.sql` — idempotent DDL for `leads` and `bookings` tables. Both have `TIMESTAMPTZ` `created_at`/`updated_at` (DB trigger keeps `updated_at` accurate), `CHECK` constraints mirroring TypeScript union types, partial index on `leads.registration`, RLS enabled (service role bypasses it; anon blocked by default). Run once via Supabase SQL editor or `supabase db push`.
+  - `lib/repositories/backend.ts` — reads `STORAGE_BACKEND` env var. Default `"mock"`. Set `STORAGE_BACKEND=supabase` to activate real DB. Safe to omit in dev.
+  - `lib/repositories/supabase/leads.repository.ts` + `supabase/bookings.repository.ts` — Supabase implementations with snake_case ↔ camelCase mappers. Identical method signatures to mock repos.
+  - `lib/repositories/leads.repository.ts` + `bookings.repository.ts` — methods made `async` (necessary for DB calls); backend switch added. Mock path is unchanged code, now wrapped in `Promise`. Default (`STORAGE_BACKEND` unset or `"mock"`) behaviour is identical to before.
+  - Async cascade: `lead.service.ts`, `booking.service.ts`, `ai-intake.service.ts`, `chat.service.ts`, `booking-intake.service.ts`, `app/api/leads/route.ts`, `app/api/bookings/route.ts` — each updated with `await` at the call site only. No business logic changed.
+  - Mock store (`lib/repositories/mock-store.ts`) is **not modified**. It remains the default backend.
+  - `chat_sessions`, `uploads`, `vehicle_memory` are NOT migrated in this phase.
+  - New env vars required: `STORAGE_BACKEND=supabase` (opt-in), plus `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` from Phase 1.
+
+---
+
+## 2026-05-27 — Supabase connectivity layer (Phase 1 foundation)
+
+- **Why:** Starting the mock-store → Supabase migration incrementally. The goal for this phase is to validate and centralise connectivity before any repository is changed, so the migration boundary stays clean.
+- **Impact:**
+  - `lib/supabase/config.ts` validates `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` at call time; throws a clear error if either is missing. Server-only — no `NEXT_PUBLIC_` prefix.
+  - `lib/supabase/server.ts` exports `getSupabaseServerClient()` — the single place in the codebase that creates a service-role Supabase client. Lazy singleton on `globalThis` (survives hot-reloads). Future repositories import from here; one file to swap if the client setup ever needs to change.
+  - `app/api/health/supabase/route.ts` (`GET /api/health/supabase`) probes Supabase connectivity without depending on schema: `connected + schemaReady: true` when tables exist, `connected + schemaReady: false` when Supabase is reachable but schema not yet migrated (expected in Phase 1), 503 when unreachable.
+  - No repository, service, route, or frontend file was modified. Mock store is unchanged. No new npm packages (supabase-js was already installed).
+  - Required env vars to add: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (Vercel dashboard + `.env.local`).
+
 Format:
 
 - **Date** — what was decided

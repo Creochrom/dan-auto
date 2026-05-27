@@ -103,7 +103,7 @@ export const aiIntakeService = {
     }
 
     if (!session.leadCaptured) {
-      leadService.create({
+      await leadService.create({
         name: summary.customerName,
         phone: summary.customerPhone,
         registration: summary.registration,

@@ -7,7 +7,7 @@ import type { CreateLeadInput } from "@/lib/types/lead";
  * POST /api/leads — capture lead from forms or assistant.
  */
 export async function GET() {
-  return jsonOk(leadService.list());
+  return jsonOk(await leadService.list());
 }
 
 export async function POST(request: Request) {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     if (!body.name?.trim()) return jsonError("name is required");
     if (!body.phone?.trim()) return jsonError("phone is required");
 
-    const lead = leadService.create({
+    const lead = await leadService.create({
       name: body.name.trim(),
       phone: body.phone.trim(),
       email: body.email?.trim(),

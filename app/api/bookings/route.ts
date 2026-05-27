@@ -10,7 +10,7 @@ import type { BookingStatus, CreateBookingInput } from "@/lib/types/booking";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") as BookingStatus | null;
-  const bookings = bookingService.list(status ?? undefined);
+  const bookings = await bookingService.list(status ?? undefined);
   return jsonOk(bookings);
 }
 
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     if (!body.customerName?.trim()) return jsonError("customerName is required");
     if (!body.customerPhone?.trim()) return jsonError("customerPhone is required");
 
-    const booking = bookingService.create({
+    const booking = await bookingService.create({
       ...body,
       service: body.service.trim(),
       registration: body.registration.trim(),

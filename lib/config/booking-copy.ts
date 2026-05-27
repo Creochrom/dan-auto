@@ -4,16 +4,24 @@
 
 export const BOOKING_INTAKE_COPY = {
   eyebrow: "Workshop booking",
-  title: "Need help with your car?",
+  title: "Book your visit",
   description:
-    "Choose your service and preferred slot — then tell us what's happening. A mechanic can review your request and call you back.",
+    "Choose your service and preferred slot, then send your request. Our team will call you back to confirm — no AI chat required.",
   scheduleStep: "Choose your visit",
-  intakeStep: "Describe the issue",
+  intakeStep: "Your details",
   confirmStep: "Review & send",
   serviceLabel: "What do you need?",
   dateLabel: "Preferred date",
   timeLabel: "Preferred time",
-  continueToIntake: "Continue — describe your vehicle",
+  submitBooking: "Send booking request",
+  needHelpFirst: "Need help first? Talk to the service advisor",
+  registrationLabel: "Registration",
+  registrationRemembered: "Registration remembered",
+  nameLabel: "Your name",
+  phoneLabel: "Phone number",
+  emailLabel: "Email (optional)",
+  notesLabel: "Notes (optional)",
+  submittingBooking: "Sending request…",
   uploadHint:
     "Photos and short videos help our technicians — dashboard warning lights, unusual noises, leaks, smoke, body damage, or tyre wear.",
   uploadExamples: [

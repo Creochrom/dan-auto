@@ -99,34 +99,6 @@ export function HeroFloatingWindow({
 
   const dragEnabled =
     (tier === "desktop" || tier === "tablet") && !reduceMotion;
-  // #region agent log
-  useEffect(() => {
-    fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "0e0a71",
-      },
-      body: JSON.stringify({
-        sessionId: "0e0a71",
-        hypothesisId: "A",
-        location: "HeroFloatingWindow.tsx:placement",
-        message: "window placement state",
-        data: {
-          windowId,
-          tier,
-          dragEnabled,
-          reduceMotion: !!reduceMotion,
-          innerWidth: typeof window !== "undefined" ? window.innerWidth : 0,
-          top: anchorStyle.top,
-          left: anchorStyle.left,
-          cascadeIndex,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }, [windowId, tier, dragEnabled, reduceMotion, anchorStyle.top, anchorStyle.left, cascadeIndex]);
-  // #endregion
   const managedZ =
     windowId && wm ? wm.getZIndex(windowId) : 40 + stackDepth + focusBoost;
 
@@ -169,24 +141,6 @@ export function HeroFloatingWindow({
       e.stopPropagation();
       handleActivate();
       setIsDragging(true);
-      // #region agent log
-      fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "0e0a71",
-        },
-        body: JSON.stringify({
-          sessionId: "0e0a71",
-          hypothesisId: "E",
-          location: "HeroFloatingWindow.tsx:startDrag",
-          message: "drag handle pointer down",
-          data: { windowId, dragEnabled },
-          timestamp: Date.now(),
-          runId: "drag-v2",
-        }),
-      }).catch(() => {});
-      // #endregion
       dragControls.start(e);
     },
     [dragControls, handleActivate, dragEnabled, windowId]
@@ -198,30 +152,7 @@ export function HeroFloatingWindow({
 
   const handleDragStart = useCallback(() => {
     setIsDragging(true);
-    // #region agent log
-    fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "0e0a71",
-      },
-      body: JSON.stringify({
-        sessionId: "0e0a71",
-        hypothesisId: "B",
-        location: "HeroFloatingWindow.tsx:onDragStart",
-        message: "framer drag started",
-        data: {
-          windowId,
-          dragEnabled,
-          manualOffsetX: manualOffset.x,
-          manualOffsetY: manualOffset.y,
-        },
-        timestamp: Date.now(),
-        runId: "drag-v2",
-      }),
-    }).catch(() => {});
-    // #endregion
-  }, [windowId, dragEnabled, manualOffset.x, manualOffset.y]);
+  }, []);
 
   const handleDragEnd = useCallback(
     (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
@@ -231,31 +162,8 @@ export function HeroFloatingWindow({
         y: prev.y + info.offset.y,
       }));
       setSpawnLocked(true);
-      // #region agent log
-      fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "0e0a71",
-        },
-        body: JSON.stringify({
-          sessionId: "0e0a71",
-          hypothesisId: "C",
-          location: "HeroFloatingWindow.tsx:onDragEnd",
-          message: "framer drag ended — spawn locked",
-          data: {
-            windowId,
-            offsetX: info.offset.x,
-            offsetY: info.offset.y,
-            spawnLocked: true,
-          },
-          timestamp: Date.now(),
-          runId: "post-fix",
-        }),
-      }).catch(() => {});
-      // #endregion
     },
-    [windowId]
+    []
   );
 
   const positionStyle: CSSProperties = {

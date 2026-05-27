@@ -1,4 +1,6 @@
 import { mockStore } from "@/lib/repositories/mock-store";
+import { getStorageBackend } from "@/lib/repositories/backend";
+import { supabaseBookingsRepository } from "@/lib/repositories/supabase/bookings.repository";
 import type { Booking, BookingStatus, CreateBookingInput } from "@/lib/types/booking";
 
 function newId(prefix: string) {
@@ -6,18 +8,24 @@ function newId(prefix: string) {
 }
 
 export const bookingsRepository = {
-  list(status?: BookingStatus): Booking[] {
+  async list(status?: BookingStatus): Promise<Booking[]> {
+    if (getStorageBackend() === "supabase") return supabaseBookingsRepository.list(status);
+
     const all = [...mockStore.bookings].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     return status ? all.filter((b) => b.status === status) : all;
   },
 
-  findById(id: string): Booking | undefined {
+  async findById(id: string): Promise<Booking | undefined> {
+    if (getStorageBackend() === "supabase") return supabaseBookingsRepository.findById(id);
+
     return mockStore.bookings.find((b) => b.id === id);
   },
 
-  create(input: CreateBookingInput): Booking {
+  async create(input: CreateBookingInput): Promise<Booking> {
+    if (getStorageBackend() === "supabase") return supabaseBookingsRepository.create(input);
+
     const now = new Date().toISOString();
     const booking: Booking = {
       id: newId("bk"),
@@ -42,7 +50,11 @@ export const bookingsRepository = {
     return booking;
   },
 
-  updateStatus(id: string, status: BookingStatus): Booking | null {
+  async updateStatus(id: string, status: BookingStatus): Promise<Booking | null> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseBookingsRepository.updateStatus(id, status);
+    }
+
     const booking = mockStore.bookings.find((b) => b.id === id);
     if (!booking) return null;
     booking.status = status;

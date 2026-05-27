@@ -15,7 +15,7 @@ export function AdvisorSection({ onOpenAdvisor, onBook }: Props) {
   return (
     <section
       id="ai-advisor"
-      className="section-future relative scroll-mt-28 py-16 sm:py-20"
+      className="section-future relative scroll-mt-nav py-16 sm:py-20"
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <motion.div
@@ -59,7 +59,7 @@ export function AdvisorSection({ onOpenAdvisor, onBook }: Props) {
                 onClick={onBook}
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-white/12 px-6 py-3 text-sm font-semibold text-zinc-200 transition hover:border-[#d4a63c]/35 hover:text-[#f5e6b8]"
               >
-                Book a visit
+                Book your visit
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </button>
             </div>

@@ -7,15 +7,10 @@ import {
   ArrowRight,
   Bot,
   Calendar,
-  Car,
   Check,
   CheckCircle2,
   ChevronRight,
-  CircleDot,
-  ClipboardCheck,
   Clock,
-  Cog,
-  Disc,
   ExternalLink,
   Gauge,
   Loader2,
@@ -24,14 +19,10 @@ import {
   MessageCircle,
   Phone,
   Search,
-  Settings2,
   Sparkles,
   Star,
-  Timer,
   Truck,
-  Wind,
   Wrench,
-  type LucideIcon,
 } from "lucide-react";
 import { DanAutoCentreLogo } from "@/components/brand/DanAutoCentreLogo";
 import { PremiumHero } from "@/components/hero/PremiumHero";
@@ -54,7 +45,16 @@ import type { VehicleResult } from "@/lib/types/vehicle";
 import { formatPlate, stripPlate } from "@/lib/format-plate";
 import { readMemberStatus, setMemberStatus } from "@/lib/membership";
 import { createLead } from "@/lib/api/client";
-import { BUSINESS, WHATSAPP_HREF, businessConfig, openingHours } from "@/lib/config";
+import {
+  BUSINESS,
+  WHATSAPP_HREF,
+  bookingServiceOptions,
+  businessConfig,
+  openingHours,
+  quoteServiceOptions,
+  siteServices,
+} from "@/lib/config";
+import { useRememberedRegistration } from "@/lib/registration-memory";
 import { mockVehicleLookup, SCAN_STEPS } from "@/lib/vehicle-data";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
 
@@ -119,108 +119,21 @@ const SERVICING_TIERS = [
   },
 ] as const;
 
-type Service = {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  from: string;
-  duration: string;
-  tag?: string;
+const BOOKING_SERVICE_ALIASES: Record<string, string> = {
+  "DPF Deep Clean": "DPF cleaning",
 };
 
-const SERVICES: Service[] = [
-  {
-    icon: ClipboardCheck,
-    title: "MOT Testing",
-    description:
-      "Comprehensive MOT to meet safety and environmental standards. Pre-check available so you pass first time.",
-    from: "£54.85",
-    duration: "45–60 min",
-    tag: "Book online",
-  },
-  {
-    icon: Gauge,
-    title: "Vehicle Diagnostics",
-    description:
-      "Check engine light? Our diagnostics team finds faults fast with dealer-level scan tools and clear reports.",
-    from: "Quote",
-    duration: "1–2 hrs",
-    tag: "Call team",
-  },
-  {
-    icon: Wind,
-    title: "DPF Deep Clean",
-    description:
-      "Full dismantle and deep-clean of diesel particulate filters — not a quick in-situ pressure blast.",
-    from: "£299",
-    duration: "1–2 days",
-    tag: "Premium",
-  },
-  {
-    icon: Settings2,
-    title: "Car Servicing",
-    description:
-      "Basic, full, and major servicing for cars and vans — routine maintenance to protect your engine.",
-    from: "Quote",
-    duration: "2–5 hrs",
-  },
-  {
-    icon: Disc,
-    title: "Brakes",
-    description:
-      "Expert brake inspections, repairs, and replacements so your car stops safely every time.",
-    from: "Quote",
-    duration: "2–3 hrs",
-  },
-  {
-    icon: Cog,
-    title: "Clutches",
-    description:
-      "Clutch diagnosis and replacement — smooth gear changes, same-day turnaround on many vehicles.",
-    from: "Quote",
-    duration: "1 day",
-  },
-  {
-    icon: Timer,
-    title: "Timing Belts",
-    description:
-      "Cambelt / timing belt replacement and inspection to prevent costly engine damage.",
-    from: "Quote",
-    duration: "Half–1 day",
-  },
-  {
-    icon: CircleDot,
-    title: "Tyres",
-    description:
-      "Tyre supply, fitting, and safety checks — keep grip and compliance on Southampton roads.",
-    from: "Quote",
-    duration: "30–60 min",
-  },
-  {
-    icon: Wind,
-    title: "Air Conditioning",
-    description:
-      "A/C recharge, leak testing, and repairs — stay cool and comfortable year-round.",
-    from: "Quote",
-    duration: "1 hr",
-  },
-  {
-    icon: Car,
-    title: "Exhaust Repairs",
-    description:
-      "Exhaust system repairs and replacements — reduce noise, emissions, and MOT failures.",
-    from: "Quote",
-    duration: "1–3 hrs",
-  },
-  {
-    icon: Wrench,
-    title: "General Repairs",
-    description:
-      "From oil changes to complex faults — honest quotes, quality parts, cars and vans welcome.",
-    from: "Quote",
-    duration: "Varies",
-  },
-];
+function resolveBookingService(label?: string): string {
+  if (!label) return bookingServiceOptions[0];
+  if (BOOKING_SERVICE_ALIASES[label]) return BOOKING_SERVICE_ALIASES[label];
+  if (bookingServiceOptions.includes(label)) return label;
+  const fuzzy = bookingServiceOptions.find(
+    (o) =>
+      label.toLowerCase().includes(o.toLowerCase()) ||
+      o.toLowerCase().includes(label.toLowerCase())
+  );
+  return fuzzy ?? label;
+}
 
 const WORKSHOP_JOBS = [
   {
@@ -284,21 +197,6 @@ const REVIEWS = [
     vehicle: "MOT & service",
     text: "Excellent service — had an MOT and service with them. Would highly recommend.",
   },
-];
-
-const SERVICE_OPTIONS = [
-  "MOT",
-  "Air conditioning",
-  "Servicing — basic",
-  "Servicing — full",
-  "Servicing — major",
-  "Brakes",
-  "Clutches",
-  "Timing belt / cambelt",
-  "Tyres",
-  "Diagnostics",
-  "Exhaust repair",
-  "General repair",
 ];
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -398,14 +296,19 @@ export default function Home() {
     setIsVipMember(readMemberStatus());
   }, []);
 
+  const {
+    value: bookReg,
+    setValue: setBookReg,
+    fromMemory: registrationFromMemory,
+  } = useRememberedRegistration();
+
   const [quoteReg, setQuoteReg] = useState("");
-  const [quoteService, setQuoteService] = useState(SERVICE_OPTIONS[0]);
+  const [quoteService, setQuoteService] = useState<string>(quoteServiceOptions[0]);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteText, setQuoteText] = useState<string | null>(null);
   const [quoteDisplayed, setQuoteDisplayed] = useState("");
 
-  const [bookReg, setBookReg] = useState("");
-  const [bookService, setBookService] = useState(SERVICE_OPTIONS[0]);
+  const [bookService, setBookService] = useState<string>(bookingServiceOptions[0]);
   const [bookDoneTick, setBookDoneTick] = useState(0);
 
   const [contactName, setContactName] = useState("");
@@ -502,10 +405,13 @@ export default function Home() {
     setContactSent(true);
   };
 
-  const scrollToBooking = useCallback((service?: string) => {
-    if (service) setBookService(service);
-    scrollTo("booking");
-  }, [scrollTo]);
+  const scrollToBooking = useCallback(
+    (service?: string) => {
+      if (service) setBookService(resolveBookingService(service));
+      scrollTo("booking");
+    },
+    [scrollTo]
+  );
 
   const openAccountSignup = useCallback(() => {
     setMemberStatus(true);
@@ -593,7 +499,7 @@ export default function Home() {
         />
 
         {/* ── Services ── */}
-        <section id="services" className="section-deep relative scroll-mt-28 py-24 sm:py-32">
+        <section id="services" className="section-deep relative scroll-mt-nav py-24 sm:py-32">
           <SectionGlow position="top" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <motion.div
@@ -614,7 +520,7 @@ export default function Home() {
               </p>
             </motion.div>
 
-            <ServiceGridPremium services={SERVICES} />
+            <ServiceGridPremium services={siteServices} />
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -665,7 +571,7 @@ export default function Home() {
         />
 
         {/* ── Diagnostics ── */}
-        <section id="diagnostics" className="section-future relative scroll-mt-28 py-20 sm:py-28">
+        <section id="diagnostics" className="section-future relative scroll-mt-nav py-20 sm:py-28">
           <SectionGlow position="center" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <motion.div className="premium-panel overflow-hidden rounded-3xl">
@@ -746,7 +652,7 @@ export default function Home() {
         />
 
         {/* ── Booking ── */}
-        <section id="booking" className="section-future relative scroll-mt-28 py-20 sm:py-28">
+        <section id="booking" className="section-future relative scroll-mt-nav py-20 sm:py-28">
           <SectionGlow position="bottom" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="premium-panel overflow-hidden rounded-3xl">
@@ -756,7 +662,9 @@ export default function Home() {
                 </div>
                 <div className="p-6 sm:p-10">
                   <BookingIntakeFlow
-                    initialRegistration={bookReg || undefined}
+                    registration={bookReg}
+                    onRegistrationChange={setBookReg}
+                    registrationFromMemory={registrationFromMemory}
                     initialService={bookService}
                     onComplete={onBookingIntakeComplete}
                   />
@@ -767,7 +675,7 @@ export default function Home() {
         </section>
 
         {/* ── Why choose us ── */}
-        <section id="why-us" className="relative scroll-mt-28 py-24 sm:py-32">
+        <section id="why-us" className="relative scroll-mt-nav py-24 sm:py-32">
           <SectionGlow position="bottom" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <SectionHeader
@@ -804,7 +712,7 @@ export default function Home() {
         {/* ── Reviews ── */}
         <section
           id="reviews"
-          className="reviews-section section-deep relative scroll-mt-28 py-20 sm:py-28"
+          className="reviews-section section-deep relative scroll-mt-nav py-20 sm:py-28"
         >
           <SectionGlow position="top" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -881,7 +789,7 @@ export default function Home() {
         </section>
 
         {/* ── About ── */}
-        <section id="about" className="section-deep relative scroll-mt-28 py-24 sm:py-32">
+        <section id="about" className="section-deep relative scroll-mt-nav py-24 sm:py-32">
           <SectionGlow position="top" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <SectionHeader
@@ -978,7 +886,7 @@ export default function Home() {
         </section>
 
         {/* ── AI Quote ── */}
-        <section id="ai-quote" className="section-future relative scroll-mt-28 py-24 sm:py-32">
+        <section id="ai-quote" className="section-future relative scroll-mt-nav py-24 sm:py-32">
           <SectionGlow position="center" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-cyan/[0.05] via-transparent to-transparent" />
           <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -1030,7 +938,7 @@ export default function Home() {
                   onChange={(e) => setQuoteService(e.target.value)}
                   className="input-premium w-full rounded-xl px-4 py-3 text-sm text-white"
                 >
-                  {SERVICE_OPTIONS.map((o) => (
+                  {quoteServiceOptions.map((o) => (
                     <option key={o} value={o} className="bg-zinc-900">
                       {o}
                     </option>
@@ -1107,7 +1015,7 @@ export default function Home() {
           </div>
         </section>
 
-        <div id="members" className="scroll-mt-28">
+        <div id="members" className="scroll-mt-nav">
         <VipMembership />
 
         <PlatformHub
@@ -1118,7 +1026,7 @@ export default function Home() {
         </div>
 
         {/* ── Contact ── */}
-        <section id="contact" className="relative scroll-mt-28 py-24 sm:py-32">
+        <section id="contact" className="relative scroll-mt-nav py-24 sm:py-32">
           <SectionGlow position="bottom" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <motion.div

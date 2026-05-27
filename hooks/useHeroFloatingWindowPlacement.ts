@@ -72,29 +72,6 @@ export function useHeroFloatingWindowPlacement({
       layer,
     });
     setPlacement(nextPlacement);
-    // #region agent log
-    fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "0e0a71",
-      },
-      body: JSON.stringify({
-        sessionId: "0e0a71",
-        hypothesisId: "D",
-        location: "useHeroFloatingWindowPlacement.ts:recompute",
-        message: "placement recomputed",
-        data: {
-          tier: nextTier,
-          cascadeIndex,
-          top: nextPlacement.top,
-          left: nextPlacement.left,
-          layerW: layer?.width ?? null,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
   }, [
     cascadeIndex,
     stackDepth,

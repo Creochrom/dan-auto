@@ -279,7 +279,7 @@ export const chatService = {
       const { name, phone, registration, vehicleModel, problemDescription, callbackWindow } =
         turn.leadDraft;
       const summary = turn.mechanicSummary;
-      leadService.create({
+      await leadService.create({
         name: name!,
         phone: phone!,
         registration,

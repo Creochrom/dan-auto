@@ -99,36 +99,6 @@ export function computeResponsiveStackPlacement({
   const maxTop = Math.max(minTop, usableH - windowHeight - pad);
   top = clamp(top, minTop, maxTop);
 
-  // #region agent log
-  if (typeof fetch !== "undefined") {
-    fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "0e0a71",
-      },
-      body: JSON.stringify({
-        sessionId: "0e0a71",
-        hypothesisId: "spawn",
-        location: "hero-window-stack-position.ts:compute",
-        message: "responsive spawn clamped",
-        data: {
-          tier,
-          cascadeIndex,
-          top,
-          left,
-          winW,
-          usableH,
-          maxTop,
-          maxLeft,
-        },
-        timestamp: Date.now(),
-        runId: "spawn-v2",
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
-
   return {
     top,
     left,

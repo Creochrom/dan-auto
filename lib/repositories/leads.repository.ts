@@ -1,4 +1,6 @@
 import { mockStore } from "@/lib/repositories/mock-store";
+import { getStorageBackend } from "@/lib/repositories/backend";
+import { supabaseLeadsRepository } from "@/lib/repositories/supabase/leads.repository";
 import type { CreateLeadInput, Lead, LeadStatus } from "@/lib/types/lead";
 
 function newId(prefix: string) {
@@ -6,18 +8,24 @@ function newId(prefix: string) {
 }
 
 export const leadsRepository = {
-  list(status?: LeadStatus): Lead[] {
+  async list(status?: LeadStatus): Promise<Lead[]> {
+    if (getStorageBackend() === "supabase") return supabaseLeadsRepository.list(status);
+
     const all = [...mockStore.leads].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     return status ? all.filter((l) => l.status === status) : all;
   },
 
-  findById(id: string): Lead | undefined {
+  async findById(id: string): Promise<Lead | undefined> {
+    if (getStorageBackend() === "supabase") return supabaseLeadsRepository.findById(id);
+
     return mockStore.leads.find((l) => l.id === id);
   },
 
-  create(input: CreateLeadInput): Lead {
+  async create(input: CreateLeadInput): Promise<Lead> {
+    if (getStorageBackend() === "supabase") return supabaseLeadsRepository.create(input);
+
     const now = new Date().toISOString();
     const lead: Lead = {
       id: newId("lead"),

@@ -104,8 +104,9 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen, closeAll]);
 
-  const showInlineNav = !useCompactNav;
-  const showHamburger = useCompactNav;
+  /** Defer breakpoint-specific chrome until after mount to avoid SSR/client nav mismatches. */
+  const showInlineNav = !mounted || !useCompactNav;
+  const showHamburger = mounted && useCompactNav;
 
   const mobileMenu =
     mounted && useCompactNav && !isLocalizedExperience
@@ -172,7 +173,7 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
                       className="site-nav-book site-nav-panel-cta"
                       onNavigate={closeAll}
                     >
-                      Book now
+                      Book your visit
                     </SectionCta>
                   </nav>
                 </motion.aside>
@@ -240,7 +241,7 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
                 </a>
 
                 <SectionCta href="#booking" className="site-nav-book">
-                  <span className="hidden sm:inline">Book now</span>
+                  <span className="hidden sm:inline">Book your visit</span>
                   <span className="sm:hidden">Book</span>
                 </SectionCta>
 

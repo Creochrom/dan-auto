@@ -70,6 +70,10 @@ html {
   scroll-padding-top: calc(var(--site-nav-height) + 1rem);
 }
 
+.scroll-mt-nav {
+  scroll-margin-top: calc(var(--site-nav-height) + 1rem);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -576,19 +580,19 @@ body {
   }
 
   .site-nav-end {
-    gap: clamp(6px, 1.5vw, 10px);
+    gap: clamp(8px, 1.8vw, 12px);
   }
 
   .site-nav-phone--compact {
-    height: 38px;
-    padding-inline: clamp(10px, 2vw, 14px);
-    font-size: 12px;
+    height: 40px;
+    padding-inline: clamp(11px, 2.2vw, 16px);
+    font-size: 13px;
   }
 
   .site-nav-book {
-    height: 38px;
-    padding-inline: clamp(12px, 2vw, 16px);
-    font-size: 12px;
+    height: 40px;
+    padding-inline: clamp(13px, 2.2vw, 18px);
+    font-size: 13px;
   }
 
   .site-nav-menu-btn {
@@ -604,18 +608,18 @@ body {
   }
 
   .site-nav-end {
-    gap: 8px;
+    gap: 9px;
   }
 
   .site-nav-book {
-    height: 36px;
-    padding-inline: 14px;
-    font-size: 13px;
+    height: 40px;
+    padding-inline: 12px;
+    font-size: 12px;
   }
 
   .site-nav-phone--compact {
-    height: 36px;
-    padding-inline: 10px;
+    height: 40px;
+    padding-inline: 11px;
     font-size: 12px;
   }
 
@@ -1167,6 +1171,20 @@ body {
 
 /* Mobile/tablet — scroll rail: items keep natural width, no compression/clipping */
 @media (max-width: 1023px) {
+  .hero-landing {
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .hero-landing .hero {
+    overflow-y: visible;
+  }
+
+  .hero-landing .hero-stage {
+    align-items: flex-start;
+  }
+
   .hero-ribbon-features-track {
     align-items: center;
   }

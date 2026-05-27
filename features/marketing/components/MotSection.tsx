@@ -19,7 +19,7 @@ type Props = {
 
 export function MotSection({ onBookMot, onAskAdvisor }: Props) {
   return (
-    <section id="mot" className="section-future relative scroll-mt-28 py-20 sm:py-24 lg:py-24">
+    <section id="mot" className="section-future relative scroll-mt-nav py-20 sm:py-24 lg:py-24">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(201,162,39,0.08),transparent)]"
         aria-hidden

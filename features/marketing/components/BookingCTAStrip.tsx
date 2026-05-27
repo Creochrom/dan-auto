@@ -13,7 +13,7 @@ type Props = {
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function BookingCTAStrip({
-  title = "Ready to book your vehicle in?",
+  title = "Ready to book your visit?",
   subtitle = "MOT, diagnostics, servicing & repairs — online request, confirmed by our team.",
   onBook,
   className = "",
@@ -49,7 +49,7 @@ export function BookingCTAStrip({
           onClick={onBook}
           className="btn-glow inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold text-black sm:w-auto"
         >
-          Book online now
+          Book your visit
           <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
       </div>

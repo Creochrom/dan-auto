@@ -21,7 +21,7 @@ import {
   siVolkswagen,
   siVolvo,
 } from "simple-icons/icons";
-import type { VehicleBrandLogoKey } from "@/lib/vehicle-brand-logos";
+import type { VehicleBrandLogoKey } from "@/components/hero/vehicle-brand-logos";
 
 /** Lexus is not in Simple Icons — minimal wordmark-style fallback only. */
 const LEXUS_ICON: SimpleIcon = {

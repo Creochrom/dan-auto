@@ -7,10 +7,13 @@ export { openingHours } from "./hours";
 export {
   workshopServices,
   motPolicy,
+  siteServices,
   bookingServiceOptions,
+  quoteServiceOptions,
   bookingDurations,
   bookingTimeSlots,
 } from "./services";
+export type { SiteService } from "./services";
 
 /** Backward-compatible BUSINESS shape for gradual migration from page.tsx */
 export const BUSINESS = {
