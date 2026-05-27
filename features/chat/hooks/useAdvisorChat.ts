@@ -39,6 +39,10 @@ export type WorkshopHandoffInput = {
   confirmationMessage?: string;
   /** When true, only updates status — assistant already confirmed in chat. */
   skipNotice?: boolean;
+  /** Short in-chat success notice (shown only after API confirms). */
+  successNotice?: string;
+  /** Short in-chat error notice when submission fails. */
+  errorNotice?: string;
 };
 
 export type UseAdvisorChatOptions = {
@@ -127,6 +131,26 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       });
     },
     [persist]
+  );
+
+  const appendNotice = useCallback(
+    (content: string, variant: NonNullable<ChatMessage["noticeVariant"]>, sid?: string) => {
+      const notice: ChatMessage = {
+        id: `notice-${Date.now()}-${variant}`,
+        role: "assistant",
+        content,
+        createdAt: new Date().toISOString(),
+        source: "system",
+        noticeVariant: variant,
+      };
+      setMessages((prev) => {
+        const next = [...prev, notice];
+        const id = sid ?? sessionId;
+        if (id) persist(id, next);
+        return next;
+      });
+    },
+    [persist, sessionId]
   );
 
   const appendAssistantNotice = useCallback(
@@ -422,6 +446,9 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         setError("Start a conversation before sending to the workshop");
         return false;
       }
+      if (intakeSubmitState === "sending") {
+        return false;
+      }
       if (intakeSubmitStarted.current && intakeSubmitState === "sent") {
         return true;
       }
@@ -432,6 +459,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       setIsTyping(true);
       setTypingLabel("Sending to the workshop team…");
       setSuggestionChips([]);
+      setMessages((prev) => clearAllChipsSnapshots(prev));
 
       try {
         const result = await submitAiIntake({
@@ -446,7 +474,9 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         setIntakeSubmitState("sent");
         setIntakeComplete(true);
         setCallbackReady(false);
-        if (!input.skipNotice) {
+        if (input.successNotice) {
+          appendNotice(input.successNotice, "success", sessionId);
+        } else if (!input.skipNotice) {
           appendAssistantNotice(
             input.confirmationMessage ?? result.confirmationMessage,
             sessionId
@@ -456,16 +486,21 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       } catch (e) {
         intakeSubmitStarted.current = false;
         setIntakeSubmitState("error");
-        setError(
-          e instanceof Error ? e.message : "Could not send intake to workshop"
-        );
+        const message =
+          e instanceof Error ? e.message : "Could not send intake to workshop";
+        if (input.errorNotice) {
+          appendNotice(input.errorNotice, "error", sessionId);
+          setError(null);
+        } else {
+          setError(message);
+        }
         return false;
       } finally {
         setIsTyping(false);
         setTypingLabel(null);
       }
     },
-    [sessionId, intakeSubmitState, appendAssistantNotice]
+    [sessionId, intakeSubmitState, appendAssistantNotice, appendNotice]
   );
 
   const reset = useCallback(() => {

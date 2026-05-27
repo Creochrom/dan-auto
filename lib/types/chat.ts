@@ -29,6 +29,8 @@ export type ChatMessage = {
   status?: ChatMessageStatus;
   /** Quick replies that were offered after this assistant message */
   chipsSnapshot?: SuggestionChip[];
+  /** System handoff feedback — success, error, or pending styling in chat */
+  noticeVariant?: "success" | "error" | "pending";
 };
 
 export type LeadDraft = {

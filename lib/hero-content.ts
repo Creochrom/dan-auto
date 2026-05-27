@@ -97,26 +97,55 @@ export type HeroTrustBadge = {
   secondary: string;
 };
 
+export type HeroBrandId =
+  | "bmw"
+  | "audi"
+  | "mercedes"
+  | "volkswagen"
+  | "mini"
+  | "land-rover"
+  | "porsche"
+  | "toyota";
+
+export const HERO_BRANDS: ReadonlyArray<{ id: HeroBrandId; label: string }> = [
+  { id: "bmw", label: "BMW" },
+  { id: "audi", label: "Audi" },
+  { id: "mercedes", label: "Mercedes-Benz" },
+  { id: "volkswagen", label: "Volkswagen" },
+  { id: "mini", label: "MINI" },
+  { id: "porsche", label: "Porsche" },
+  { id: "land-rover", label: "Land Rover" },
+  { id: "toyota", label: "Toyota" },
+];
+
+/** First five brands shown in the hero bottom ribbon (reference layout). */
+export const HERO_RIBBON_BRANDS = HERO_BRANDS.slice(0, 5);
+
 export function buildHeroTrustBadges(opts: {
   experience: string;
   googleRating: string;
   googleReviewCount: string;
+  /** Hero ribbon marketing line (e.g. "1000+"); defaults to review count + "+" */
+  happyCustomersPrimary?: string;
 }): HeroTrustBadge[] {
+  const happyCustomers =
+    opts.happyCustomersPrimary ?? `${opts.googleReviewCount}+`;
+
   return [
     {
       icon: Award,
-      primary: `${opts.experience} Years`,
-      secondary: "Experience",
+      primary: opts.experience,
+      secondary: "Years Experience",
     },
     {
       icon: Star,
-      primary: `${opts.googleRating} ★ Google`,
-      secondary: "Rating",
+      primary: opts.googleRating,
+      secondary: "Google Rating",
     },
     {
       icon: Users,
-      primary: `${opts.googleReviewCount}+ Happy`,
-      secondary: "Customers",
+      primary: happyCustomers,
+      secondary: "Happy Customers",
     },
     {
       icon: Cpu,
@@ -126,12 +155,12 @@ export function buildHeroTrustBadges(opts: {
     {
       icon: ShieldCheck,
       primary: "12 Months",
-      secondary: "Warranty",
+      secondary: "Parts & Labour Warranty",
     },
     {
       icon: Truck,
-      primary: "Collection &",
-      secondary: "Delivery",
+      primary: "Collection",
+      secondary: "& Delivery",
     },
   ];
 }

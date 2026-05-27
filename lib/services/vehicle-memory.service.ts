@@ -21,10 +21,10 @@ function splitMakeModel(makeModel: string): { make: string; model: string } {
   return { make: parts[0], model: parts.slice(1).join(" ") };
 }
 
-function factsFromDvla(reg: string): VehicleMemoryFacts | undefined {
+async function factsFromDvla(reg: string): Promise<VehicleMemoryFacts | undefined> {
   let payload;
   try {
-    payload = lookupVehicle(reg);
+    payload = await lookupVehicle(reg);
   } catch {
     return undefined;
   }
@@ -52,13 +52,13 @@ export const vehicleMemoryService = {
    * - When a memory record already existed, marks the result `returning`
    *   and surfaces the known customer + recent intakes for the AI.
    */
-  lookup(reg: string): VehicleMemoryLookupResult {
+  async lookup(reg: string): Promise<VehicleMemoryLookupResult> {
     const canon = stripPlate(reg);
     if (!canon) {
       return { returning: false, recentIntakes: [], dvlaMatched: false };
     }
 
-    const dvlaFacts = factsFromDvla(canon);
+    const dvlaFacts = await factsFromDvla(canon);
     const dvlaMatched = Boolean(dvlaFacts);
 
     const existing = vehicleMemoryRepository.findByReg(canon);

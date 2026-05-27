@@ -18,13 +18,18 @@ import { ChatTimeline } from "@/features/chat/components/ChatTimeline";
 import { useAdvisorChat } from "@/features/chat/hooks/useAdvisorChat";
 import { useMediaUpload } from "@/features/booking/hooks/useMediaUpload";
 import { AdvisorConciergeHub } from "@/features/chat/components/AdvisorConciergeHub";
-import { AdvisorCallbackStatus } from "@/features/chat/components/AdvisorCallbackStatus";
 import { HERO_INTENT_CARDS } from "@/lib/config/hero-concierge-copy";
 import {
   getModeConversationStart,
   getSafeToDriveConversationStart,
 } from "@/lib/config/concierge-mode-intros";
-import { CALLBACK_CONFIRM_CHIP_ID } from "@/lib/config/callback-flow-copy";
+import {
+  CALLBACK_CHAT_ERROR,
+  CALLBACK_CHAT_SENDING,
+  CALLBACK_CHAT_SUCCESS,
+  CALLBACK_CONFIRM_CHIP_ID,
+} from "@/lib/config/callback-flow-copy";
+import { AdvisorHandoffNoticeBubble } from "@/features/chat/components/AdvisorHandoffNoticeBubble";
 import {
   looksLikePhoneInput,
   parseUkPhone,
@@ -236,6 +241,10 @@ export function HeroAIChatModal({
   );
 
   const completeCallbackHandoff = useCallback(async () => {
+    if (intakeSubmitState === "sending" || intakeSubmitState === "sent") {
+      return intakeSubmitState === "sent";
+    }
+
     const name = leadDraft.name?.trim();
     const phone = leadDraft.phone?.trim();
     if (!name || !phone) return false;
@@ -250,13 +259,17 @@ export function HeroAIChatModal({
       phone,
       preferredCallbackTime:
         leadDraft.callbackWindow ?? leadDraft.preferredDate ?? undefined,
-      skipNotice: true,
+      successNotice: CALLBACK_CHAT_SUCCESS,
+      errorNotice: CALLBACK_CHAT_ERROR,
     });
-  }, [leadDraft, submitWorkshopHandoff]);
+  }, [leadDraft, submitWorkshopHandoff, intakeSubmitState]);
 
   const handleQuickReply = useCallback(
     (chip: SuggestionChip) => {
       if (chip.id === CALLBACK_CONFIRM_CHIP_ID) {
+        if (intakeSubmitState === "sending" || intakeSubmitState === "sent") {
+          return;
+        }
         void completeCallbackHandoff();
         return;
       }
@@ -279,12 +292,12 @@ export function HeroAIChatModal({
       }
       sendQuickReply(chip, vehicle.reg);
     },
-    [send, sendQuickReply, vehicle.reg, completeCallbackHandoff]
+    [send, sendQuickReply, vehicle.reg, completeCallbackHandoff, intakeSubmitState]
   );
 
   useEffect(() => {
     if (conciergeMode !== "callback") return;
-    if (!callbackReady || intakeSubmitState === "sent" || intakeSubmitState === "sending") {
+    if (!callbackReady || intakeSubmitState === "sent" || intakeSubmitState === "sending" || intakeSubmitState === "error") {
       return;
     }
     void completeCallbackHandoff();
@@ -328,6 +341,41 @@ export function HeroAIChatModal({
     appendLocalAssistant,
   ]);
 
+  const transformCallbackChips = useCallback(
+    (chips: SuggestionChip[]): SuggestionChip[] =>
+      chips.map((chip) => {
+        if (chip.id !== CALLBACK_CONFIRM_CHIP_ID) return chip;
+        if (intakeSubmitState === "sent") {
+          return { ...chip, label: "Request sent" };
+        }
+        if (intakeSubmitState === "sending") {
+          return { ...chip, label: "Sending…" };
+        }
+        return chip;
+      }),
+    [intakeSubmitState]
+  );
+
+  const isCallbackChipDisabled = useCallback(
+    (chip: SuggestionChip) =>
+      chip.id === CALLBACK_CONFIRM_CHIP_ID &&
+      (intakeSubmitState === "sending" || intakeSubmitState === "sent"),
+    [intakeSubmitState]
+  );
+
+  const callbackPendingNotice =
+    conciergeMode === "callback" && intakeSubmitState === "sending" ? (
+      <AdvisorHandoffNoticeBubble
+        message={{
+          id: "callback-pending",
+          role: "assistant",
+          content: CALLBACK_CHAT_SENDING,
+          createdAt: new Date().toISOString(),
+          noticeVariant: "pending",
+        }}
+      />
+    ) : null;
+
   const showHub = messages.length === 0 && conciergeMode === "hub";
 
   const intro = showHub ? (
@@ -351,8 +399,6 @@ export function HeroAIChatModal({
             : conciergeMode === "quick_question"
               ? "Your quick question…"
               : "Describe the issue…";
-
-  const showCallbackSent = conciergeMode === "callback" && intakeSubmitState === "sent";
 
   const openFilePicker = useCallback(() => {
     if (isTyping) return;
@@ -404,15 +450,32 @@ export function HeroAIChatModal({
             isTyping={isTyping}
             typingLabel={typingLabel}
             onQuickReply={handleQuickReply}
-            error={error}
+            error={
+              conciergeMode === "callback" && intakeSubmitState === "error"
+                ? null
+                : error
+            }
             theme="gold"
-            quickRepliesDisabled={isTyping || uploadsInProgress}
+            quickRepliesDisabled={
+              isTyping || uploadsInProgress || intakeSubmitState === "sending"
+            }
             intro={intro}
             className="min-h-0 flex-1"
+            handoffPendingNotice={callbackPendingNotice}
+            transformChips={
+              conciergeMode === "callback" ? transformCallbackChips : undefined
+            }
+            isChipDisabled={
+              conciergeMode === "callback" ? isCallbackChipDisabled : undefined
+            }
+            onHandoffRetry={
+              conciergeMode === "callback" && intakeSubmitState === "error"
+                ? () => void completeCallbackHandoff()
+                : undefined
+            }
           />
 
           <div className="hero-advisor-chat__composer shrink-0 border-t border-white/[0.06] px-3 pb-2.5 pt-2 sm:px-4">
-            <AdvisorCallbackStatus visible={showCallbackSent} />
             <input
               ref={fileInputRef}
               type="file"

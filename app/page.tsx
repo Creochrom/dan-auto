@@ -68,9 +68,9 @@ const FOOTER_LINKS = [
   { href: "#services", label: "Services" },
   { href: "#mot", label: "MOT" },
   { href: "#diagnostics", label: "Diagnostics" },
-  { href: "#booking", label: "Book online" },
-  { href: "#ai-advisor", label: "AI advisor" },
-  { href: "#why-us", label: "Why us" },
+  { href: "#ai-advisor", label: "AI Advisor" },
+  { href: "#booking", label: "Book Online" },
+  { href: "#why-us", label: "Why Us" },
   { href: "#reviews", label: "Reviews" },
   { href: "#contact", label: "Contact" },
 ] as const;
@@ -728,6 +728,20 @@ export default function Home() {
           </div>
         </section>
 
+        <AdvisorSection
+          onOpenAdvisor={() =>
+            openAssistant({
+              registration: bookReg || heroVehicle?.reg,
+              advisorRoute: {
+                entry_point: "advisor_section",
+                intent: "diagnostic_help",
+                surface: "hero_ai_assistant",
+              },
+            })
+          }
+          onBook={() => scrollToBooking()}
+        />
+
         {/* ── Booking ── */}
         <section id="booking" className="section-future relative scroll-mt-28 py-20 sm:py-28">
           <SectionGlow position="bottom" />
@@ -748,20 +762,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-
-        <AdvisorSection
-          onOpenAdvisor={() =>
-            openAssistant({
-              registration: bookReg || heroVehicle?.reg,
-              advisorRoute: {
-                entry_point: "advisor_section",
-                intent: "diagnostic_help",
-                surface: "hero_ai_assistant",
-              },
-            })
-          }
-          onBook={() => scrollToBooking()}
-        />
 
         {/* ── Why choose us ── */}
         <section id="why-us" className="relative scroll-mt-28 py-24 sm:py-32">
@@ -972,7 +972,7 @@ export default function Home() {
         </section>
 
         {/* ── AI Quote ── */}
-        <section id="ai-quote" className="section-future relative py-24 sm:py-32">
+        <section id="ai-quote" className="section-future relative scroll-mt-28 py-24 sm:py-32">
           <SectionGlow position="center" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-cyan/[0.05] via-transparent to-transparent" />
           <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -1112,7 +1112,7 @@ export default function Home() {
         </div>
 
         {/* ── Contact ── */}
-        <section id="contact" className="relative py-24 sm:py-32">
+        <section id="contact" className="relative scroll-mt-28 py-24 sm:py-32">
           <SectionGlow position="bottom" />
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <motion.div

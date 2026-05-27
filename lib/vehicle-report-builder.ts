@@ -104,7 +104,7 @@ function healthFor(vehicle: VehicleResult): VehicleHealthScore {
   return { score, label, explanation, tone };
 }
 
-function issuesFor(makeModel: string): string[] {
+export function issuesFor(makeModel: string): string[] {
   const key = Object.keys(MODEL_ISSUES).find((k) => makeModel.toUpperCase().includes(k));
   return MODEL_ISSUES[key ?? "DEFAULT"] ?? MODEL_ISSUES.DEFAULT;
 }
@@ -149,7 +149,7 @@ function motHistoryFor(vehicle: VehicleResult, year: number): MotHistoryEntry[] 
   ];
 }
 
-function servicesFor(vehicle: VehicleResult): RecommendedService[] {
+export function servicesFor(vehicle: VehicleResult): RecommendedService[] {
   return SERVICE_TEMPLATES.map((t, i) => ({
     id: `svc-${i}`,
     ...t,

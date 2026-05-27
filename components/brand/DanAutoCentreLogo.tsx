@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { handleSectionNavClick, sectionIdFromHref } from "@/lib/scroll-to-section";
 
 const LOGO_SRC = "/dan-auto-centre-logo.png";
 const LOGO_WIDTH = 500;
@@ -10,13 +11,16 @@ const LOGO_HEIGHT = 133;
 type DanAutoCentreLogoProps = {
   variant?: "nav" | "sm";
   className?: string;
+  /** In-page section hash, e.g. `#hero-section` */
   href?: string;
+  onNavigate?: () => void;
 };
 
 export function DanAutoCentreLogo({
   variant = "nav",
   className = "",
-  href = "#",
+  href = "#hero-section",
+  onNavigate,
 }: DanAutoCentreLogoProps) {
   const heightClass =
     variant === "sm"
@@ -41,11 +45,20 @@ export function DanAutoCentreLogo({
     </span>
   );
 
+  const isSectionLink = sectionIdFromHref(href) !== null;
+
   return (
     <Link
       href={href}
       className="group inline-flex shrink-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a63c]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-      aria-label="Dan Auto Centre — home"
+      aria-label="Dan Auto Centre — scroll to top"
+      onClick={
+        isSectionLink
+          ? (e) => handleSectionNavClick(e, href, onNavigate)
+          : onNavigate
+            ? () => onNavigate()
+            : undefined
+      }
     >
       {img}
     </Link>

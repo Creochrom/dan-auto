@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
 import type { SuggestionChip } from "@/lib/types/intake";
 import type { AdvisorChatTheme } from "@/features/chat/hooks/useAdvisorChat";
 
@@ -16,6 +17,7 @@ type Props = {
   theme?: AdvisorChatTheme;
   /** Inline under a message (wrap, max ~2 rows) vs horizontal scroll strip */
   layout?: "inline" | "scroll";
+  isChipDisabled?: (chip: SuggestionChip) => boolean;
 };
 
 export function ChatQuickReplies({
@@ -24,8 +26,23 @@ export function ChatQuickReplies({
   disabled,
   theme = "gold",
   layout = "inline",
+  isChipDisabled,
 }: Props) {
   if (!chips.length) return null;
+
+  const list = (
+    <>
+      {chips.map((chip) => (
+        <ChipButton
+          key={chip.id}
+          chip={chip}
+          disabled={disabled || isChipDisabled?.(chip)}
+          theme={theme}
+          onSelect={onSelect}
+        />
+      ))}
+    </>
+  );
 
   if (layout === "scroll") {
     return (
@@ -37,15 +54,7 @@ export function ChatQuickReplies({
           className="chat-quick-replies-scroller flex flex-nowrap gap-1.5"
           role="list"
         >
-          {chips.map((chip) => (
-            <ChipButton
-              key={chip.id}
-              chip={chip}
-              disabled={disabled}
-              theme={theme}
-              onSelect={onSelect}
-            />
-          ))}
+          {list}
         </motion.div>
         <div className="chat-quick-replies-fade chat-quick-replies-fade--right" aria-hidden />
       </div>
@@ -60,15 +69,7 @@ export function ChatQuickReplies({
       className="chat-inline-replies"
       role="list"
     >
-      {chips.map((chip) => (
-        <ChipButton
-          key={chip.id}
-          chip={chip}
-          disabled={disabled}
-          theme={theme}
-          onSelect={onSelect}
-        />
-      ))}
+      {list}
     </motion.div>
   );
 }
@@ -84,14 +85,24 @@ function ChipButton({
   theme: AdvisorChatTheme;
   onSelect?: (chip: SuggestionChip) => void;
 }) {
+  const isSending = chip.label === "Sending…";
+  const isSent = chip.label === "Request sent";
+
   return (
     <button
       type="button"
       role="listitem"
       disabled={disabled}
       onClick={() => onSelect?.(chip)}
-      className={`chat-inline-replies__chip ${CHIP_STYLES[theme]} ${disabled ? "opacity-40" : ""}`}
+      className={`chat-inline-replies__chip ${CHIP_STYLES[theme]} ${
+        isSent ? "chat-inline-replies__chip--sent" : ""
+      } ${isSending ? "chat-inline-replies__chip--loading" : ""} ${
+        disabled ? "opacity-50 cursor-not-allowed" : ""
+      }`}
     >
+      {isSending && (
+        <Loader2 className="mr-1.5 h-3 w-3 shrink-0 animate-spin opacity-80" aria-hidden />
+      )}
       {chip.label}
     </button>
   );

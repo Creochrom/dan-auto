@@ -20,6 +20,11 @@ type Props = {
   /** Mode selection hub only — shown when there are no messages yet. */
   intro?: ReactNode;
   footer?: ReactNode;
+  /** Ephemeral notice while handoff is in flight (not persisted). */
+  handoffPendingNotice?: ReactNode;
+  transformChips?: (chips: SuggestionChip[]) => SuggestionChip[];
+  isChipDisabled?: (chip: SuggestionChip) => boolean;
+  onHandoffRetry?: () => void;
 };
 
 export function ChatTimeline({
@@ -33,6 +38,10 @@ export function ChatTimeline({
   className = "",
   intro,
   footer,
+  handoffPendingNotice,
+  transformChips,
+  isChipDisabled,
+  onHandoffRetry,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -47,7 +56,15 @@ export function ChatTimeline({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, isTyping, footer]);
+  }, [messages, isTyping, footer, handoffPendingNotice]);
+
+  let lastErrorNoticeIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]!.noticeVariant === "error") {
+      lastErrorNoticeIdx = i;
+      break;
+    }
+  }
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
@@ -76,9 +93,18 @@ export function ChatTimeline({
                 showInlineChips={showChips}
                 inlineChipsDisabled={quickRepliesDisabled}
                 onInlineChipSelect={onQuickReply}
+                transformChips={transformChips}
+                isChipDisabled={isChipDisabled}
+                onHandoffRetry={
+                  msg.noticeVariant === "error" && i === lastErrorNoticeIdx
+                    ? onHandoffRetry
+                    : undefined
+                }
               />
             );
           })}
+
+          {handoffPendingNotice}
 
           <AnimatePresence>
             {isTyping && <ChatTypingIndicator label={typingLabel} theme={theme} />}

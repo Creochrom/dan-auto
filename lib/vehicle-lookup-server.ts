@@ -1,13 +1,17 @@
 import type { VehicleLookupResponse } from "@/lib/types/vehicle-report";
-import { buildVehicleReport } from "@/lib/vehicle-report-builder";
 import { stripPlate } from "@/lib/format-plate";
+import { fetchVehicleDetails } from "@/lib/services/dvla/dvla.service";
+import { normalizeDvlaVehicle } from "@/lib/services/dvla/dvla.normalizer";
+import { DvlaServiceError } from "@/lib/services/dvla/dvla.types";
+import { buildVehicleReportFromDvla } from "@/lib/vehicle-report-from-dvla";
 
 const cache = new Map<string, { at: number; payload: VehicleLookupResponse }>();
 const CACHE_TTL_MS = 1000 * 60 * 15;
 
-export function lookupVehicle(reg: string): VehicleLookupResponse {
+export async function lookupVehicle(reg: string): Promise<VehicleLookupResponse> {
   const canon = stripPlate(reg);
   if (canon.length < 2) {
+    console.warn("[vehicle-lookup] invalid registration", reg);
     throw new Error("Invalid registration");
   }
 
@@ -16,13 +20,23 @@ export function lookupVehicle(reg: string): VehicleLookupResponse {
     return { ...cached.payload, cached: true };
   }
 
-  const report = buildVehicleReport(canon);
-  const payload: VehicleLookupResponse = {
-    reg: report.reg,
-    matched: report.matched,
-    report,
-  };
+  try {
+    const raw = await fetchVehicleDetails(canon);
+    const normalized = normalizeDvlaVehicle(raw, canon);
+    const report = buildVehicleReportFromDvla(canon, normalized);
+    const payload: VehicleLookupResponse = {
+      reg: report.reg,
+      matched: true,
+      report,
+    };
 
-  cache.set(canon, { at: Date.now(), payload });
-  return payload;
+    cache.set(canon, { at: Date.now(), payload });
+    return payload;
+  } catch (err) {
+    if (err instanceof DvlaServiceError) {
+      throw err;
+    }
+    console.error("[vehicle-lookup] unexpected failure", canon, err);
+    throw new Error("Vehicle lookup failed");
+  }
 }

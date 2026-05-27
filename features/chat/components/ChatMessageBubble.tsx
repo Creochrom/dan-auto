@@ -8,6 +8,7 @@ import {
   SEGMENT_LABEL,
 } from "@/lib/chat";
 import { ChatQuickReplies } from "@/features/chat/components/ChatQuickReplies";
+import { AdvisorHandoffNoticeBubble } from "@/features/chat/components/AdvisorHandoffNoticeBubble";
 import type { ChatMessage } from "@/lib/types/chat";
 import type { SuggestionChip } from "@/lib/types/intake";
 import type { AdvisorChatTheme } from "@/features/chat/hooks/useAdvisorChat";
@@ -38,6 +39,9 @@ type Props = {
   showInlineChips?: boolean;
   inlineChipsDisabled?: boolean;
   onInlineChipSelect?: (chip: SuggestionChip) => void;
+  transformChips?: (chips: SuggestionChip[]) => SuggestionChip[];
+  isChipDisabled?: (chip: SuggestionChip) => boolean;
+  onHandoffRetry?: () => void;
 };
 
 export function ChatMessageBubble({
@@ -46,10 +50,28 @@ export function ChatMessageBubble({
   showInlineChips = false,
   inlineChipsDisabled,
   onInlineChipSelect,
+  transformChips,
+  isChipDisabled,
+  onHandoffRetry,
 }: Props) {
   const isUser = message.role === "user";
   const isSending = message.status === "sending";
-  const chips = showInlineChips ? message.chipsSnapshot : undefined;
+
+  if (message.noticeVariant) {
+    return (
+      <AdvisorHandoffNoticeBubble
+        message={message}
+        onRetry={message.noticeVariant === "error" ? onHandoffRetry : undefined}
+      />
+    );
+  }
+
+  const chipsRaw = showInlineChips ? message.chipsSnapshot : undefined;
+  const chips = chipsRaw?.length
+    ? transformChips
+      ? transformChips(chipsRaw)
+      : chipsRaw
+    : undefined;
 
   if (isUser) {
     return (
@@ -94,6 +116,7 @@ export function ChatMessageBubble({
               disabled={inlineChipsDisabled}
               theme={theme}
               layout="inline"
+              isChipDisabled={isChipDisabled}
             />
           </div>
         )}
@@ -129,6 +152,7 @@ export function ChatMessageBubble({
             disabled={inlineChipsDisabled}
             theme={theme}
             layout="inline"
+            isChipDisabled={isChipDisabled}
           />
         </div>
       )}

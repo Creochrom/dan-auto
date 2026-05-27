@@ -8,7 +8,7 @@ type HeroOverlayStageProps = {
 };
 
 /**
- * Full-hero overlay surface (headline → trust row). Absolute positioning keeps
+ * Full-hero overlay surface for modals. Absolute positioning keeps
  * windows out of document flow while matching the composition bounds for drag.
  */
 export function HeroOverlayStage({ active, children }: HeroOverlayStageProps) {

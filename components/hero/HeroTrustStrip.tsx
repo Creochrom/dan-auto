@@ -2,41 +2,64 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import type { HeroTrustBadge } from "@/lib/hero-content";
+import { HeroDragScroll } from "@/components/hero/HeroDragScroll";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 type Props = {
   badges: readonly HeroTrustBadge[];
+  variant?: "ribbon" | "compact";
 };
 
-export function HeroTrustStrip({ badges }: Props) {
+export function HeroTrustStrip({ badges, variant = "ribbon" }: Props) {
   const reduceMotion = useReducedMotion();
+  const isRibbon = variant === "ribbon";
 
   return (
-    <div className="hero-trust-strip w-full">
-      <div className="hero-trust-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 pt-1 [-ms-overflow-style:none] [scrollbar-width:none] lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:snap-none [&::-webkit-scrollbar]:hidden">
-        {badges.map((badge, i) => (
-          <motion.div
-            key={`${badge.primary}-${badge.secondary}`}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: reduceMotion ? 0 : 0.04 + i * 0.03, duration: 0.45, ease: EASE }}
-            className="hero-trust-badge group shrink-0 snap-start lg:snap-align-none"
+    <HeroDragScroll
+      aria-label="Trust badges"
+      centerOnDesktop={isRibbon}
+      trackClassName={`hero-ribbon-track hero-trust-track ${isRibbon ? "hero-trust-track--ribbon" : ""}`}
+    >
+      {badges.map((badge, i) => (
+        <motion.div
+          key={`${badge.primary}-${badge.secondary}`}
+          role="listitem"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            delay: reduceMotion ? 0 : 0.02 + i * 0.02,
+            duration: 0.35,
+            ease: EASE,
+          }}
+          className={
+            isRibbon
+              ? "hero-trust-card shrink-0 snap-center"
+              : "hero-trust-badge hero-trust-badge--compact shrink-0 snap-start"
+          }
+        >
+          <span
+            className={
+              isRibbon ? "hero-trust-card__icon" : "hero-trust-icon-wrap hero-trust-icon-wrap--compact"
+            }
+            aria-hidden
           >
-            <span className="hero-trust-icon-wrap" aria-hidden>
-              <badge.icon className="hero-trust-icon h-[18px] w-[18px]" />
+            <badge.icon
+              className={`hero-trust-icon ${isRibbon ? "hero-trust-card__icon-svg" : "h-3.5 w-3.5"}`}
+            />
+          </span>
+          <span className={isRibbon ? "hero-trust-card__text" : "hero-trust-badge__text"}>
+            <span className={isRibbon ? "hero-trust-card__primary" : "hero-trust-badge__primary"}>
+              {badge.primary}
             </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-bold uppercase tracking-[0.1em] text-[#d4a63c] sm:text-xs">
-                {badge.primary}
-              </span>
-              <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-300 sm:text-[11px]">
-                {badge.secondary}
-              </span>
+            <span
+              className={isRibbon ? "hero-trust-card__secondary" : "hero-trust-badge__secondary"}
+            >
+              {badge.secondary}
             </span>
-          </motion.div>
-        ))}
-      </div>
-    </div>
+          </span>
+        </motion.div>
+      ))}
+    </HeroDragScroll>
   );
 }

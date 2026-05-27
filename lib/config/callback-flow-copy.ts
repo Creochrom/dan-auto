@@ -8,6 +8,15 @@ One of our technicians will contact you as soon as they become available.
 
 Happy to help with anything else regarding your vehicle.`;
 
+/** In-chat confirmation after successful workshop handoff. */
+export const CALLBACK_CHAT_SUCCESS =
+  "Callback request sent successfully. A mechanic has received your request — we'll contact you shortly.";
+
+export const CALLBACK_CHAT_ERROR =
+  "We couldn't send your callback request. Please try again.";
+
+export const CALLBACK_CHAT_SENDING = "Sending your callback request…";
+
 export const CALLBACK_STATUS_SENT = "Callback request sent to workshop team";
 
 /** Quick reply chip IDs — must match Gemini prompt. */

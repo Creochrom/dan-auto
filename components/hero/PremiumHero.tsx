@@ -11,9 +11,8 @@ import { HeroEstimateModal } from "@/components/hero/HeroEstimateModal";
 import { HeroOverlayStage } from "@/components/hero/HeroOverlayStage";
 import { HeroReportSkeleton } from "@/components/hero/report/HeroReportSkeleton";
 import { HeroVehicleReportSuite } from "@/components/hero/report/HeroVehicleReportSuite";
-import { HeroServiceInfoModal } from "@/components/hero/HeroServiceInfoModal";
-import { HeroServiceStrip } from "@/components/hero/HeroServiceStrip";
-import { HeroTrustStrip } from "@/components/hero/HeroTrustStrip";
+import { HeroPremiumInfoStrip } from "@/components/hero/HeroPremiumInfoStrip";
+import { HeroLandingShell } from "@/components/hero/HeroLandingShell";
 import { HeroWindowLayer } from "@/components/hero/windows/HeroWindowLayer";
 import { HeroInsightsHubWindow } from "@/components/hero/windows/HeroInsightsHubWindow";
 import { HeroMainEntryWindow } from "@/components/hero/windows/HeroMainEntryWindow";
@@ -21,11 +20,7 @@ import {
   HeroWindowManagerProvider,
   useHeroWindowManager,
 } from "@/components/hero/windows/HeroWindowManager";
-import {
-  buildHeroTrustBadges,
-  HERO_SERVICE_CARDS,
-  type HeroServiceCard,
-} from "@/lib/hero-content";
+import { buildHeroTrustBadges } from "@/lib/hero-content";
 import {
   HERO_INSIGHT_CATEGORIES,
   type HeroInsightCategoryId,
@@ -36,8 +31,8 @@ import { useAssistant } from "@/features/assistant/AssistantContext";
 import { stripPlate } from "@/lib/format-plate";
 import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type { HeroConciergeMode } from "@/lib/types/hero-concierge";
+import { HeroVehicleInfoBar } from "@/components/hero/HeroVehicleInfoBar";
 import { fetchVehicleLookup } from "@/lib/vehicle-lookup-client";
-import { buildVehicleReport } from "@/lib/vehicle-report-builder";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
 import type { VehicleResult } from "@/lib/types/vehicle";
 
@@ -270,9 +265,6 @@ function PremiumHeroInner({
   const [estimateMinimized, setEstimateMinimized] = useState(false);
   const [inspectionOpen, setInspectionOpen] = useState(false);
   const [inspectionMinimized, setInspectionMinimized] = useState(false);
-  const [selectedService, setSelectedService] = useState<HeroServiceCard | null>(
-    null
-  );
   const [closedReportWindows, setClosedReportWindows] = useState<Set<string>>(
     () => new Set()
   );
@@ -290,18 +282,9 @@ function PremiumHeroInner({
         experience,
         googleRating,
         googleReviewCount,
+        happyCustomersPrimary: "1000+",
       }),
     [experience, googleRating, googleReviewCount]
-  );
-
-  const serviceStripItems = useMemo(
-    () =>
-      HERO_SERVICE_CARDS.map((card) => ({
-        icon: card.icon,
-        title: card.title,
-        hint: card.hint,
-      })),
-    []
   );
 
   const resetLookupState = useCallback(() => {
@@ -386,9 +369,12 @@ function PremiumHeroInner({
     try {
       const data = await fetchVehicleLookup(canon);
       applyReport(data.report);
-    } catch {
-      const fallback = buildVehicleReport(canon);
-      applyReport(fallback);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to look up this registration";
+      setPlateError(message);
+      setPlateShake(true);
+      window.setTimeout(() => setPlateShake(false), 520);
     } finally {
       setIsLoading(false);
     }
@@ -487,14 +473,16 @@ function PremiumHeroInner({
   const overlayActive = isLoading || estimateOpen || inspectionOpen;
 
   return (
-    <section className="hero" id="hero-section" aria-labelledby="hero-heading">
-      <div className="hero-container pt-2 sm:pt-4 lg:pt-2">
-        <div className="hero-composition" ref={heroOverlayStageRef}>
+    <HeroLandingShell
+      hero={
+      <section className="hero" id="hero-section" aria-labelledby="hero-heading">
+        <div className="hero-container pt-2 sm:pt-4 lg:pt-2">
+          <div className="hero-composition" ref={heroOverlayStageRef}>
           <div className="hero-stage-shell">
             <div className="hero-stage" ref={heroStageRef}>
               <div className="hero-grid">
-              <div className="hero-left w-full max-w-none lg:max-w-[560px]">
-                <div className="hero-badge inline-flex w-fit items-center gap-2 rounded-full border border-[#d4a63c]/40 bg-black/60 px-3 py-1.5">
+              <div className="hero-left w-full max-w-none">
+                <div className="hero-badge inline-flex w-fit max-lg:w-full max-lg:justify-center max-lg:box-border items-center gap-2 rounded-full border border-[#d4a63c]/40 bg-black/60 px-3 py-1.5">
                   <Car className="h-3.5 w-3.5 text-[#d4a63c]" aria-hidden />
                   <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#d4a63c]">
                     {badge}
@@ -503,23 +491,23 @@ function PremiumHeroInner({
 
                 <h1
                   id="hero-heading"
-                  className="hero-heading mt-3 max-lg:[text-shadow:0_2px_24px_rgba(0,0,0,0.65)] sm:mt-4 lg:mt-5 lg:[text-shadow:none]"
+                  className="hero-heading max-lg:[text-shadow:0_2px_24px_rgba(0,0,0,0.65)] lg:[text-shadow:none]"
                 >
-                  <span className="block text-[clamp(1.5rem,6.2vw,2.1rem)] font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-white sm:text-[clamp(1.85rem,4.8vw,2.5rem)] lg:text-[clamp(2.75rem,4.8vw,4.25rem)] lg:leading-[0.96] lg:tracking-[-0.04em]">
+                  <span className="hero-heading-line block font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-white lg:leading-[0.96] lg:tracking-[-0.04em] max-lg:[text-shadow:0_2px_24px_rgba(0,0,0,0.65)] lg:[text-shadow:none]">
                     EXPERT CARE
                   </span>
-                  <span className="gold-metallic block bg-clip-text text-[clamp(1.5rem,6.2vw,2.1rem)] font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-transparent sm:text-[clamp(1.85rem,4.8vw,2.5rem)] lg:-mt-1 lg:text-[clamp(2.75rem,4.8vw,4.25rem)] lg:leading-[0.96] lg:tracking-[-0.04em]">
+                  <span className="hero-heading-line gold-metallic block bg-clip-text font-extrabold uppercase leading-[1.05] tracking-[-0.025em] text-transparent lg:-mt-1 lg:leading-[0.96] lg:tracking-[-0.04em]">
                     FOR YOUR CAR
                   </span>
                 </h1>
 
-                <p className="hero-subcopy mt-3 max-w-[520px] text-[13px] font-medium leading-relaxed text-white/88 max-lg:[text-shadow:0_1px_14px_rgba(0,0,0,0.7)] sm:mt-4 sm:text-[14px] lg:mt-6 lg:text-[16px] lg:text-white/82 lg:[text-shadow:none]">
+                <p className="hero-subcopy max-lg:[text-shadow:0_1px_14px_rgba(0,0,0,0.7)] lg:text-white/82 lg:[text-shadow:none]">
                   Dealer-level diagnostics, MOT testing, and premium repairs for BMW,
                   Audi, Mercedes and more.
                 </p>
 
                 <div
-                  className={`hero-plate-glass mt-4 w-full max-w-[540px] rounded-2xl border bg-black/78 px-4 py-5 transition-[border-color,box-shadow] duration-300 sm:mt-5 sm:px-5 lg:mt-7 lg:max-w-[540px] ${
+                  className={`hero-plate-glass w-full rounded-2xl border bg-black/78 transition-[border-color,box-shadow] duration-300 ${
                     plateError
                       ? "border-red-500/45 shadow-[0_0_28px_rgba(239,68,68,0.18)]"
                       : "border-[#d4a63c]/24"
@@ -558,25 +546,27 @@ function PremiumHeroInner({
                       AI is analysing your vehicle…
                     </p>
                   )}
-                  {!isLoading && showReportSuite && !lookupMatched && (
-                    <p className="mt-2.5 text-[11px] font-medium text-amber-200/80">
-                      Registration not in demo database — limited analysis shown.
-                    </p>
+                  {vehicleReport && !isLoading && (
+                    <HeroVehicleInfoBar
+                      report={vehicleReport}
+                      onBookMot={() => onHeroServiceSelect("MOT")}
+                    />
                   )}
-                  <p className="hero-plate-trust mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-[10px] font-medium tracking-[0.01em] text-white/55 sm:mt-4 sm:text-[11px]">
-                    <span className="inline-flex items-center gap-1.5">
+                  <p className="hero-plate-trust mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-medium tracking-[0.01em] text-white/55 sm:text-[10px]">
+                    <span className="inline-flex items-center gap-1">
                       <Check className="h-3 w-3 text-[#d4a63c]/85" aria-hidden />
                       Instant DVLA check
                     </span>
-                    <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1">
                       <Check className="h-3 w-3 text-[#d4a63c]/85" aria-hidden />
                       AI vehicle analysis
                     </span>
-                    <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1">
                       <Check className="h-3 w-3 text-[#d4a63c]/85" aria-hidden />
                       Secure &amp; private
                     </span>
                   </p>
+
                 </div>
               </div>
 
@@ -594,14 +584,11 @@ function PremiumHeroInner({
                       quality={95}
                       className="hero-bmw-img max-lg:brightness-[0.72] max-lg:contrast-[1.04] max-lg:saturate-[0.98] sm:max-lg:brightness-[0.74] lg:brightness-100 lg:contrast-100 lg:saturate-100"
                     />
-                    <div
-                      className="pointer-events-none absolute inset-0 z-[2] block bg-[linear-gradient(180deg,rgba(3,3,3,0.3)_0%,rgba(3,3,3,0.16)_38%,rgba(3,3,3,0.24)_72%,rgba(3,3,3,0.36)_100%),linear-gradient(90deg,rgba(3,3,3,0.32)_0%,rgba(3,3,3,0.12)_38%,rgba(3,3,3,0.04)_62%,transparent_100%)] max-sm:bg-[linear-gradient(180deg,rgba(3,3,3,0.24)_0%,rgba(3,3,3,0.12)_38%,rgba(3,3,3,0.2)_72%,rgba(3,3,3,0.32)_100%),linear-gradient(90deg,rgba(3,3,3,0.26)_0%,rgba(3,3,3,0.1)_38%,rgba(3,3,3,0.03)_62%,transparent_100%)] lg:hidden"
-                      aria-hidden
-                    />
+                    <div className="hero-bmw-blend" aria-hidden />
                   </div>
                 </div>
+                </div>
               </div>
-            </div>
             </div>
 
             <PremiumHeroWindowStack
@@ -640,19 +627,6 @@ function PremiumHeroInner({
               heroConciergeMode={heroConciergeMode}
               heroAdvisorRoute={heroAdvisorRoute}
             />
-          </div>
-
-          <div className="hero-below">
-            <HeroServiceStrip
-              items={serviceStripItems}
-              onSelect={(title) => {
-                const card = HERO_SERVICE_CARDS.find((c) => c.title === title);
-                if (card) setSelectedService(card);
-              }}
-            />
-            <div className="mt-5 sm:mt-6">
-              <HeroTrustStrip badges={trustBadges} />
-            </div>
           </div>
 
           <HeroOverlayStage active={overlayActive}>
@@ -707,18 +681,14 @@ function PremiumHeroInner({
               </>
             )}
           </HeroOverlayStage>
+          </div>
         </div>
-      </div>
-
-      <AnimatePresence>
-        {selectedService && (
-          <HeroServiceInfoModal
-            service={selectedService}
-            onClose={() => setSelectedService(null)}
-            onBook={onHeroServiceSelect}
-          />
-        )}
-      </AnimatePresence>
-    </section>
+        <div className="hero-bottom-fade" aria-hidden />
+      </section>
+      }
+      ribbons={
+        <HeroPremiumInfoStrip badges={trustBadges} onCreateAccount={onCreateAccount} />
+      }
+    />
   );
 }

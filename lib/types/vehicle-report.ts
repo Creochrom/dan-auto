@@ -31,6 +31,8 @@ export type VehicleProfile = {
   engine: string;
   motStatus: string;
   taxStatus: string;
+  /** ISO date from DVLA when available */
+  motExpiryDate?: string | null;
 };
 
 /** Normalized DVLA + MOT + AI enrichment — cache-friendly API shape */

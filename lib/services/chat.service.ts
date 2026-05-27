@@ -215,7 +215,7 @@ export const chatService = {
     const incomingRegCanon = stripPlate(request.registration ?? "");
     const knownRegCanon = stripPlate(session.vehicleMemory?.reg ?? "");
     if (incomingRegCanon && incomingRegCanon !== knownRegCanon) {
-      const lookup = vehicleMemoryService.lookup(incomingRegCanon);
+      const lookup = await vehicleMemoryService.lookup(incomingRegCanon);
       session.vehicleMemory = lookup;
       chatRepository.updateVehicleMemory(session.id, lookup);
 
