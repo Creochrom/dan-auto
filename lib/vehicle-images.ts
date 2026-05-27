@@ -9,7 +9,7 @@ export type VehicleImageMatch = {
   matchKey: string;
 };
 
-const LOCAL_BMW_3_SERIES = "/hero-bmw.png";
+const LOCAL_BMW_3_SERIES = "/hero-bmw.jpg";
 
 /** Curated Unsplash vehicle exteriors — stable IDs, car-focused framing */
 const REMOTE = {

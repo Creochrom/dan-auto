@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowRight, Calendar } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { VehicleBrandIcon } from "@/components/hero/VehicleBrandIcon";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
 import {
@@ -93,12 +93,7 @@ export function HeroVehicleInfoBar({ report, onBookMot, onOpenMotHistory }: Prop
             icon={<Calendar className="hero-vehicle-info-card__icon-svg" aria-hidden />}
             label="Next MOT"
             value={countdown.headline}
-            footer={
-              <span className="hero-vehicle-info-card__cta">
-                Book MOT
-                <ArrowRight aria-hidden />
-              </span>
-            }
+            footer={<span className="hero-vehicle-info-card__cta">Book MOT</span>}
           />
         </button>
       </div>

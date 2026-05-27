@@ -34,13 +34,9 @@ export function HeroBrandStrip({ variant = "ribbon" }: Props) {
               duration: 0.35,
               ease: EASE,
             }}
-            className={`hero-brand-float shrink-0 snap-center ${
-              brand.id === "mercedes" || brand.id === "land-rover" || brand.id === "volkswagen"
-                ? "hero-brand-float--wide"
-                : ""
-            }`}
+            className="hero-brand-float shrink-0 snap-center"
           >
-            <HeroBrandLogo brand={brand.id} className="hero-brand-float__svg" />
+            <HeroBrandLogo brand={brand.id} />
           </motion.div>
         ))}
       </HeroDragScroll>

@@ -10,7 +10,10 @@ import { HeroBookInspectionModal } from "@/components/hero/HeroBookInspectionMod
 import { HeroEstimateModal } from "@/components/hero/HeroEstimateModal";
 import { HeroOverlayStage } from "@/components/hero/HeroOverlayStage";
 import { HeroReportSkeleton } from "@/components/hero/report/HeroReportSkeleton";
-import { HeroVehicleReportSuite } from "@/components/hero/report/HeroVehicleReportSuite";
+import {
+  HeroVehicleReportSuite,
+  REPORT_WINDOWS,
+} from "@/components/hero/report/HeroVehicleReportSuite";
 import { HeroPremiumInfoStrip } from "@/components/hero/HeroPremiumInfoStrip";
 import { HeroLandingShell } from "@/components/hero/HeroLandingShell";
 import { HeroWindowLayer } from "@/components/hero/windows/HeroWindowLayer";
@@ -20,6 +23,7 @@ import {
   HeroWindowManagerProvider,
   useHeroWindowManager,
 } from "@/components/hero/windows/HeroWindowManager";
+import { HeroWindowStackProvider } from "@/components/hero/windows/HeroWindowStackContext";
 import { buildHeroTrustBadges } from "@/lib/hero-content";
 import {
   HERO_INSIGHT_CATEGORIES,
@@ -142,12 +146,36 @@ function PremiumHeroWindowStack({
     visibleInsightWindows.size > 0 ||
     chatOpen;
 
+  const windowOrder = useMemo(() => {
+    const ids: string[] = [];
+    if (showEntry) ids.push("entry");
+    if (showHub) ids.push("insights-hub");
+    for (const layout of REPORT_WINDOWS) {
+      if (
+        visibleInsightWindows.has(layout.id) &&
+        !closedReportWindows.has(layout.id)
+      ) {
+        ids.push(layout.id);
+      }
+    }
+    if (chatOpen && vehicleData) ids.push("chat");
+    return ids;
+  }, [
+    showEntry,
+    showHub,
+    visibleInsightWindows,
+    closedReportWindows,
+    chatOpen,
+    vehicleData,
+  ]);
+
   return (
     <div
       ref={layerRef}
       className="hero-window-layer"
       aria-live="polite"
     >
+      <HeroWindowStackProvider windowOrder={windowOrder}>
       <HeroWindowLayer active={layerActive}>
         {isLoading && (
           <div className="pointer-events-none absolute left-1/2 top-16 z-[45] -translate-x-1/2">
@@ -213,6 +241,7 @@ function PremiumHeroWindowStack({
           />
         )}
       </HeroWindowLayer>
+      </HeroWindowStackProvider>
     </div>
   );
 }
@@ -286,6 +315,13 @@ function PremiumHeroInner({
       }),
     [experience, googleRating, googleReviewCount]
   );
+
+  const overlayWindowOrder = useMemo(() => {
+    const ids: string[] = [];
+    if (estimateOpen) ids.push("estimate");
+    if (inspectionOpen) ids.push("inspection");
+    return ids;
+  }, [estimateOpen, inspectionOpen]);
 
   const resetLookupState = useCallback(() => {
     setIsLoading(false);
@@ -643,6 +679,7 @@ function PremiumHeroInner({
 
           <HeroOverlayStage active={overlayActive}>
             {vehicleData && (
+              <HeroWindowStackProvider windowOrder={overlayWindowOrder}>
               <>
                 <AnimatePresence>
                   {estimateOpen && (
@@ -691,6 +728,7 @@ function PremiumHeroInner({
                   )}
                 </AnimatePresence>
               </>
+              </HeroWindowStackProvider>
             )}
           </HeroOverlayStage>
           </div>

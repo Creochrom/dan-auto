@@ -30,7 +30,7 @@ export function HeroFeaturesRibbon({ badges }: Props) {
               <div
                 key={`${badge.primary}-${badge.secondary}`}
                 role="listitem"
-                className="hero-ribbon-feature-item flex min-w-[9.5rem] flex-1 items-center justify-center gap-3 px-2 sm:min-w-[10.5rem] md:px-3"
+                className="hero-ribbon-feature-item flex min-w-0 flex-1 items-center justify-center gap-3 px-2 sm:px-3"
               >
                 <badge.icon
                   className="h-[21px] w-[21px] shrink-0 stroke-[1.5] text-[#d4a63a]"

@@ -32,14 +32,7 @@ export function HeroMembershipRibbon({ onCreateAccount }: Props) {
               >
                 {HERO_RIBBON_BRANDS.map((brand) => (
                   <span key={brand.id} role="listitem" className="flex shrink-0 items-center">
-                    <HeroBrandLogo
-                      brand={brand.id}
-                      className={`hero-ribbon-logo h-7 w-auto transition-opacity duration-200 hover:opacity-100 md:h-8 ${
-                        brand.id === "mercedes" || brand.id === "volkswagen"
-                          ? "hero-ribbon-logo--wide"
-                          : ""
-                      }`}
-                    />
+                    <HeroBrandLogo brand={brand.id} className="hero-brand-float__mark h-7 md:h-8" />
                   </span>
                 ))}
               </div>

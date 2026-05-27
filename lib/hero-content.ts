@@ -102,20 +102,42 @@ export type HeroBrandId =
   | "audi"
   | "mercedes"
   | "volkswagen"
-  | "mini"
+  | "toyota"
+  | "ford"
+  | "vauxhall"
+  | "nissan"
+  | "honda"
+  | "hyundai"
+  | "kia"
+  | "peugeot"
+  | "renault"
+  | "skoda"
+  | "volvo"
+  | "tesla"
   | "land-rover"
-  | "porsche"
-  | "toyota";
+  | "mini"
+  | "porsche";
 
 export const HERO_BRANDS: ReadonlyArray<{ id: HeroBrandId; label: string }> = [
   { id: "bmw", label: "BMW" },
   { id: "audi", label: "Audi" },
   { id: "mercedes", label: "Mercedes-Benz" },
   { id: "volkswagen", label: "Volkswagen" },
+  { id: "toyota", label: "Toyota" },
+  { id: "ford", label: "Ford" },
+  { id: "vauxhall", label: "Vauxhall" },
+  { id: "nissan", label: "Nissan" },
+  { id: "honda", label: "Honda" },
+  { id: "hyundai", label: "Hyundai" },
+  { id: "kia", label: "Kia" },
+  { id: "peugeot", label: "Peugeot" },
+  { id: "renault", label: "Renault" },
+  { id: "skoda", label: "Škoda" },
+  { id: "volvo", label: "Volvo" },
+  { id: "tesla", label: "Tesla" },
+  { id: "land-rover", label: "Land Rover" },
   { id: "mini", label: "MINI" },
   { id: "porsche", label: "Porsche" },
-  { id: "land-rover", label: "Land Rover" },
-  { id: "toyota", label: "Toyota" },
 ];
 
 /** First five brands shown in the hero bottom ribbon (reference layout). */

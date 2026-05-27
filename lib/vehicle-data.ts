@@ -6,7 +6,7 @@ export const HERO_GARAGE_IMAGE =
   "https://images.unsplash.com/photo-1487754180451-c456f719a1fc?w=1920&q=78&auto=format&fit=crop";
 
 /** Hero BMW — cinematic rear workshop photo only (not a UI screenshot) */
-export const HERO_SHOWCASE_VEHICLE = "/hero-bmw.png";
+export const HERO_SHOWCASE_VEHICLE = "/hero-bmw.jpg";
 
 /** Layer stack for hero collage — abstract detail only (no showroom hero car). */
 export const HERO_LAYER_SILHOUETTE =

@@ -1013,6 +1013,57 @@ body {
   max-height: var(--hero-window-max-h);
 }
 
+/* Drag UX — titlebar only; no text selection or ghost drag */
+.hero-floating-window--draggable .hero-floating-window__drag-handle {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.hero-floating-window--draggable .hero-floating-window__drag-handle img,
+.hero-floating-window--draggable .hero-floating-window__drag-handle svg {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+.hero-floating-window--dragging {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hero-floating-window--dragging,
+.hero-floating-window--dragging .hero-floating-window__drag-handle {
+  cursor: grabbing !important;
+}
+
+.hero-floating-window--dragging .hero-floating-window__shell {
+  pointer-events: none;
+}
+
+.hero-floating-window--dragging .hero-floating-window__chrome-actions {
+  pointer-events: auto;
+}
+
+/* Mobile/tablet stack — JS positions windows; keep scroll inside shell */
+@media (max-width: 1279px) {
+  .hero-floating-window--responsive-stack .hero-floating-window__shell {
+    max-height: var(--hero-window-max-h);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .hero-floating-window--responsive-stack:not(.hero-floating-window--draggable)
+    .hero-floating-window__chrome-bar {
+    cursor: default;
+  }
+
+  .hero-floating-window--responsive-stack.hero-floating-window--draggable
+    .hero-floating-window__drag-handle {
+    touch-action: none;
+  }
+}
+
 /* Hero composition — content + full-area overlay stage for draggable panels */
 .hero-composition {
   position: relative;
@@ -1141,7 +1192,35 @@ body {
 
   .hero-ribbon-features-track .hero-ribbon-feature-item__label,
   .hero-ribbon-features-track .hero-ribbon-feature-item__sublabel {
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .hero-ribbon-features-track .hero-ribbon-feature-item__sublabel {
+    font-size: 9px;
+    letter-spacing: 0.05em;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-ribbon-features-row .hero-ribbon-feature-item {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .hero-ribbon-feature-item__text {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .hero-ribbon-feature-item__label,
+  .hero-ribbon-feature-item__sublabel {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 }
 
@@ -2030,6 +2109,77 @@ body {
 
 .hero-brand-logo-chip--wide .hero-brand-logo-chip__svg {
   max-width: 2.85rem;
+}
+
+/* Manufacturer marks — Simple Icons paths, monochrome */
+.hero-brand-mark {
+  display: block;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 1.25rem;
+  color: rgba(212, 212, 216, 0.58);
+  transition: color 0.22s ease, filter 0.22s ease;
+}
+
+.hero-brand-mark--wide {
+  width: 2.85rem;
+}
+
+.hero-brand-float {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.25rem;
+  height: 2.5rem;
+  padding: 0 0.35rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.32);
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    background-color 0.22s ease;
+}
+
+.hero-brand-float:hover {
+  border-color: rgba(212, 166, 60, 0.32);
+  background: rgba(212, 166, 60, 0.06);
+  box-shadow: 0 0 16px rgba(212, 166, 60, 0.12);
+}
+
+.hero-brand-float:hover .hero-brand-mark {
+  color: rgba(232, 212, 168, 0.94);
+  filter: drop-shadow(0 0 6px rgba(212, 166, 60, 0.35));
+}
+
+.hero-brand-float__mark {
+  width: 2.15rem;
+  height: 1.15rem;
+}
+
+.hero-brand-float:hover .hero-brand-float__mark.hero-brand-mark--wide,
+.hero-brand-float .hero-brand-mark--wide {
+  width: 2.75rem;
+}
+
+.hero-vehicle-info-card__brand-logo.hero-brand-mark {
+  width: 1.125rem;
+  height: 1.125rem;
+  color: rgba(212, 166, 60, 0.9);
+}
+
+.hero-brand-ribbon__label {
+  margin-bottom: 0.45rem;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(161, 161, 170, 0.72);
+  text-align: center;
+}
+
+.hero-brand-track.hero-ribbon-track {
+  gap: 0.35rem;
 }
 
 .hero-floating-window__body {
@@ -3198,9 +3348,12 @@ body {
   height: 100%;
   min-width: 0;
   max-width: 100%;
+  min-height: 0;
   align-items: center;
   justify-content: center;
   gap: var(--hero-vic-inner-gap);
+  overflow: hidden;
+  contain: layout style;
 }
 
 .hero-vehicle-info-card__icon-slot {
@@ -3234,12 +3387,14 @@ body {
 
 .hero-vehicle-info-card__body {
   display: flex;
+  width: 100%;
   min-width: 0;
   max-width: 100%;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  min-height: 0;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
+  align-items: stretch;
   gap: var(--hero-vic-text-gap);
   overflow: hidden;
   text-align: center;
@@ -3350,12 +3505,16 @@ body {
 .hero-vehicle-info-card--cta {
   cursor: pointer;
   min-width: 0;
-  border-color: rgba(212, 166, 60, 0.38);
+  border: 1px solid rgba(212, 166, 60, 0.38);
   background: linear-gradient(
     155deg,
     rgba(212, 166, 60, 0.1) 0%,
     rgba(8, 7, 6, 0.94) 55%
   );
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
   box-shadow:
     inset 0 1px 0 rgba(255, 248, 220, 0.06),
     0 0 0 1px rgba(212, 166, 60, 0.06);
@@ -3387,23 +3546,22 @@ body {
 }
 
 .hero-vehicle-info-card__cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.125rem;
-  max-width: 100%;
+  display: block;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
   font: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
   color: #d4a63c;
 }
 
-.hero-vehicle-info-card__cta svg {
-  width: 0.625rem;
-  height: 0.625rem;
-  flex-shrink: 0;
+.hero-vehicle-info-card--cta:hover .hero-vehicle-info-card__cta {
+  color: rgba(212, 166, 60, 0.98);
 }
 
 .hero-plate-trust {

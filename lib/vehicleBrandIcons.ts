@@ -26,6 +26,8 @@ export const brandIconPaths: Record<VehicleBrandLogoKey, string> = {
   "land-rover": "/brands/land-rover.svg",
   lexus: "/brands/lexus.svg",
   porsche: "/brands/porsche.svg",
+  volvo: "/brands/volvo.svg",
+  tesla: "/brands/tesla.svg",
 };
 
 /** Ordered rules — more specific patterns first. */
@@ -49,6 +51,8 @@ const MAKE_RULES: ReadonlyArray<{ match: RegExp; brand: VehicleBrandLogoKey }> =
   { match: /\bskoda\b|škoda/i, brand: "skoda" },
   { match: /\bseat\b/i, brand: "seat" },
   { match: /\blexus\b/i, brand: "lexus" },
+  { match: /\bvolvo\b/i, brand: "volvo" },
+  { match: /\btesla\b/i, brand: "tesla" },
 ];
 
 function normalizeMake(raw: string): string {

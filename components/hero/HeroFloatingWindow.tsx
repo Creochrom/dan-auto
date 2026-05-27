@@ -4,31 +4,32 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
   RefObject,
 } from "react";
-import { motion, useDragControls, useReducedMotion } from "framer-motion";
+import {
+  motion,
+  useDragControls,
+  useReducedMotion,
+  type PanInfo,
+} from "framer-motion";
 import { GripHorizontal, Minus, RotateCcw, X } from "lucide-react";
 import { useHeroWindowManagerOptional } from "@/components/hero/windows/HeroWindowManager";
+import { useHeroWindowStackOptional } from "@/components/hero/windows/HeroWindowStackContext";
+import { useHeroFloatingWindowPlacement } from "@/hooks/useHeroFloatingWindowPlacement";
 import { heroWindowMotion } from "@/lib/hero-window-motion";
-import {
-  resolveHeroWindowPlacement,
-  type HeroWindowPosition,
-} from "@/lib/hero-window-position";
+import type { HeroWindowPosition } from "@/lib/hero-window-position";
 
 type LegacyPosition = { x: number; y: number };
-
-function isHeroWindowPosition(
-  pos: LegacyPosition | HeroWindowPosition
-): pos is HeroWindowPosition {
-  return "from" in pos || typeof pos.x === "string";
-}
 
 type Props = {
   title: string;
   windowId?: string;
   stackDepth?: number;
+  /** Responsive stack index among visible windows (mobile/tablet). */
+  cascadeIndex?: number;
   focusBoost?: number;
   dragConstraints?: RefObject<HTMLElement | null>;
   defaultPosition?: LegacyPosition | HeroWindowPosition;
@@ -55,6 +56,7 @@ export function HeroFloatingWindow({
   title,
   windowId,
   stackDepth = 0,
+  cascadeIndex: cascadeIndexProp,
   focusBoost = 0,
   dragConstraints,
   defaultPosition = { x: 0, y: 0 },
@@ -76,14 +78,55 @@ export function HeroFloatingWindow({
   const reduceMotion = useReducedMotion();
   const dragControls = useDragControls();
   const wm = useHeroWindowManagerOptional();
-  const offset = stackDepth * 16;
-  const maxWidth = `min(95vw, ${width}px)`;
+  const stackCtx = useHeroWindowStackOptional();
+  const cascadeIndex =
+    cascadeIndexProp ??
+    (windowId ? stackCtx?.getCascadeIndex(windowId) : undefined) ??
+    stackDepth;
 
-  const placement: HeroWindowPosition = isHeroWindowPosition(defaultPosition)
-    ? defaultPosition
-    : { from: "right", x: defaultPosition.x, y: defaultPosition.y };
+  const [spawnLocked, setSpawnLocked] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [manualOffset, setManualOffset] = useState({ x: 0, y: 0 });
 
-  const anchorStyle = resolveHeroWindowPlacement(placement, offset);
+  const { tier, placement: anchorStyle } = useHeroFloatingWindowPlacement({
+    cascadeIndex,
+    stackDepth,
+    windowWidth: width,
+    defaultPosition,
+    containerRef: dragConstraints,
+    freezePlacement: spawnLocked || isDragging,
+  });
+
+  const dragEnabled =
+    (tier === "desktop" || tier === "tablet") && !reduceMotion;
+  // #region agent log
+  useEffect(() => {
+    fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "0e0a71",
+      },
+      body: JSON.stringify({
+        sessionId: "0e0a71",
+        hypothesisId: "A",
+        location: "HeroFloatingWindow.tsx:placement",
+        message: "window placement state",
+        data: {
+          windowId,
+          tier,
+          dragEnabled,
+          reduceMotion: !!reduceMotion,
+          innerWidth: typeof window !== "undefined" ? window.innerWidth : 0,
+          top: anchorStyle.top,
+          left: anchorStyle.left,
+          cascadeIndex,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }, [windowId, tier, dragEnabled, reduceMotion, anchorStyle.top, anchorStyle.left, cascadeIndex]);
+  // #endregion
   const managedZ =
     windowId && wm ? wm.getZIndex(windowId) : 40 + stackDepth + focusBoost;
 
@@ -109,29 +152,165 @@ export function HeroFloatingWindow({
     onActivate?.();
   }, [onActivate, windowId]);
 
-  const startDrag = useCallback(
+  const handleActivateCapture = useCallback(
     (e: React.PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-drag-handle]")) return;
+      if (target.closest(".hero-floating-window__chrome-actions")) return;
       handleActivate();
+    },
+    [handleActivate]
+  );
+
+  const startDrag = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragEnabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleActivate();
+      setIsDragging(true);
+      // #region agent log
+      fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "0e0a71",
+        },
+        body: JSON.stringify({
+          sessionId: "0e0a71",
+          hypothesisId: "E",
+          location: "HeroFloatingWindow.tsx:startDrag",
+          message: "drag handle pointer down",
+          data: { windowId, dragEnabled },
+          timestamp: Date.now(),
+          runId: "drag-v2",
+        }),
+      }).catch(() => {});
+      // #endregion
       dragControls.start(e);
     },
-    [dragControls, handleActivate]
+    [dragControls, handleActivate, dragEnabled, windowId]
+  );
+
+  const stopChromePointer = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+  }, []);
+
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+    // #region agent log
+    fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "0e0a71",
+      },
+      body: JSON.stringify({
+        sessionId: "0e0a71",
+        hypothesisId: "B",
+        location: "HeroFloatingWindow.tsx:onDragStart",
+        message: "framer drag started",
+        data: {
+          windowId,
+          dragEnabled,
+          manualOffsetX: manualOffset.x,
+          manualOffsetY: manualOffset.y,
+        },
+        timestamp: Date.now(),
+        runId: "drag-v2",
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, [windowId, dragEnabled, manualOffset.x, manualOffset.y]);
+
+  const handleDragEnd = useCallback(
+    (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      setIsDragging(false);
+      setManualOffset((prev) => ({
+        x: prev.x + info.offset.x,
+        y: prev.y + info.offset.y,
+      }));
+      setSpawnLocked(true);
+      // #region agent log
+      fetch("http://127.0.0.1:7419/ingest/0fdd9834-de10-4ffc-bd0f-18c861dff413", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "0e0a71",
+        },
+        body: JSON.stringify({
+          sessionId: "0e0a71",
+          hypothesisId: "C",
+          location: "HeroFloatingWindow.tsx:onDragEnd",
+          message: "framer drag ended — spawn locked",
+          data: {
+            windowId,
+            offsetX: info.offset.x,
+            offsetY: info.offset.y,
+            spawnLocked: true,
+          },
+          timestamp: Date.now(),
+          runId: "post-fix",
+        }),
+      }).catch(() => {});
+      // #endregion
+    },
+    [windowId]
   );
 
   const positionStyle: CSSProperties = {
     ...anchorStyle,
-    width,
-    maxWidth,
     zIndex: managedZ,
   };
+
+  const lockedMotion = {
+    opacity: 1,
+    x: manualOffset.x,
+    y: manualOffset.y,
+    scale: 1,
+  };
+
+  const motionAnimate = isDragging
+    ? { opacity: 1, scale: 1 }
+    : spawnLocked
+      ? lockedMotion
+      : enterMotion.animate;
+
+  const motionInitial = isDragging
+    ? { opacity: 1, scale: 1 }
+    : spawnLocked
+      ? lockedMotion
+      : enterMotion.initial;
+
+  const motionTransition =
+    isDragging || spawnLocked
+      ? { duration: 0 }
+      : enterMotion.transition;
+
+  const dragMotionProps = {
+    drag: dragEnabled,
+    dragControls,
+    dragListener: false as const,
+    dragConstraints,
+    dragElastic: 0,
+    dragMomentum: false,
+    dragTransition: { power: 0, timeConstant: 0 },
+    onDragStart: handleDragStart,
+    onDragEnd: handleDragEnd,
+  };
+
+  const windowClassSuffix = [
+    tier !== "desktop" ? "hero-floating-window--responsive-stack" : "",
+    isDragging ? "hero-floating-window--dragging" : "",
+    dragEnabled ? "hero-floating-window--draggable" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   if (minimized && onRestore) {
     return (
       <motion.button
         type="button"
-        drag={!reduceMotion}
-        dragConstraints={dragConstraints}
-        dragElastic={0.08}
-        dragMomentum={false}
         initial={{ opacity: 0, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.92 }}
@@ -148,22 +327,26 @@ export function HeroFloatingWindow({
   }
 
   const chromeBar = (
-    <div
-      data-drag-handle
-      className="hero-floating-window__chrome-bar flex shrink-0 cursor-grab items-center justify-between gap-2 border-b border-[#d4a63c]/18 px-2.5 py-2 active:cursor-grabbing"
-      onPointerDown={startDrag}
-    >
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="hero-floating-window__chrome-bar flex shrink-0 items-center justify-between gap-2 border-b border-[#d4a63c]/18 px-2.5 py-2">
+      <div
+        data-drag-handle
+        className={`hero-floating-window__drag-handle flex min-w-0 flex-1 items-center gap-2 ${dragEnabled ? "cursor-grab active:cursor-grabbing" : ""}`}
+        onPointerDown={startDrag}
+      >
         <GripHorizontal className="h-4 w-4 shrink-0 text-[#d4a63c]/55" aria-hidden />
         <p className="min-w-0 flex-1 truncate text-[10px] font-bold uppercase tracking-[0.16em] text-[#d4a63c]/90">
           {title}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div
+        className="hero-floating-window__chrome-actions flex shrink-0 items-center gap-1"
+        onPointerDown={stopChromePointer}
+      >
         {onReset && (
           <button
             type="button"
             onClick={onReset}
+            onPointerDown={stopChromePointer}
             className="hero-modal-icon-btn"
             aria-label="Reset"
           >
@@ -174,6 +357,7 @@ export function HeroFloatingWindow({
           <button
             type="button"
             onClick={onMinimize}
+            onPointerDown={stopChromePointer}
             className="hero-modal-icon-btn"
             aria-label="Minimize"
           >
@@ -183,6 +367,7 @@ export function HeroFloatingWindow({
         <button
           type="button"
           onClick={onClose}
+          onPointerDown={stopChromePointer}
           className="hero-modal-icon-btn hero-modal-icon-btn--close"
           aria-label={`Close ${title}`}
         >
@@ -197,21 +382,17 @@ export function HeroFloatingWindow({
       <motion.div
         role="dialog"
         aria-label={ariaLabel ?? title}
-        drag={!reduceMotion}
-        dragControls={dragControls}
-        dragListener={false}
-        dragConstraints={dragConstraints}
-        dragElastic={0.08}
-        dragMomentum={false}
-        initial={enterMotion.initial}
-        animate={enterMotion.animate}
+        {...dragMotionProps}
+        initial={motionInitial}
+        animate={motionAnimate}
         exit={enterMotion.exit}
-        transition={enterMotion.transition}
+        transition={motionTransition}
         data-stack={stackDepth}
         data-window-id={windowId}
-        className={`hero-floating-window hero-floating-window--chromeless absolute cursor-default ${flatPanel ? "hero-floating-window--flat-panel" : ""} ${flatPanel && flatPanelTier === "secondary" ? "hero-floating-window--flat-panel-secondary" : ""} ${className}`}
+        data-spawn-locked={spawnLocked ? "true" : undefined}
+        className={`hero-floating-window hero-floating-window--chromeless absolute ${windowClassSuffix} ${flatPanel ? "hero-floating-window--flat-panel" : ""} ${flatPanel && flatPanelTier === "secondary" ? "hero-floating-window--flat-panel-secondary" : ""} ${className}`}
         style={positionStyle}
-        onPointerDownCapture={handleActivate}
+        onPointerDownCapture={handleActivateCapture}
       >
         <div
           className={
@@ -233,21 +414,17 @@ export function HeroFloatingWindow({
     <motion.div
       role="dialog"
       aria-label={ariaLabel ?? title}
-      drag={!reduceMotion}
-      dragControls={dragControls}
-      dragListener={false}
-      dragConstraints={dragConstraints}
-      dragElastic={0.08}
-      dragMomentum={false}
-      initial={enterMotion.initial}
-      animate={enterMotion.animate}
+      {...dragMotionProps}
+      initial={motionInitial}
+      animate={motionAnimate}
       exit={enterMotion.exit}
-      transition={enterMotion.transition}
+      transition={motionTransition}
       data-stack={stackDepth}
       data-window-id={windowId}
-      className={`hero-floating-window absolute ${className}`}
+      data-spawn-locked={spawnLocked ? "true" : undefined}
+      className={`hero-floating-window absolute ${windowClassSuffix} ${className}`}
       style={positionStyle}
-      onPointerDownCapture={handleActivate}
+      onPointerDownCapture={handleActivateCapture}
     >
       <div className="hero-floating-window__shell rounded-[24px] border border-[#d4a63c]/32 bg-[#080706]/92 shadow-[0_24px_64px_rgba(0,0,0,0.65),0_0_48px_rgba(212,166,60,0.12)] backdrop-blur-xl">
         {chromeBar}
