@@ -109,4 +109,19 @@ export const supabaseLeadsRepository = {
 
     return toLead(data as LeadRow);
   },
+
+  async updateStatus(id: string, status: LeadStatus): Promise<Lead | null> {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("leads")
+      .update({ status })
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+
+    if (error) throw new Error(`[leads] updateStatus failed: ${error.message}`);
+    if (!data) return null;
+
+    return toLead(data as LeadRow);
+  },
 };

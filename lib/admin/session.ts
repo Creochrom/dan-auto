@@ -56,19 +56,26 @@ async function importHmacKey(secret: string): Promise<CryptoKey> {
 // Public API
 // ---------------------------------------------------------------------------
 
-export type SessionPayload = { login: string; exp: number };
+export type SessionPayload = {
+  login: string;
+  role: "owner" | "admin" | "mechanic";
+  exp: number;
+};
 
 /**
  * Creates a signed session token for the given login name.
  * Throws if ADMIN_SESSION_SECRET is not set.
  */
-export async function signSessionToken(login: string): Promise<string> {
+export async function signSessionToken(
+  login: string,
+  role: SessionPayload["role"] = "admin"
+): Promise<string> {
   const secret = process.env.ADMIN_SESSION_SECRET?.trim();
   if (!secret) throw new Error("[admin] ADMIN_SESSION_SECRET is not configured");
 
   const payload = b64uEncode(
     new TextEncoder().encode(
-      JSON.stringify({ login, exp: Date.now() + SESSION_TTL_SECONDS * 1000 })
+      JSON.stringify({ login, role, exp: Date.now() + SESSION_TTL_SECONDS * 1000 })
     )
   );
 
@@ -103,10 +110,15 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
     );
     if (!valid) return null;
 
-    const data = JSON.parse(new TextDecoder().decode(b64uDecode(payload))) as SessionPayload;
-    if (Date.now() > data.exp) return null;
-
-    return data;
+    const data = JSON.parse(new TextDecoder().decode(b64uDecode(payload))) as Partial<SessionPayload>;
+    if (!data.login || !data.exp) return null;
+    const role =
+      data.role === "owner" || data.role === "admin" || data.role === "mechanic"
+        ? data.role
+        : "admin";
+    const normalized: SessionPayload = { login: data.login, role, exp: data.exp };
+    if (Date.now() > normalized.exp) return null;
+    return normalized;
   } catch {
     return null;
   }

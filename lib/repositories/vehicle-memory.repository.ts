@@ -1,4 +1,6 @@
 import { mockStore } from "@/lib/repositories/mock-store";
+import { getStorageBackend } from "@/lib/repositories/backend";
+import { supabaseVehicleMemoryRepository } from "@/lib/repositories/supabase/vehicle-memory.repository";
 import { stripPlate, formatPlate } from "@/lib/format-plate";
 import type {
   VehicleMemoryCustomer,
@@ -29,6 +31,7 @@ function mergeFacts(
     fuel: incoming.fuel?.trim() || base.fuel,
     engine: incoming.engine?.trim() || base.engine,
     motStatus: incoming.motStatus?.trim() || base.motStatus,
+    motExpiryDate: incoming.motExpiryDate?.trim() || base.motExpiryDate,
     taxStatus: incoming.taxStatus?.trim() || base.taxStatus,
   };
 }
@@ -48,18 +51,22 @@ function mergeCustomer(
 }
 
 export const vehicleMemoryRepository = {
-  /** Lookup by raw or canonical registration. Returns undefined when unknown. */
-  findByReg(reg: string): VehicleMemoryRecord | undefined {
+  async findByReg(reg: string): Promise<VehicleMemoryRecord | undefined> {
+    if (getStorageBackend() === "supabase") return supabaseVehicleMemoryRepository.findByReg(reg);
+
     const canon = stripPlate(reg);
     if (!canon) return undefined;
     return mockStore.vehicleMemory.find((r) => r.reg === canon);
   },
 
-  /**
-   * Seed a record from a DVLA lookup (no customer/intake yet) so we can
-   * recognise this vehicle when the same plate is entered later.
-   */
-  seedFromLookup(reg: string, facts: Partial<VehicleMemoryFacts>): VehicleMemoryRecord | undefined {
+  async seedFromLookup(
+    reg: string,
+    facts: Partial<VehicleMemoryFacts>
+  ): Promise<VehicleMemoryRecord | undefined> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseVehicleMemoryRepository.seedFromLookup(reg, facts);
+    }
+
     const canon = stripPlate(reg);
     if (!canon) return undefined;
 
@@ -83,12 +90,15 @@ export const vehicleMemoryRepository = {
     return record;
   },
 
-  /** Upsert customer details + vehicle facts (called when intake is sent). */
-  upsertContact(
+  async upsertContact(
     reg: string,
     facts: Partial<VehicleMemoryFacts>,
     customer: Partial<VehicleMemoryCustomer>
-  ): VehicleMemoryRecord | undefined {
+  ): Promise<VehicleMemoryRecord | undefined> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseVehicleMemoryRepository.upsertContact(reg, facts, customer);
+    }
+
     const canon = stripPlate(reg);
     if (!canon) return undefined;
     const now = new Date().toISOString();
@@ -114,8 +124,14 @@ export const vehicleMemoryRepository = {
     return record;
   },
 
-  /** Append a new intake to the vehicle's history. */
-  appendIntake(reg: string, intake: VehicleMemoryIntake): VehicleMemoryRecord | undefined {
+  async appendIntake(
+    reg: string,
+    intake: VehicleMemoryIntake
+  ): Promise<VehicleMemoryRecord | undefined> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseVehicleMemoryRepository.appendIntake(reg, intake);
+    }
+
     const canon = stripPlate(reg);
     if (!canon) return undefined;
     const record = mockStore.vehicleMemory.find((r) => r.reg === canon);
@@ -128,11 +144,13 @@ export const vehicleMemoryRepository = {
     return record;
   },
 
-  /** Debug / admin helpers. */
-  count(): number {
+  async count(): Promise<number> {
+    if (getStorageBackend() === "supabase") return supabaseVehicleMemoryRepository.count();
     return mockStore.vehicleMemory.length;
   },
-  list(): VehicleMemoryRecord[] {
+
+  async list(): Promise<VehicleMemoryRecord[]> {
+    if (getStorageBackend() === "supabase") return supabaseVehicleMemoryRepository.list();
     return [...mockStore.vehicleMemory];
   },
 };

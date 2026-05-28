@@ -1,6 +1,8 @@
 import { requireAdminSession } from "@/lib/admin/guard";
 import { bookingService } from "@/lib/services/booking.service";
+import { jobService } from "@/lib/services/job.service";
 import { jsonError, jsonOk } from "@/lib/api/response";
+import { parseBody, updateBookingSchema } from "@/lib/validation/schemas";
 import type { BookingStatus, CreateBookingInput } from "@/lib/types/booking";
 
 /**
@@ -47,6 +49,52 @@ export async function POST(request: Request) {
     return jsonOk(booking, 201);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Booking failed";
+    return jsonError(message, 500);
+  }
+}
+
+export async function PATCH(request: Request) {
+  const { session, unauthorized } = await requireAdminSession();
+  if (!session) return unauthorized!;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("Invalid JSON body", 400);
+  }
+
+  const parsed = parseBody(updateBookingSchema, body);
+  if (parsed.error) return parsed.error;
+
+  const { id, status, preferredDate, preferredTime, notes } = parsed.data;
+  try {
+    const booking = await bookingService.update(id, {
+      ...(status !== undefined ? { status } : {}),
+      ...(preferredDate !== undefined ? { preferredDate } : {}),
+      ...(preferredTime !== undefined ? { preferredTime } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+    });
+    if (!booking) return jsonError("Booking not found", 404);
+
+    let job: { id: string; created: boolean } | null = null;
+    if (status === "confirmed") {
+      const ensured = await jobService.ensureBookingJob({
+        bookingId: booking.id,
+        registration: booking.registration,
+        customerName: booking.customerName,
+        customerPhone: booking.customerPhone,
+        service: booking.service,
+        scheduledDate: booking.preferredDate,
+        symptomsText: booking.intakeSummary?.symptoms ?? booking.notes,
+        actor: session.login,
+      });
+      job = { id: ensured.job.id, created: ensured.created };
+    }
+
+    return jsonOk({ booking, job });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to update booking";
     return jsonError(message, 500);
   }
 }

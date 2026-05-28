@@ -68,7 +68,9 @@ export function VehicleHeroImage({
       alt={alt}
       width={480}
       height={192}
+      sizes="(max-width: 640px) 100vw, 480px"
       unoptimized={isLocal}
+      loading="lazy"
       onError={handleError}
       className={`w-full object-cover object-center ${heightClass} ${className}`}
     />

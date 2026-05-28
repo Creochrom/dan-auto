@@ -16,7 +16,7 @@ export async function GET(req: Request) {
       return jsonError("sessionId query parameter is required", 400);
     }
 
-    const exportData = chatService.getIntakeExport(sessionId);
+    const exportData = await chatService.getIntakeExport(sessionId);
     if (!exportData) {
       return jsonError("Session not found", 404);
     }

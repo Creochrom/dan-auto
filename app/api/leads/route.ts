@@ -2,6 +2,7 @@ import { requireAdminSession } from "@/lib/admin/guard";
 import { leadService } from "@/lib/services/lead.service";
 import { jsonError, jsonOk } from "@/lib/api/response";
 import type { CreateLeadInput } from "@/lib/types/lead";
+import { parseBody, updateLeadStatusSchema } from "@/lib/validation/schemas";
 
 /**
  * GET /api/leads — list leads (admin session required).
@@ -37,6 +38,26 @@ export async function POST(request: Request) {
     return jsonOk(lead, 201);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Lead capture failed";
+    return jsonError(message, 500);
+  }
+}
+
+export async function PATCH(request: Request) {
+  const { unauthorized } = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
+  try {
+    const raw = await request.json();
+    const { data, error } = parseBody(updateLeadStatusSchema, raw);
+    if (error) return error;
+
+    const lead = await leadService.updateStatus(data.id, data.status);
+    if (!lead) {
+      return jsonError("Lead not found", 404);
+    }
+    return jsonOk(lead);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Could not update lead status";
     return jsonError(message, 500);
   }
 }

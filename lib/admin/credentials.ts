@@ -16,6 +16,7 @@
  */
 
 import crypto from "crypto";
+import type { AdminRole } from "@/lib/types/admin-user";
 
 const ITERATIONS = 100_000;
 const KEY_LEN = 32;
@@ -63,6 +64,31 @@ function verifyHashedPassword(password: string): boolean {
   return crypto.timingSafeEqual(derived, storedHash);
 }
 
+export function hashAdminPassword(password: string, iterations = ITERATIONS): string {
+  const pwd = password.trim();
+  if (pwd.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+  const salt = crypto.randomBytes(32);
+  const derived = crypto.pbkdf2Sync(pwd, salt, iterations, KEY_LEN, DIGEST);
+  return `pbkdf2:sha256:${iterations}:${salt.toString("hex")}:${derived.toString("hex")}`;
+}
+
+export function verifyPasswordAgainstHash(password: string, stored: string): boolean {
+  const parts = stored.split(":");
+  if (parts.length !== 5 || parts[0] !== "pbkdf2" || parts[1] !== "sha256") {
+    return false;
+  }
+  const [, , rawIterations, saltHex, storedHashHex] = parts;
+  const iterations = Number(rawIterations);
+  if (!Number.isInteger(iterations) || iterations < 10_000) return false;
+  const salt = Buffer.from(saltHex, "hex");
+  const storedHash = Buffer.from(storedHashHex, "hex");
+  const derived = crypto.pbkdf2Sync(password, salt, iterations, KEY_LEN, DIGEST);
+  if (derived.length !== storedHash.length) return false;
+  return crypto.timingSafeEqual(derived, storedHash);
+}
+
 /**
  * Verifies password: prefers ADMIN_PASSWORD_HASH, else ADMIN_PASSWORD (dev/local).
  */
@@ -81,4 +107,12 @@ export function getAdminUsername(): string {
   const username = process.env.ADMIN_USERNAME?.trim();
   if (!username) throw new Error("[admin] ADMIN_USERNAME is not set");
   return username;
+}
+
+export function getFallbackAdminRole(): AdminRole {
+  const envRole = process.env.ADMIN_ROLE?.trim().toLowerCase();
+  if (envRole === "owner" || envRole === "admin" || envRole === "mechanic") {
+    return envRole;
+  }
+  return "owner";
 }

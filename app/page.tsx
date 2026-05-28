@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, type FormEvent } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle,
@@ -28,19 +29,12 @@ import { DanAutoCentreLogo } from "@/components/brand/DanAutoCentreLogo";
 import { PremiumHero } from "@/components/hero/PremiumHero";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { PlateInput } from "@/components/PlateInput";
-import { PlatformHub } from "@/components/platform/PlatformHub";
-import { VipMembership } from "@/components/platform/VipMembership";
 import { ServiceGridPremium } from "@/components/services/ServiceGridPremium";
 import { BookingCTAStrip } from "@/features/marketing/components/BookingCTAStrip";
 import { AdvisorSection } from "@/features/marketing/components/AdvisorSection";
 import { MotSection } from "@/features/marketing/components/MotSection";
 import { useAssistant } from "@/features/assistant/AssistantContext";
-import {
-  BookVisitLink,
-  BookingIntakeFlow,
-  BookingIntakeSidebar,
-  useBookVisit,
-} from "@/features/booking";
+import { BookVisitLink, useBookVisit } from "@/features/booking";
 import { useI18n } from "@/components/providers/I18nProvider";
 import type { SavedVehicle } from "@/lib/platform/types";
 import type { VehicleResult } from "@/lib/types/vehicle";
@@ -56,8 +50,21 @@ import {
   siteServices,
 } from "@/lib/config";
 import { useRememberedCustomer } from "@/lib/booking-customer-memory";
-import { mockVehicleLookup, SCAN_STEPS } from "@/lib/vehicle-data";
+import { SCAN_STEPS } from "@/lib/vehicle-data";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
+
+const BookingIntakeFlow = dynamic(
+  () => import("@/features/booking").then((m) => m.BookingIntakeFlow)
+);
+const BookingIntakeSidebar = dynamic(
+  () => import("@/features/booking").then((m) => m.BookingIntakeSidebar)
+);
+const VipMembership = dynamic(
+  () => import("@/components/platform/VipMembership").then((m) => m.VipMembership)
+);
+const PlatformHub = dynamic(
+  () => import("@/components/platform/PlatformHub").then((m) => m.PlatformHub)
+);
 
 /* ─────────────────────────── Data ─────────────────────────── */
 
@@ -348,22 +355,13 @@ export default function Home() {
   const onHeroLookup = useCallback((reg: string) => {
     const canon = stripPlate(reg);
     if (canon.length < 2) return;
+    // Clear any previous vehicle; real data arrives via onHeroReportReady.
     setHeroVehicle(null);
     setHeroScanPhase("scanning");
     setHeroScanStep(0);
     setQuoteReg(formatPlate(canon));
-
-    const stepTimer = window.setInterval(() => {
-      setHeroScanStep((s) => (s < SCAN_STEPS.length - 1 ? s + 1 : s));
-    }, 380);
-
-    window.setTimeout(() => {
-      window.clearInterval(stepTimer);
-      setHeroVehicle(mockVehicleLookup(canon).vehicle);
-      setHeroScanPhase("done");
-      setHeroScanStep(SCAN_STEPS.length - 1);
-      bookVisit({ registration: formatPlate(canon) }, { scroll: false });
-    }, 1200);
+    // Pre-fill booking form with the registration immediately.
+    bookVisit({ registration: formatPlate(canon) }, { scroll: false });
   }, [bookVisit]);
 
   const onBookingIntakeComplete = useCallback(() => {
@@ -397,6 +395,8 @@ export default function Home() {
 
   const onHeroReportReady = useCallback((report: VehicleReport) => {
     setHeroVehicle(report.legacy);
+    setHeroScanPhase("done");
+    setHeroScanStep(SCAN_STEPS.length - 1);
   }, []);
 
   const onHeroDiscussAI = useCallback(() => {
@@ -474,6 +474,7 @@ export default function Home() {
           onBookInspection={onHeroBookInspection}
           onMembershipNote={openAccountSignup}
         />
+        <div className="below-fold-content">
 
         {/* ── Services ── */}
         <section id="services" className="section-deep relative scroll-mt-nav py-24 sm:py-32">
@@ -495,6 +496,22 @@ export default function Home() {
                 Experienced technicians, competitive pricing, and professional
                 friendly service — your car is in safe hands.
               </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {[
+                  { href: "/services/bmw-diagnostics", label: "BMW diagnostics guide" },
+                  { href: "/services/mot-prep", label: "MOT prep guide" },
+                  { href: "/services/dpf-issues", label: "DPF issues guide" },
+                  { href: "/services/timing-chain", label: "Timing chain guide" },
+                ].map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-300 transition hover:border-cyan/40 hover:text-cyan"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
             </motion.div>
 
             <ServiceGridPremium
@@ -986,8 +1003,8 @@ export default function Home() {
         <section className="section-deep relative py-12 sm:py-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <BookingCTAStrip
-              title="Need help with your car?"
-              subtitle="Choose a slot, describe what's happening, and upload photos — a mechanic will review and call you back."
+              title="Ready to book your visit?"
+              subtitle="Choose a slot in under a minute. We confirm quickly by phone and keep your details private."
               onBook={() => bookVisit()}
             />
           </div>
@@ -1155,6 +1172,7 @@ export default function Home() {
             </div>
           </div>
         </section>
+        </div>
       </main>
 
       {/* ── Footer ── */}
@@ -1196,7 +1214,16 @@ export default function Home() {
               <a href="/admin" className="transition hover:text-cyan">
                 Admin
               </a>
-              <span>Privacy · Terms · Cookies</span>
+              <a href="/privacy" className="transition hover:text-cyan">
+                Privacy
+              </a>
+              <a href="#contact" className="transition hover:text-cyan">
+                Contact
+              </a>
+              <a href="#contact" className="transition hover:text-cyan">
+                Hours
+              </a>
+              <span>Terms · Cookies</span>
             </p>
           </div>
         </div>
@@ -1228,7 +1255,7 @@ export default function Home() {
           </a>
           <BookVisitLink className="btn-glow flex flex-1 items-center justify-center gap-1.5 rounded-full py-3 text-xs font-semibold text-black sm:text-sm">
             <Calendar className="h-4 w-4" />
-            Book
+            Book now
           </BookVisitLink>
         </div>
       </motion.div>

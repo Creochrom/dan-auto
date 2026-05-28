@@ -5,7 +5,12 @@
  */
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import type { Booking, BookingStatus, CreateBookingInput } from "@/lib/types/booking";
+import type {
+  Booking,
+  BookingStatus,
+  CreateBookingInput,
+  UpdateBookingInput,
+} from "@/lib/types/booking";
 import type { ServiceIntakeSummary } from "@/lib/types/service-intake";
 
 /** DB row shape — snake_case as returned by PostgREST */
@@ -133,6 +138,31 @@ export const supabaseBookingsRepository = {
       .maybeSingle();
 
     if (error) throw new Error(`[bookings] updateStatus failed: ${error.message}`);
+    if (!data) return null;
+
+    return toBooking(data as BookingRow);
+  },
+
+  async update(id: string, patch: UpdateBookingInput): Promise<Booking | null> {
+    const supabase = getSupabaseServerClient();
+    const updates: Partial<BookingRow> = {};
+    if (patch.status !== undefined) updates.status = patch.status;
+    if (patch.preferredDate !== undefined) updates.preferred_date = patch.preferredDate;
+    if (patch.preferredTime !== undefined) updates.preferred_time = patch.preferredTime;
+    if (patch.notes !== undefined) updates.notes = patch.notes;
+
+    if (Object.keys(updates).length === 0) {
+      return (await this.findById(id)) ?? null;
+    }
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+
+    if (error) throw new Error(`[bookings] update failed: ${error.message}`);
     if (!data) return null;
 
     return toBooking(data as BookingRow);

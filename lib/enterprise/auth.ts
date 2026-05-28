@@ -4,7 +4,7 @@
  * Do not store passwords or verify credentials here.
  */
 
-export type AdminRole = "admin";
+export type AdminRole = "owner" | "admin" | "mechanic";
 
 export type AdminDisplayUser = {
   login: string;
@@ -28,7 +28,12 @@ export function loadAdminDisplay(): AdminDisplayUser | null {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as AdminDisplayUser;
-    if (parsed.role !== "admin" || !parsed.login) return null;
+    if (
+      (parsed.role !== "owner" && parsed.role !== "admin" && parsed.role !== "mechanic") ||
+      !parsed.login
+    ) {
+      return null;
+    }
     return parsed;
   } catch {
     return null;
@@ -50,5 +55,5 @@ export const loadSession = loadAdminDisplay;
 export const clearSession = clearAdminDisplay;
 
 export function canManageStaff(role: AdminRole): boolean {
-  return role === "admin";
+  return role === "owner" || role === "admin";
 }

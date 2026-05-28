@@ -21,7 +21,7 @@ export const bookingIntakeService = {
   async complete(
     input: CompleteBookingIntakeInput
   ): Promise<CompleteBookingIntakeResult> {
-    const session = chatRepository.findById(input.chatSessionId);
+    const session = await chatRepository.findById(input.chatSessionId);
     if (!session) {
       throw new Error("Intake session not found");
     }
@@ -43,7 +43,7 @@ export const bookingIntakeService = {
       draft.registration?.trim() ||
       "TBC";
 
-    const uploads = uploadService.getByIds(input.uploadIds ?? []);
+    const uploads = await uploadService.getByIds(input.uploadIds ?? []);
 
     const summary: ServiceIntakeSummary = {
       customerName: draft.name,
@@ -119,7 +119,7 @@ export const bookingIntakeService = {
 
     const workshop = notifications.workshop;
     if (workshop?.sent && workshop.messageId) {
-      chatRepository.markIntakeEmailed(session.id, workshop.messageId);
+      await chatRepository.markIntakeEmailed(session.id, workshop.messageId);
     }
 
     return {

@@ -1,7 +1,12 @@
 import { mockStore } from "@/lib/repositories/mock-store";
 import { getStorageBackend } from "@/lib/repositories/backend";
 import { supabaseBookingsRepository } from "@/lib/repositories/supabase/bookings.repository";
-import type { Booking, BookingStatus, CreateBookingInput } from "@/lib/types/booking";
+import type {
+  Booking,
+  BookingStatus,
+  CreateBookingInput,
+  UpdateBookingInput,
+} from "@/lib/types/booking";
 
 function newId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -58,6 +63,21 @@ export const bookingsRepository = {
     const booking = mockStore.bookings.find((b) => b.id === id);
     if (!booking) return null;
     booking.status = status;
+    booking.updatedAt = new Date().toISOString();
+    return booking;
+  },
+
+  async update(id: string, patch: UpdateBookingInput): Promise<Booking | null> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseBookingsRepository.update(id, patch);
+    }
+
+    const booking = mockStore.bookings.find((b) => b.id === id);
+    if (!booking) return null;
+    if (patch.status !== undefined) booking.status = patch.status;
+    if (patch.preferredDate !== undefined) booking.preferredDate = patch.preferredDate;
+    if (patch.preferredTime !== undefined) booking.preferredTime = patch.preferredTime;
+    if (patch.notes !== undefined) booking.notes = patch.notes;
     booking.updatedAt = new Date().toISOString();
     return booking;
   },

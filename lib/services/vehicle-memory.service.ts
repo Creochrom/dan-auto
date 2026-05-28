@@ -38,6 +38,7 @@ async function factsFromDvla(reg: string): Promise<VehicleMemoryFacts | undefine
     fuel: p.fuel ?? "",
     engine: p.engine ?? "",
     motStatus: p.motStatus,
+    motExpiryDate: p.motExpiryDate ?? undefined,
     taxStatus: p.taxStatus,
   };
 }
@@ -61,7 +62,7 @@ export const vehicleMemoryService = {
     const dvlaFacts = await factsFromDvla(canon);
     const dvlaMatched = Boolean(dvlaFacts);
 
-    const existing = vehicleMemoryRepository.findByReg(canon);
+    const existing = await vehicleMemoryRepository.findByReg(canon);
     const returning = Boolean(
       existing &&
         (existing.intakes.length > 0 ||
@@ -72,10 +73,10 @@ export const vehicleMemoryService = {
     // Seed (or refresh) the memory record so the AI builds a profile over
     // time even when the customer never completes an intake.
     if (dvlaFacts) {
-      vehicleMemoryRepository.seedFromLookup(canon, dvlaFacts);
+      await vehicleMemoryRepository.seedFromLookup(canon, dvlaFacts);
     }
 
-    const record = vehicleMemoryRepository.findByReg(canon) ?? existing;
+    const record = (await vehicleMemoryRepository.findByReg(canon)) ?? existing;
 
     return {
       reg: canon,
@@ -95,13 +96,13 @@ export const vehicleMemoryService = {
    * next visit is recognised. Tolerates partial data — only writes fields
    * that have actual values.
    */
-  recordIntake(summary: AiIntakeWorkshopSummary): void {
+  async recordIntake(summary: AiIntakeWorkshopSummary): Promise<void> {
     const reg = stripPlate(summary.registration ?? "");
     if (!reg || reg === "TBC") return;
 
     const { make, model } = splitMakeModel(summary.vehicle ?? "");
 
-    vehicleMemoryRepository.upsertContact(
+    await vehicleMemoryRepository.upsertContact(
       reg,
       { make, model },
       {
@@ -122,6 +123,6 @@ export const vehicleMemoryService = {
       callbackRequested: summary.callbackRequested,
       chatSessionId: summary.chatSessionId,
     };
-    vehicleMemoryRepository.appendIntake(reg, intake);
+    await vehicleMemoryRepository.appendIntake(reg, intake);
   },
 };

@@ -9,6 +9,10 @@ type Props = {
 
 export function BookingCard({ booking }: Props) {
   const intake = booking.intakeSummary;
+  const dateTime =
+    booking.status === "rescheduled"
+      ? `Rescheduled to ${booking.preferredDate} · ${booking.preferredTime}`
+      : `${booking.preferredDate} · ${booking.preferredTime}`;
 
   return (
     <article className="rounded-2xl border border-white/[0.08] bg-black/45 p-5">
@@ -19,9 +23,7 @@ export function BookingCard({ booking }: Props) {
         </div>
         <BookingStatusBadge status={booking.status} />
       </div>
-      <p className="mt-3 text-xs text-zinc-500">
-        {booking.preferredDate} · {booking.preferredTime}
-      </p>
+      <p className="mt-3 text-xs text-zinc-500">{dateTime}</p>
       <p className="mt-2 text-sm text-zinc-300">
         {booking.customerName} · {booking.customerPhone}
       </p>

@@ -8,6 +8,8 @@ export const BOOKING_STATUSES = [
   "new",
   "awaiting_callback",
   "confirmed",
+  "rescheduled",
+  "rejected",
   "in_progress",
   "completed",
 ] as const;
@@ -49,4 +51,11 @@ export type CreateBookingInput = {
   source?: Booking["source"];
   intakeSummary?: ServiceIntakeSummary;
   uploadIds?: string[];
+};
+
+export type UpdateBookingInput = {
+  status?: BookingStatus;
+  preferredDate?: string;
+  preferredTime?: string;
+  notes?: string;
 };

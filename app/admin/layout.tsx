@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { BRAND } from "@/lib/config/brand";
+import { AdminShellNav } from "@/components/enterprise/AdminShellNav";
+import { AdminWorkshopShell } from "@/components/workshop/AdminWorkshopShell";
 
 export const metadata: Metadata = {
   title: "Workshop Admin",
@@ -18,6 +20,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {BRAND.shortName} · Workshop OS
         </p>
       </div>
+      <AdminShellNav />
+      <AdminWorkshopShell />
       {children}
     </div>
   );

@@ -178,11 +178,11 @@ export const chatService = {
     }
 
     let session = request.sessionId
-      ? chatRepository.findById(request.sessionId)
+      ? await chatRepository.findById(request.sessionId)
       : undefined;
 
     if (!session) {
-      session = chatRepository.create({
+      session = await chatRepository.create({
         intakeState: createInitialIntakeState(),
         structuredIntake: createEmptyStructuredIntake(),
         bookingContext: request.bookingContext,
@@ -191,12 +191,12 @@ export const chatService = {
     }
 
     if (request.bookingContext && !session.bookingContext) {
-      chatRepository.updateBookingContext(session.id, request.bookingContext);
+      await chatRepository.updateBookingContext(session.id, request.bookingContext);
       session.bookingContext = request.bookingContext;
     }
 
     if (request.advisorRoute) {
-      chatRepository.updateAdvisorRoute(session.id, request.advisorRoute);
+      await chatRepository.updateAdvisorRoute(session.id, request.advisorRoute);
       session.advisorRoute = request.advisorRoute;
     }
 
@@ -217,7 +217,7 @@ export const chatService = {
     if (incomingRegCanon && incomingRegCanon !== knownRegCanon) {
       const lookup = await vehicleMemoryService.lookup(incomingRegCanon);
       session.vehicleMemory = lookup;
-      chatRepository.updateVehicleMemory(session.id, lookup);
+      await chatRepository.updateVehicleMemory(session.id, lookup);
 
       const seeded = seedFromVehicleMemory(
         session.structuredIntake,
@@ -226,17 +226,17 @@ export const chatService = {
       );
       session.structuredIntake = seeded.structured;
       session.leadDraft = seeded.lead;
-      chatRepository.updateStructuredIntake(session.id, seeded.structured);
-      chatRepository.updateLeadDraft(session.id, seeded.lead);
+      await chatRepository.updateStructuredIntake(session.id, seeded.structured);
+      await chatRepository.updateLeadDraft(session.id, seeded.lead);
     }
 
     const userText = isInit ? INIT_TOKEN : request.message!.trim();
 
     if (!isInit) {
-      chatRepository.appendMessage(session.id, "user", userText);
+      await chatRepository.appendMessage(session.id, "user", userText);
     }
 
-    const refreshedForTurn = chatRepository.findById(session.id) ?? session;
+    const refreshedForTurn = (await chatRepository.findById(session.id)) ?? session;
     const { turn, advisorEngine } = await runAdvisorTurn(
       refreshedForTurn,
       userText,
@@ -245,21 +245,21 @@ export const chatService = {
       refreshedForTurn.advisorRoute
     );
 
-    chatRepository.updateIntakeState(session.id, turn.intakeState);
+    await chatRepository.updateIntakeState(session.id, turn.intakeState);
 
     if (turn.structuredIntake) {
-      chatRepository.updateStructuredIntake(session.id, turn.structuredIntake);
+      await chatRepository.updateStructuredIntake(session.id, turn.structuredIntake);
     }
 
     if (turn.leadDraft) {
-      chatRepository.updateLeadDraft(session.id, turn.leadDraft);
+      await chatRepository.updateLeadDraft(session.id, turn.leadDraft);
     }
 
     if (turn.mechanicSummary) {
-      chatRepository.updateMechanicSummary(session.id, turn.mechanicSummary);
+      await chatRepository.updateMechanicSummary(session.id, turn.mechanicSummary);
     }
 
-    const assistantMessage = chatRepository.appendMessage(
+    const assistantMessage = await chatRepository.appendMessage(
       session.id,
       "assistant",
       turn.content
@@ -299,14 +299,14 @@ export const chatService = {
             ].join("\n")
           : `Chat session ${session.id}`,
       });
-      chatRepository.markLeadCaptured(session.id);
+      await chatRepository.markLeadCaptured(session.id);
     }
 
     const lastUser = [...session.messages]
       .reverse()
       .find((m) => m.role === "user");
 
-    const refreshed = chatRepository.findById(session.id) ?? session;
+    const refreshed = (await chatRepository.findById(session.id)) ?? session;
     const structuredIntake = turn.structuredIntake ?? refreshed.structuredIntake;
 
     return {
@@ -326,8 +326,8 @@ export const chatService = {
     };
   },
 
-  getIntakeExport(sessionId: string) {
-    const session = chatRepository.findById(sessionId);
+  async getIntakeExport(sessionId: string) {
+    const session = await chatRepository.findById(sessionId);
     if (!session) return null;
 
     return {

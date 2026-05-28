@@ -1,11 +1,16 @@
 import { jsonError, jsonOk } from "@/lib/api/response";
-import { getAdminUsername, verifyAdminPassword } from "@/lib/admin/credentials";
+import {
+  getAdminUsername,
+  getFallbackAdminRole,
+  verifyAdminPassword,
+} from "@/lib/admin/credentials";
 import {
   ADMIN_COOKIE_NAME,
   SESSION_TTL_SECONDS,
   sessionCookieOptions,
   signSessionToken,
 } from "@/lib/admin/session";
+import { adminUsersService } from "@/lib/services/admin-users.service";
 
 /**
  * POST /api/admin/login — verify credentials, issue httpOnly session cookie.
@@ -29,19 +34,39 @@ export async function POST(request: Request) {
 
     let valid = false;
     let authorisedLogin = "";
+    let role: "owner" | "admin" | "mechanic" = "admin";
+    let displayName = "";
 
     try {
-      const adminUsername = getAdminUsername();
-      if (login.toLowerCase() === adminUsername.toLowerCase()) {
-        valid = verifyAdminPassword(password);
-        authorisedLogin = adminUsername;
+      const dbUser = await adminUsersService.authenticate(login, password);
+      if (dbUser) {
+        valid = true;
+        authorisedLogin = dbUser.login;
+        role = dbUser.role;
+        displayName = dbUser.displayName;
       }
-    } catch (configError) {
-      // Env vars not configured — fail safe.
-      const message =
-        configError instanceof Error ? configError.message : "Configuration error";
-      console.error("[admin/login]", message);
-      return jsonError("Admin login is not configured on this server", 500);
+    } catch (dbError) {
+      console.warn(
+        "[admin/login] db auth failed, falling back to env credentials:",
+        dbError instanceof Error ? dbError.message : String(dbError)
+      );
+    }
+
+    if (!valid) {
+      try {
+        const adminUsername = getAdminUsername();
+        if (login.toLowerCase() === adminUsername.toLowerCase()) {
+          valid = verifyAdminPassword(password);
+          authorisedLogin = adminUsername;
+          role = getFallbackAdminRole();
+          displayName = `${adminUsername} (${role === "owner" ? "Owner" : "Admin"})`;
+        }
+      } catch (configError) {
+        const message =
+          configError instanceof Error ? configError.message : "Configuration error";
+        console.error("[admin/login]", message);
+        return jsonError("Admin login is not configured on this server", 500);
+      }
     }
 
     if (!valid) {
@@ -50,12 +75,12 @@ export async function POST(request: Request) {
       return jsonError("Invalid credentials", 401);
     }
 
-    const token = await signSessionToken(authorisedLogin);
+    const token = await signSessionToken(authorisedLogin, role);
 
     const response = jsonOk({
       login: authorisedLogin,
-      displayName: `${authorisedLogin} (Admin)`,
-      role: "admin" as const,
+      displayName: displayName || authorisedLogin,
+      role,
     });
 
     response.cookies.set(ADMIN_COOKIE_NAME, token, sessionCookieOptions(SESSION_TTL_SECONDS));

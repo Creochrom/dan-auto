@@ -1,4 +1,6 @@
 import { mockStore } from "@/lib/repositories/mock-store";
+import { getStorageBackend } from "@/lib/repositories/backend";
+import { supabaseChatRepository } from "@/lib/repositories/supabase/chat.repository";
 import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type { BookingChatContext, ChatMessage, ChatSession } from "@/lib/types/chat";
 import type { IntakeState, MechanicIntakeSummary } from "@/lib/types/intake";
@@ -10,18 +12,21 @@ function newId(prefix: string) {
 }
 
 export const chatRepository = {
-  findById(id: string): ChatSession | undefined {
+  async findById(id: string): Promise<ChatSession | undefined> {
+    if (getStorageBackend() === "supabase") return supabaseChatRepository.findById(id);
     return mockStore.chatSessions.find((s) => s.id === id);
   },
 
-  create(
+  async create(
     initial?: Partial<
       Pick<
         ChatSession,
         "intakeState" | "leadDraft" | "bookingContext" | "advisorRoute" | "structuredIntake"
       >
     >
-  ): ChatSession {
+  ): Promise<ChatSession> {
+    if (getStorageBackend() === "supabase") return supabaseChatRepository.create(initial);
+
     const now = new Date().toISOString();
     const session: ChatSession = {
       id: newId("chat"),
@@ -38,11 +43,15 @@ export const chatRepository = {
     return session;
   },
 
-  appendMessage(
+  async appendMessage(
     sessionId: string,
     role: ChatMessage["role"],
     content: string
-  ): ChatMessage | null {
+  ): Promise<ChatMessage | null> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.appendMessage(sessionId, role, content);
+    }
+
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return null;
 
@@ -57,52 +66,76 @@ export const chatRepository = {
     return message;
   },
 
-  updateLeadDraft(
+  async updateLeadDraft(
     sessionId: string,
     draft: NonNullable<ChatSession["leadDraft"]>
-  ): void {
+  ): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.updateLeadDraft(sessionId, draft);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.leadDraft = { ...session.leadDraft, ...draft };
     session.updatedAt = new Date().toISOString();
   },
 
-  updateIntakeState(sessionId: string, state: IntakeState): void {
+  async updateIntakeState(sessionId: string, state: IntakeState): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.updateIntakeState(sessionId, state);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.intakeState = state;
     session.updatedAt = new Date().toISOString();
   },
 
-  updateStructuredIntake(sessionId: string, intake: StructuredIntake): void {
+  async updateStructuredIntake(sessionId: string, intake: StructuredIntake): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.updateStructuredIntake(sessionId, intake);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.structuredIntake = intake;
     session.updatedAt = new Date().toISOString();
   },
 
-  updateMechanicSummary(sessionId: string, summary: MechanicIntakeSummary): void {
+  async updateMechanicSummary(
+    sessionId: string,
+    summary: MechanicIntakeSummary
+  ): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.updateMechanicSummary(sessionId, summary);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.mechanicSummary = summary;
     session.updatedAt = new Date().toISOString();
   },
 
-  updateBookingContext(sessionId: string, ctx: BookingChatContext): void {
+  async updateBookingContext(sessionId: string, ctx: BookingChatContext): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.updateBookingContext(sessionId, ctx);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.bookingContext = ctx;
     session.updatedAt = new Date().toISOString();
   },
 
-  updateAdvisorRoute(sessionId: string, route: AdvisorRouteContext): void {
+  async updateAdvisorRoute(sessionId: string, route: AdvisorRouteContext): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.updateAdvisorRoute(sessionId, route);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.advisorRoute = route;
     session.updatedAt = new Date().toISOString();
   },
 
-  markLeadCaptured(sessionId: string): void {
+  async markLeadCaptured(sessionId: string): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.markLeadCaptured(sessionId);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.leadCaptured = true;
@@ -110,7 +143,10 @@ export const chatRepository = {
     session.updatedAt = new Date().toISOString();
   },
 
-  markIntakeEmailed(sessionId: string, emailId: string): void {
+  async markIntakeEmailed(sessionId: string, emailId: string): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.markIntakeEmailed(sessionId, emailId);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.intakeEmailedAt = new Date().toISOString();
@@ -118,10 +154,13 @@ export const chatRepository = {
     session.updatedAt = session.intakeEmailedAt;
   },
 
-  updateVehicleMemory(
+  async updateVehicleMemory(
     sessionId: string,
     lookup: VehicleMemoryLookupResult
-  ): void {
+  ): Promise<void> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseChatRepository.updateVehicleMemory(sessionId, lookup);
+    }
     const session = mockStore.chatSessions.find((s) => s.id === sessionId);
     if (!session) return;
     session.vehicleMemory = lookup;

@@ -27,26 +27,42 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ login, password }),
       });
 
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      if (!isJson) {
+        if (res.status === 404) {
+          setError(
+            "Login API not found on this server. Stop old Node processes, run npm run dev, and open the URL shown in the terminal (often :3001 if :3000 is busy)."
+          );
+        } else {
+          setError(`Unexpected server response (${res.status}). Restart npm run dev.`);
+        }
+        return;
+      }
+
       const json = (await res.json()) as
         | { ok: true; data: Pick<AdminDisplayUser, "login" | "displayName" | "role"> }
         | { ok: false; error: string };
 
       if (!json.ok) {
-        setError(res.status === 401 ? "Invalid credentials" : "Login failed — try again");
-        setLoading(false);
+        if (res.status === 401) {
+          setError("Invalid credentials");
+        } else if (res.status === 500) {
+          setError(json.error || "Server not configured — check ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SESSION_SECRET in .env.local");
+        } else {
+          setError(json.error || "Login failed — try again");
+        }
         return;
       }
 
-      // Preserve client-side session for display (dashboard name/role).
-      // The httpOnly cookie set by the server is the actual security boundary.
       saveAdminDisplay({
         login: json.data.login,
         displayName: json.data.displayName,
-        role: "admin",
+        role: json.data.role,
       });
       router.replace("/admin");
     } catch {
-      setError("Network error — please try again");
+      setError("Network error — is npm run dev running?");
+    } finally {
       setLoading(false);
     }
   };

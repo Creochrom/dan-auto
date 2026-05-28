@@ -1,35 +1,106 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { adminFetch } from "@/lib/admin/client";
+import { formatPlate, stripPlate } from "@/lib/format-plate";
+import { AdminQuickLinks } from "@/components/enterprise/AdminQuickLinks";
+import { AdminStatusBadge } from "@/components/enterprise/AdminStatusBadge";
 import { BookingCard } from "@/features/booking/components/BookingCard";
-import type { Booking } from "@/lib/types/booking";
+import { BookingVehiclePrecheck } from "@/components/vehicle/BookingVehiclePrecheck";
+import { BOOKING_STATUSES, type Booking, type BookingStatus } from "@/lib/types/booking";
 
 /**
- * Booking management — Phase 1 read-only list from mock API.
- * TODO: Auth, filters, status updates, Supabase sync.
+ * Booking management — read-only list (admin session + STORAGE_BACKEND).
+ * TODO: filters, status updates.
  */
 export default function AdminBookingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const regParam = searchParams.get("reg") ?? "";
+  const regCanon = regParam ? stripPlate(regParam) : "";
+  const regDisplay = regCanon ? formatPlate(regParam) : "";
+
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<BookingStatus | "all">("all");
+
+  const loadBookings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const qs = statusFilter === "all" ? "" : `?status=${statusFilter}`;
+      const r = await adminFetch(`/api/bookings${qs}`, { credentials: "include" });
+      if (r.status === 401) {
+        router.replace("/admin/login");
+        return;
+      }
+      const json = (await r.json().catch(() => null)) as
+        | { ok?: boolean; data?: Booking[]; error?: string }
+        | null;
+      if (!r.ok || !json?.ok) {
+        throw new Error(json?.error ?? "Unable to load bookings right now.");
+      }
+      setBookings(Array.isArray(json.data) ? json.data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load bookings right now.");
+    } finally {
+      setLoading(false);
+    }
+  }, [router, statusFilter]);
 
   useEffect(() => {
-    void adminFetch("/api/bookings")
-      .then((r) => {
-        if (r.status === 401) {
-          router.replace("/admin/login");
-          return null;
-        }
-        return r.json();
-      })
-      .then((json) => {
-        if (json?.ok) setBookings(json.data);
-      })
-      .finally(() => setLoading(false));
-  }, [router]);
+    void loadBookings();
+  }, [loadBookings]);
+
+  const visibleBookings = useMemo(() => {
+    if (!regCanon) return bookings;
+    return bookings.filter((b) => stripPlate(b.registration) === regCanon);
+  }, [bookings, regCanon]);
+
+  async function onChangeStatus(id: string, status: BookingStatus) {
+    setPendingStatusId(id);
+    try {
+      const res = await adminFetch("/api/bookings", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+
+      if (res.status === 401) {
+        router.replace("/admin/login");
+        return;
+      }
+
+      const json = (await res.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            data?: { booking?: Booking; job?: { id: string } };
+            error?: string;
+          }
+        | null;
+      const updated = json?.data?.booking;
+      if (!res.ok || !json?.ok || !updated) {
+        throw new Error(json?.error ?? "Could not update booking status.");
+      }
+
+      setBookings((prev) =>
+        prev.map((booking) => (booking.id === id ? updated : booking))
+      );
+
+      if (json.data?.job?.id && status === "confirmed") {
+        router.push(`/admin/jobs/${json.data.job.id}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update booking status.");
+    } finally {
+      setPendingStatusId(null);
+    }
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
@@ -38,22 +109,144 @@ export default function AdminBookingsPage() {
           <h1 className="text-xl font-semibold text-white">Bookings</h1>
           <p className="mt-1 text-sm text-zinc-500">Website & assistant requests</p>
         </div>
-        <Link href="/admin" className="text-sm text-[#d4a63c] hover:underline">
-          ← Dashboard
+        <Link href="/admin/today" className="text-sm text-[#d4a63c] hover:underline">
+          ← Today
         </Link>
       </div>
 
+      <AdminQuickLinks active="bookings" />
+
+      {regCanon ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d4a63c]/25 bg-[#d4a63c]/5 px-4 py-3">
+          <p className="text-sm text-zinc-200">
+            Filtered by registration:{" "}
+            <span className="font-mono text-[#d4a63c]">{regDisplay}</span>
+          </p>
+          <Link
+            href="/admin/bookings"
+            className="text-xs text-zinc-400 hover:text-white hover:underline"
+          >
+            Clear filter
+          </Link>
+        </div>
+      ) : null}
+
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">
+            Status filter
+          </span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as BookingStatus | "all")}
+            className="input-premium mt-2 h-10 min-w-44 rounded-xl px-3 text-sm text-white"
+          >
+            <option value="all">All statuses</option>
+            {BOOKING_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-zinc-500">{visibleBookings.length} shown</p>
+      </div>
+
       {loading ? (
-        <p className="text-sm text-zinc-500">Loading…</p>
-      ) : bookings.length === 0 ? (
-        <p className="rounded-2xl border border-white/[0.08] bg-black/40 p-8 text-center text-sm text-zinc-500">
-          No bookings yet. Submit via the website booking form or AI assistant.
-        </p>
+        <div className="premium-card rounded-2xl p-8 text-center">
+          <p className="text-sm text-zinc-400">Loading booking requests...</p>
+        </div>
+      ) : error ? (
+        <div className="premium-card rounded-2xl p-6">
+          <p className="text-sm text-rose-300">{error}</p>
+          <p className="mt-2 text-xs text-zinc-500">
+            Verify your admin session and retry from this page.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadBookings()}
+            className="mt-4 rounded-full border border-white/15 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-white/30 hover:text-white"
+          >
+            Retry
+          </button>
+        </div>
+      ) : visibleBookings.length === 0 ? (
+        <div className="premium-card rounded-2xl p-8 text-center">
+          <p className="text-sm text-zinc-300">
+            {regCanon
+              ? `No bookings for ${regDisplay}.`
+              : statusFilter === "all"
+                ? "No booking requests yet."
+                : "No bookings in this status."}
+          </p>
+          <p className="mt-2 text-xs text-zinc-500">
+            {regCanon
+              ? "Try clearing the registration filter or another status."
+              : statusFilter === "all"
+                ? "New website and assistant booking requests will be listed here."
+                : "Try another status filter to view more workshop jobs."}
+          </p>
+          {regCanon ? (
+            <Link
+              href="/admin/bookings"
+              className="mt-4 inline-block text-xs text-[#d4a63c] hover:underline"
+            >
+              Clear registration filter
+            </Link>
+          ) : null}
+        </div>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2">
-          {bookings.map((b) => (
+        <ul className="grid gap-4 md:grid-cols-2">
+          {visibleBookings.map((b) => (
             <li key={b.id}>
-              <BookingCard booking={b} />
+              <div className="space-y-3">
+                <BookingCard booking={b} />
+                <div className="premium-card rounded-xl p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label
+                      htmlFor={`booking-status-${b.id}`}
+                      className="text-[11px] uppercase tracking-[0.12em] text-zinc-500"
+                    >
+                      Status
+                    </label>
+                    <AdminStatusBadge kind="booking" status={b.status} />
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <select
+                      id={`booking-status-${b.id}`}
+                      className="input-premium h-11 w-full rounded-xl px-3 text-sm"
+                      value={b.status}
+                      disabled={pendingStatusId === b.id}
+                      onChange={(e) =>
+                        void onChangeStatus(b.id, e.target.value as BookingStatus)
+                      }
+                    >
+                      {BOOKING_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {status.replaceAll("_", " ")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      disabled={pendingStatusId === b.id || b.status === "confirmed"}
+                      onClick={() => void onChangeStatus(b.id, "confirmed")}
+                      className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 disabled:opacity-50"
+                    >
+                      Confirm
+                    </button>
+                    <Link
+                      href={`/admin/bookings/${b.id}`}
+                      className="text-xs text-[#d4a63c] hover:underline"
+                    >
+                      Open detail →
+                    </Link>
+                  </div>
+                  <BookingVehiclePrecheck registration={b.registration} />
+                </div>
+              </div>
             </li>
           ))}
         </ul>

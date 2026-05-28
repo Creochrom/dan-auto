@@ -1,17 +1,33 @@
-import { SEED_ENTERPRISE } from "./seed";
+import { EMPTY_ENTERPRISE } from "./seed";
 import type { BugReport, EnterpriseStore, RepairQuote, WorkshopJob } from "./types";
 
 const KEY = "dan_enterprise_v1";
 
-export function loadEnterprise(): EnterpriseStore {
-  if (typeof window === "undefined") return SEED_ENTERPRISE;
+/** Remove prototype demo blob from localStorage (admin hub calls on mount). */
+export function clearEnterprisePrototypeStorage(): void {
+  if (typeof window === "undefined") return;
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return { ...SEED_ENTERPRISE, ...JSON.parse(raw) };
+    window.localStorage.removeItem(KEY);
   } catch {
     /* ignore */
   }
-  return { ...SEED_ENTERPRISE };
+}
+
+export function loadEnterprise(): EnterpriseStore {
+  if (typeof window === "undefined") return EMPTY_ENTERPRISE;
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return { ...EMPTY_ENTERPRISE };
+    const parsed = JSON.parse(raw) as Partial<EnterpriseStore>;
+    return {
+      jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
+      quotes: Array.isArray(parsed.quotes) ? parsed.quotes : [],
+      staff: Array.isArray(parsed.staff) ? parsed.staff : [],
+      bugs: Array.isArray(parsed.bugs) ? parsed.bugs : [],
+    };
+  } catch {
+    return { ...EMPTY_ENTERPRISE };
+  }
 }
 
 export function saveEnterprise(store: EnterpriseStore) {

@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
   CONSTRAINT bookings_status_check CHECK (
-    status IN ('new', 'awaiting_callback', 'confirmed', 'in_progress', 'completed')
+    status IN ('new', 'awaiting_callback', 'confirmed', 'rescheduled', 'rejected', 'in_progress', 'completed')
   ),
   CONSTRAINT bookings_source_check CHECK (
     source IN ('website', 'assistant', 'admin', 'phone')

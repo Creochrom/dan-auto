@@ -584,20 +584,20 @@ body {
   }
 
   .site-nav-phone--compact {
-    height: 40px;
+    height: 44px;
     padding-inline: clamp(11px, 2.2vw, 16px);
     font-size: 13px;
   }
 
   .site-nav-book {
-    height: 40px;
+    height: 44px;
     padding-inline: clamp(13px, 2.2vw, 18px);
     font-size: 13px;
   }
 
   .site-nav-menu-btn {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 }
 
@@ -612,20 +612,20 @@ body {
   }
 
   .site-nav-book {
-    height: 40px;
+    height: 44px;
     padding-inline: 12px;
     font-size: 12px;
   }
 
   .site-nav-phone--compact {
-    height: 40px;
+    height: 44px;
     padding-inline: 11px;
     font-size: 12px;
   }
 
   .site-nav-menu-btn {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 }
 
@@ -924,6 +924,11 @@ body {
   max-width: none;
   object-fit: cover;
   object-position: 48% 46%;
+}
+
+.below-fold-content {
+  content-visibility: auto;
+  contain-intrinsic-size: 2200px;
 }
 
 /* Layered edge fades — sits above image, below hero copy/windows */
@@ -5263,6 +5268,11 @@ body.advisor-open {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     background: rgba(0, 0, 0, 0.97);
+  }
+
+  .mobile-sticky-cta a,
+  .mobile-sticky-cta button {
+    min-height: 46px;
   }
 
   /* Mask-composite card borders glitch on mobile GPUs */

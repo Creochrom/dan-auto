@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Calendar, Clock } from "lucide-react";
 import { BOOKING_INTAKE_COPY } from "@/lib/config/booking-copy";
 import { localIsoDate } from "@/lib/date";
@@ -8,6 +8,7 @@ import {
   bookingServiceOptions,
   bookingTimeSlotsDetailed,
 } from "@/lib/config/services";
+import type { SlotAvailability } from "@/lib/types/slot-availability";
 
 const DATE_PRESETS = [
   { label: "Today", value: () => localIsoDate(0) },
@@ -25,6 +26,47 @@ type Props = {
   onTimeChange: (v: string) => void;
 };
 
+/**
+ * Fetches live slot availability from GET /api/booking-slots?date=YYYY-MM-DD.
+ * Returns null while loading (show full grid optimistically) or on fetch error
+ * (degrade gracefully — all slots remain selectable).
+ */
+function useSlotAvailability(date: string): SlotAvailability | null {
+  const [availability, setAvailability] = useState<SlotAvailability | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!date) {
+      setAvailability(null);
+      return;
+    }
+
+    // Cancel any in-flight request for a previous date.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setAvailability(null); // reset while loading
+
+    fetch(`/api/booking-slots?date=${date}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((json: { ok: boolean; data: SlotAvailability }) => {
+        if (json.ok) setAvailability(json.data);
+      })
+      .catch((err) => {
+        // AbortError is expected when the date changes quickly; silently ignore.
+        if (err?.name !== "AbortError") {
+          console.warn("[BookingSlotStep] availability fetch failed:", err);
+        }
+        // Leave availability as null → full grid shown (graceful degradation).
+      });
+
+    return () => controller.abort();
+  }, [date]);
+
+  return availability;
+}
+
 export function BookingSlotStep({
   service,
   date,
@@ -34,10 +76,28 @@ export function BookingSlotStep({
   onTimeChange,
 }: Props) {
   const [minDate, setMinDate] = useState("");
+  const availability = useSlotAvailability(date);
 
   useEffect(() => {
     setMinDate(localIsoDate(0));
   }, []);
+
+  // If the currently-selected time becomes unavailable after availability loads,
+  // clear it so the user must consciously pick an open slot.
+  useEffect(() => {
+    if (availability && !availability.closed && time) {
+      if (!availability.available.includes(time)) {
+        onTimeChange("");
+      }
+    }
+  }, [availability, time, onTimeChange]);
+
+  const isSlotAvailable = (slot: string): boolean => {
+    // null = still loading → optimistically show all slots as available.
+    if (!availability) return true;
+    if (availability.closed) return false;
+    return availability.available.includes(slot);
+  };
 
   return (
     <div className="space-y-5">
@@ -98,22 +158,46 @@ export function BookingSlotStep({
           <Clock className="h-3.5 w-3.5 text-cyan" aria-hidden />
           {BOOKING_INTAKE_COPY.timeLabel}
         </label>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {bookingTimeSlotsDetailed.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => onTimeChange(t)}
-              className={`rounded-xl border py-2.5 text-sm transition ${
-                time === t
-                  ? "border-cyan bg-cyan/10 font-medium text-cyan"
-                  : "border-white/10 text-zinc-400 hover:border-white/20"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+
+        {/* Whole-day closed banner */}
+        {availability?.closed && (
+          <p
+            role="status"
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400"
+          >
+            The workshop is not taking bookings on this date. Please choose a
+            different day.
+          </p>
+        )}
+
+        {/* Slot grid — shown when not closed (or while availability is loading) */}
+        {!availability?.closed && (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {(bookingTimeSlotsDetailed as readonly string[]).map((slot) => {
+              const available = isSlotAvailable(slot);
+              const selected = time === slot;
+              return (
+                <button
+                  key={slot}
+                  type="button"
+                  disabled={!available}
+                  onClick={() => available && onTimeChange(slot)}
+                  aria-pressed={selected}
+                  aria-disabled={!available}
+                  className={`rounded-xl border py-2.5 text-sm transition ${
+                    !available
+                      ? "cursor-not-allowed border-white/5 text-zinc-600 line-through"
+                      : selected
+                        ? "border-cyan bg-cyan/10 font-medium text-cyan"
+                        : "border-white/10 text-zinc-400 hover:border-white/20"
+                  }`}
+                >
+                  {slot}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

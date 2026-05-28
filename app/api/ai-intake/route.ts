@@ -1,6 +1,7 @@
 import { aiIntakeService } from "@/lib/services/ai-intake.service";
 import { jsonError, jsonOk } from "@/lib/api/response";
-import type { AiIntakeSubmitInput } from "@/lib/types/ai-intake";
+import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
+import { aiIntakeSubmitSchema, parseBody } from "@/lib/validation/schemas";
 
 /** Ensure this route is deployed as a serverless function (not statically exported). */
 export const dynamic = "force-dynamic";
@@ -17,24 +18,24 @@ export async function GET() {
  * POST /api/ai-intake — finalize AI service advisor intake and email workshop.
  */
 export async function POST(req: Request) {
+  const rl = checkRateLimit(`ai-intake:${getClientIp(req)}`, RATE_LIMITS.aiIntake);
+  if (!rl.ok) {
+    return jsonError("Too many requests — please try again later", 429);
+  }
+
   try {
-    const body = (await req.json()) as AiIntakeSubmitInput;
-
-    if (!body.chatSessionId?.trim()) {
-      return jsonError("chatSessionId is required");
-    }
-
-    const uploadIds = Array.isArray(body.uploadIds)
-      ? body.uploadIds
-          .filter((id): id is string => typeof id === "string")
-          .map((id) => id.trim())
-          .slice(0, 12)
-      : undefined;
+    const raw = await req.json();
+    const { data, error } = parseBody(aiIntakeSubmitSchema, raw);
+    if (error) return error;
 
     const result = await aiIntakeService.submit({
-      chatSessionId: body.chatSessionId.trim(),
-      uploadIds,
-      customerEmail: body.customerEmail?.trim(),
+      chatSessionId: data.chatSessionId,
+      uploadIds: data.uploadIds,
+      customerEmail: data.customerEmail,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      preferredCallbackTime: data.preferredCallbackTime,
+      snapshot: data.snapshot as import("@/lib/types/ai-intake").AiIntakeSessionSnapshot | undefined,
     });
 
     return jsonOk(result, 201);

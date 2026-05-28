@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { bookingServiceOptions } from "@/lib/config/services";
 import { localIsoDate } from "@/lib/date";
+import { formatPhoneInput, normalizeEmailInput } from "@/lib/format-contact";
 import { formatPlate, stripPlate } from "@/lib/format-plate";
 import {
   readRememberedCustomer,
@@ -85,8 +86,12 @@ export function useBookingFormState(prefillRevision: number) {
         ? formatPlate(remembered.registration)
         : prev.registration,
       customerName: remembered.customerName ?? prev.customerName,
-      customerPhone: remembered.customerPhone ?? prev.customerPhone,
-      customerEmail: remembered.customerEmail ?? prev.customerEmail,
+      customerPhone: remembered.customerPhone
+        ? formatPhoneInput(remembered.customerPhone)
+        : prev.customerPhone,
+      customerEmail: remembered.customerEmail
+        ? normalizeEmailInput(remembered.customerEmail)
+        : prev.customerEmail,
     }));
     if (remembered.registration) setShowRegHint(true);
   }, [mounted]);

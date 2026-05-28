@@ -45,4 +45,16 @@ export const leadsRepository = {
     mockStore.leads.push(lead);
     return lead;
   },
+
+  async updateStatus(id: string, status: LeadStatus): Promise<Lead | null> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseLeadsRepository.updateStatus(id, status);
+    }
+
+    const lead = mockStore.leads.find((l) => l.id === id);
+    if (!lead) return null;
+    lead.status = status;
+    lead.updatedAt = new Date().toISOString();
+    return lead;
+  },
 };

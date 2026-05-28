@@ -4,6 +4,75 @@ Short, dated entries. One decision per block. New entries go at the top.
 
 ---
 
+## 2026-05-28 — Workshop uploads in Supabase Storage (not base64 in DB)
+
+- **Why:** Admin workshop attachments were stored as base64 data URLs in `uploads.preview_url`, which bloats Postgres and breaks down for PDFs/video at scale.
+- **Impact:** `lib/supabase/workshop-storage.ts` uploads bytes to bucket `SUPABASE_STORAGE_BUCKET` (default `workshop-uploads`) under paths `workshop/{id}/{file}`; `upload.service.storeWorkshopFile` persists the path and returns a 1h signed URL. `GET /api/admin/uploads/[id]` and batch refresh signed URLs when `preview_url` is a storage path. Mock mode (`STORAGE_BACKEND` unset) still uses base64 data URLs.
+
+---
+
+## 2026-05-28 — Vehicle-level timeline stream for MOT + job lifecycle
+
+- **Why:** Vehicle history needed a single chronological stream across MOT tests and workshop lifecycle transitions, instead of only per-job events.
+- **Impact:**
+  - `supabase/migrations/010_vehicle_timeline_events.sql` adds `vehicle_timeline_events` with event typing (`mot_test`, `job_status_change`, `system`), source dedupe (`source_ref` unique where present), and backfill from historical `job_status_events`.
+  - New repository/service pair: `lib/repositories/vehicle-timeline.repository.ts`, `lib/repositories/supabase/vehicle-timeline.repository.ts`, and `lib/services/vehicle-timeline.service.ts`.
+  - `lib/vehicle-lookup-server.ts` now ingests MOT history tests into vehicle timeline via idempotent source refs during DVLA/MOT lookups.
+  - `lib/services/job.service.ts` now mirrors status transitions into vehicle timeline using vehicle-linked events.
+  - `lib/services/vehicle-history.service.ts` + `app/admin/vehicle/[reg]/page.tsx` now include and render vehicle timeline events.
+
+---
+
+## 2026-05-28 — Job-centric normalized data model (migration 006)
+
+- **Why:** Workshop execution data needed canonical vehicle/customer identity centered on jobs, plus structured timeline/attachments/invoice-draft/AI-context entities without mixing customer and workshop AI domains.
+- **Impact:**
+  - `supabase/migrations/006_job_centric_model.sql` adds `vehicles`, `customers`, `job_timeline_events`, `attachments`, `invoices` (draft-only), `ai_context_snapshots`, and links `jobs`/`bookings` to `vehicle_id` + `customer_id` with idempotent backfill and compatibility-safe constraints.
+  - `lib/types/job.ts` extends job identity with linked `vehicle`/`customer` refs while preserving `registration` / `customerName` / `customerPhone` convenience fields for existing API consumers.
+  - `lib/types/workshop-data.ts` introduces normalized TS contracts for new entities and creation/update payloads.
+  - Added repository + thin service pairs for vehicles, customers, timeline events, attachments, invoices, and AI context snapshots in `lib/repositories/*`, `lib/repositories/supabase/*`, and `lib/services/*`.
+  - `project-brain/DATA_MODEL.md` documents relationships, identity rules, and status enums.
+
+---
+
+## 2026-05-28 — Job service API expanded for timeline, check-in, idempotent booking linkage
+
+- **Why:** Workshop flow needed richer job APIs (filters, attachments, timeline audit) and an explicit check-in path while preserving booking-confirm behavior without duplicate jobs.
+- **Impact:**
+  - `GET /api/jobs` now supports `status`, `date`, `assigned_to`, and `registration` filters.
+  - `GET /api/jobs/[id]` now returns `job`, `notes`, `timeline`, and `attachments`; `PATCH /api/jobs/[id]` continues status/notes updates and returns refreshed timeline + attachments.
+  - New `POST /api/jobs/check-in` upgrades a booking-linked job to `checked_in` (when needed) and records mileage/damage/photos as audited timeline/note/attachment data.
+  - `PATCH /api/bookings` now exists in the route and uses `jobService.ensureBookingJob()` so booking confirmation remains idempotent (`booking_id`-based reuse, no duplicate jobs).
+  - `lib/services/job.service.ts` now orchestrates timeline auditing for write operations (`system`, `status_change`, `note`, `attachment_added`) with no customer auto-messaging behavior added.
+
+---
+
+## 2026-05-28 — Workshop OS v1 backend
+
+- **Why:** Workshop needed a job-card system to track vehicles from arrival through collection, decoupled from the booking request model.
+- **Impact:**
+  - `supabase/migrations/004_workshop_jobs.sql` — `jobs`, `job_notes`, `job_status_events` tables with full RLS and triggers.
+  - `lib/types/job.ts` — `Job`, `JobNote`, `JobStatusEvent`, `JOB_STATUSES`, `JOB_STATUS_LABELS`, input/filter types.
+  - `lib/repositories/supabase/jobs.repository.ts` + `lib/repositories/jobs.repository.ts` — Supabase implementation and mock facade with `STORAGE_BACKEND` switch; `listByRegistration` supports vehicle-history view.
+  - `lib/services/job.service.ts` — thin service; `update()` records status-transition audit events automatically.
+  - `GET/POST /api/jobs` + `GET/PATCH /api/jobs/[id]` — admin-session-guarded endpoints; PATCH supports inline note creation.
+  - Booking → job linkage is optional (`bookingId` on `CreateJobInput`) and admin-triggered via `POST /api/jobs`; documented in service JSDoc.
+  - `lib/validation/schemas.ts` — `copilotAskSchema` extended with `jobId` + `jobSnapshot` to match pre-built admin copilot UI.
+
+---
+
+## 2026-05-27 — Admin lists hardened UX + authenticated booking status updates
+
+- **Why:** `/admin/leads` and `/admin/bookings` needed clearer loading/error/empty UX, and bookings needed a minimal status-management path without adding new state libraries or changing auth boundaries.
+- **Impact:**
+  - `app/admin/leads/page.tsx` now uses robust loading/error/empty-state cards with premium styling and always requests via `adminFetch` with cookie credentials.
+  - `app/admin/bookings/page.tsx` now has matching loading/error/empty-state UX plus a per-booking status selector that updates state through an authenticated API call.
+  - `app/api/bookings/route.ts` gained `PATCH` (admin-session required) that validates `{ id, status }`, calls `bookingService.updateStatus()`, and returns the updated booking.
+  - `lib/validation/schemas.ts` gained `updateBookingStatusSchema` for route-level input validation.
+  - Auth is unchanged and still server-enforced: `GET /api/leads` and `GET /api/bookings` remain session-protected.
+
+---
+
 ## 2026-05-27 — Production admin auth (httpOnly cookie + middleware)
 
 - **Why:** Admin used cosmetic sessionStorage; GET leads/bookings were public. Needed server-enforced sessions without NextAuth/Clerk.
@@ -84,6 +153,37 @@ Format:
 - **Impact** — what it locks in or rules out
 
 ---
+
+## 2026-05-27 — Knowledge Brain pilot: BMW + four golden queries
+
+- **Why:** Prove retrieval with one marque and explicit acceptance queries before scaling ingest or adding agents.
+- **Impact:** BMW Tier 1 docs first; golden queries for diagnostics, procedures, customer explanation, MOT; VPS+HTTPS for AnythingLLM; pass criteria = grounded `sources[]`, not fluent hallucination. Documented in `docs/ANYTHINGLLM_SETUP.md`.
+
+## 2026-05-27 — Workshop AI roadmap: Knowledge Brain before multi-agent
+
+- **Why:** Real mechanic value needs RAG over workshop manuals (MOT, OEM procedures), not more chat UI or autonomous agents. Customer advisor and workshop copilot must stay separate contracts.
+- **Impact:**
+  - Phases 0–6 documented in `project-brain/ROADMAP.md` (Phase 1 = AnythingLLM retrieval + doc tiers).
+  - Setup guide: `docs/ANYTHINGLLM_SETUP.md`.
+  - No CrewAI/LangChain until retrieval, memory, and job-card workflows are stable.
+
+## 2026-05-27 — Workshop copilot foundation (AnythingLLM boundary, Gemini-backed)
+
+- **Why:** Prepare an internal workshop AI copilot (manuals, diagnostics, customer explanations) without replacing the customer service advisor or introducing autonomous agents yet.
+- **Impact:**
+  - `features/copilot/` — prompts, types, tools placeholder, `CopilotPanel`, client.
+  - `POST /api/copilot` (admin-only) → `copilot.service` → `lib/copilot/providers` (`askCopilot`, `retrieveWorkshopKnowledge`).
+  - Gemini plain-text path in `gemini-copilot.provider.ts` — separate from `gemini.service.ts` JSON intake contract.
+  - AnythingLLM: config placeholders + retrieval stub only; enable via `ANYTHINGLLM_*` env when Docker service is ready.
+  - Mounted on `/admin` as floating panel. Customer `POST /api/chat` unchanged.
+
+## 2026-05-27 — Server admin auth (middleware + httpOnly session)
+
+- **Why:** Admin listed real customer PII while `GET /api/leads` and `GET /api/bookings` were public and credentials lived in source.
+- **Impact:**
+  - `middleware.ts` guards `/admin/*` (except login) and `GET` list APIs.
+  - `POST /api/admin/login` sets signed `dan_admin_session` cookie; env `ADMIN_USERNAME` + `ADMIN_PASSWORD` (dev) or `ADMIN_PASSWORD_HASH` (prod) + `ADMIN_SESSION_SECRET`.
+  - `lib/enterprise/auth.ts` is display-only (`sessionStorage` for name/role). See `docs/ADMIN_AUTH.md`.
 
 ## 2026-05-27 — Workshop terminal intake UI (static intro, quick starts, media)
 
@@ -207,6 +307,24 @@ These are not dated because they predate the log. Treat them as committed.
 ### Features folder pattern for new feature work
 
 - **Why:** Co-locating components, hooks, and READMEs per feature is easier to reason about than a flat `components/` tree.
-- **Impact:** New features go in `features/<name>/`. Shared primitives stay in `components/`. Old `components/landing/`* will be migrated, not extended.  
+- **Impact:** New features go in `features/<name>/`. Shared primitives stay in `components/`. Old `components/landing/`* will be migrated, not extended.
 
+### Zod for public POST route validation
+
+- **Why:** Hand-written `if (!body.x?.trim())` guards were scattered, inconsistent (missing length caps, no email format check), and easy to regress. Zod `safeParse` gives field-level error messages in one place.
+- **Scope:** `POST /api/leads`, `POST /api/bookings`, `POST /api/ai-intake`. Chat and uploads do not deserialize structured JSON entities so Zod adds no value there.
+- **AI contract untouched:** `snapshot` (the AI session fallback) passes through as `z.unknown()`. `lib/types/structured-intake.ts` is not referenced.
+- **Impact:** `lib/validation/schemas.ts` owns all three schemas + `parseBody()`. Routes stay thin. Zod v4 installed as an explicit `dependencies` entry (was already a transitive dep).
+
+### In-memory sliding-window rate limiter
+
+- **Why:** Public POSTs (`/api/chat`, `/api/leads`, `/api/uploads`, `/api/ai-intake`) were completely unprotected — trivial to spam or trigger costly Gemini/Resend calls.
+- **Implementation:** `lib/rate-limit/index.ts` — pure in-memory `Map` on `globalThis`, no external service. Vercel cold-starts reset the counter, which is acceptable at current traffic volumes.
+- **Upgrade path documented:** When distributed limiting is needed, replace `checkRateLimit()` body with `@upstash/ratelimit` + `@upstash/redis` adapter. Route code is unchanged (same function signature). Env vars required: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`.
+- **Limits:** chat 30/min · leads 10/min · uploads 15/min · ai-intake 5/min (all per IP, 60 s window).
+
+### Bookings route destructuring bug fix
+
+- **What:** `app/api/bookings/route.ts` used `const { booking } = await bookingService.create(...)` but `bookingService.create()` returns `Promise<Booking>` directly. The destructured `booking` was always `undefined`, so the 201 response body was `{ booking: undefined }`.
+- **Fix:** Changed to `const booking = await bookingService.create(...)`. Caught while touching the file for Zod migration.
 

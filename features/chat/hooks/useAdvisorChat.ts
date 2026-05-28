@@ -470,6 +470,13 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
           customerPhone: input.phone,
           preferredCallbackTime: input.preferredCallbackTime,
           customerEmail: input.customerEmail,
+          snapshot: {
+            messages,
+            leadDraft,
+            mechanicSummary,
+            advisorRoute: advisorRoute ?? undefined,
+            bookingContext: bookingContext ?? undefined,
+          },
         });
         setIntakeSubmitState("sent");
         setIntakeComplete(true);
@@ -500,7 +507,17 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         setTypingLabel(null);
       }
     },
-    [sessionId, intakeSubmitState, appendAssistantNotice, appendNotice]
+    [
+      sessionId,
+      messages,
+      leadDraft,
+      mechanicSummary,
+      advisorRoute,
+      bookingContext,
+      intakeSubmitState,
+      appendAssistantNotice,
+      appendNotice,
+    ]
   );
 
   const reset = useCallback(() => {

@@ -38,26 +38,30 @@ function processCommand(pid) {
 }
 
 const pids = portOwners(PORT);
-const blockers = pids.filter((pid) => {
-  const cmd = processCommand(pid);
-  return /next" start|next\.js start|next start/i.test(cmd);
-});
+const blockers = pids
+  .map((pid) => ({ pid, cmd: processCommand(pid) }))
+  .filter(({ cmd }) => /next/i.test(cmd));
 
 if (blockers.length === 0) {
   process.exit(0);
 }
 
+const lines = blockers.map(({ pid, cmd }) => {
+  const kind = /next" start|next start/i.test(cmd) ? "next start (production)" : "next dev (stale)";
+  return `  PID ${pid} — ${kind}`;
+});
+
 console.error(
   [
     "",
-    `\x1b[33m[dan-auto]\x1b[0m Port ${PORT} is in use by \x1b[1mnext start\x1b[0m (production).`,
-    "That is a different build than \x1b[1mnpm run dev\x1b[0m — the homepage can look broken or empty.",
+    `\x1b[33m[dan-auto]\x1b[0m Port ${PORT} is already in use by another Next.js server:`,
+    ...lines,
+    "",
+    "A stale server causes 404 on /api/admin/login and empty homepage sections.",
     "",
     "Fix (PowerShell):",
-    `  Stop-Process -Id ${blockers.join(",")} -Force`,
+    `  Stop-Process -Id ${blockers.map((b) => b.pid).join(",")} -Force`,
     "Then run: npm run dev",
-    "",
-    `Or open the dev URL shown in the terminal (often http://localhost:3001).`,
     "",
   ].join("\n")
 );

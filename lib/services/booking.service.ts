@@ -9,7 +9,12 @@ import { sendWorkshopIntakeEmail } from "@/lib/email/send-workshop-intake";
 import { getEmailProvider } from "@/lib/email/config";
 import { logBookingEvent } from "@/lib/logging/booking-events";
 import type { ChatMessage } from "@/lib/types/chat";
-import type { Booking, BookingStatus, CreateBookingInput } from "@/lib/types/booking";
+import type {
+  Booking,
+  BookingStatus,
+  CreateBookingInput,
+  UpdateBookingInput,
+} from "@/lib/types/booking";
 import type { ServiceIntakeSummary } from "@/lib/types/service-intake";
 
 /**
@@ -39,6 +44,10 @@ export type BookingCreateResult = {
 export const bookingService = {
   list(status?: BookingStatus): Promise<Booking[]> {
     return bookingsRepository.list(status);
+  },
+
+  findById(id: string): Promise<Booking | undefined> {
+    return bookingsRepository.findById(id);
   },
 
   /**
@@ -87,5 +96,9 @@ export const bookingService = {
 
   updateStatus(id: string, status: BookingStatus): Promise<Booking | null> {
     return bookingsRepository.updateStatus(id, status);
+  },
+
+  update(id: string, patch: UpdateBookingInput): Promise<Booking | null> {
+    return bookingsRepository.update(id, patch);
   },
 };

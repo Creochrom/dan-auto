@@ -8,6 +8,7 @@ export const UPLOAD_MAX_FILES = 6;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 const AUDIO_TYPES = ["audio/mpeg", "audio/mp4", "audio/webm", "audio/wav", "audio/ogg"];
+const WORKSHOP_DOC_TYPES = ["application/pdf"];
 
 export const UPLOAD_ACCEPT = [
   ...IMAGE_TYPES,
@@ -22,6 +23,18 @@ export function isAllowedMimeType(mime: string): boolean {
     AUDIO_TYPES.includes(mime)
   );
 }
+
+/** Admin bay uploads — photos, video, audio, PDF invoices/damage docs. */
+export function isWorkshopMimeType(mime: string): boolean {
+  return isAllowedMimeType(mime) || WORKSHOP_DOC_TYPES.includes(mime);
+}
+
+export const WORKSHOP_UPLOAD_ACCEPT = [
+  ...IMAGE_TYPES,
+  ...VIDEO_TYPES,
+  ...AUDIO_TYPES,
+  ...WORKSHOP_DOC_TYPES,
+].join(",");
 
 export function inferUploadCategory(mime: string, fileName: string): import("@/lib/types/upload").UploadCategory {
   const lower = fileName.toLowerCase();

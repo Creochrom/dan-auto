@@ -76,15 +76,15 @@ function resolveIntent(structured?: StructuredIntake, session?: ChatSession): In
   return "unspecified";
 }
 
-export function buildAiIntakeWorkshopSummary(
+export async function buildAiIntakeWorkshopSummary(
   session: ChatSession,
   opts?: { uploadIds?: string[]; customerEmail?: string }
-): AiIntakeWorkshopSummary {
+): Promise<AiIntakeWorkshopSummary> {
   const draft = session.leadDraft ?? {};
   const mechanic = session.mechanicSummary;
   const intake = session.intakeState;
   const structured = session.structuredIntake;
-  const uploads = uploadService.getByIds(opts?.uploadIds ?? []);
+  const uploads = await uploadService.getByIds(opts?.uploadIds ?? []);
 
   const customerName = sanitizePlainText(
     draft.name || structured?.customer.name || mechanic?.customerName || "",

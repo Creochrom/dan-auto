@@ -13,6 +13,8 @@ export type VehicleMemoryFacts = {
   engine: string;
   /** Optional richer detail from DVLA / MOT enrichments. */
   motStatus?: string;
+  /** ISO date from DVLA when available. */
+  motExpiryDate?: string;
   taxStatus?: string;
 };
 

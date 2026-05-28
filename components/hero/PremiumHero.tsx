@@ -616,6 +616,23 @@ function PremiumHeroInner({
                   </p>
 
                 </div>
+
+                <div className="mt-4 flex flex-col gap-3 sm:mt-5 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={onBookNow}
+                    className="btn-glow inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold text-black sm:w-auto sm:px-7"
+                  >
+                    Book your visit in 60 seconds
+                  </button>
+                  <p className="text-center text-[11px] leading-relaxed text-zinc-500 sm:text-left">
+                    We only use your details for your booking request.{" "}
+                    <a href="/privacy" className="text-cyan hover:underline">
+                      Privacy policy
+                    </a>
+                    .
+                  </p>
+                </div>
               </div>
 
               <div className="hero-right" aria-hidden="true">
@@ -627,9 +644,10 @@ function PremiumHeroInner({
                       alt="Black BMW 320d with gold wheels in Dan Auto workshop."
                       width={1040}
                       height={600}
+                      sizes="(max-width: 1024px) 100vw, 52vw"
                       priority
                       fetchPriority="high"
-                      quality={95}
+                      quality={82}
                       className="hero-bmw-img max-lg:brightness-[0.72] max-lg:contrast-[1.04] max-lg:saturate-[0.98] sm:max-lg:brightness-[0.74] lg:brightness-100 lg:contrast-100 lg:saturate-100"
                     />
                     <div className="hero-bmw-blend" aria-hidden />

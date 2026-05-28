@@ -37,3 +37,17 @@ export async function requireAdminSession(): Promise<
   }
   return { session, unauthorized: null };
 }
+
+export async function requireAdminRoles(
+  roles: Array<SessionPayload["role"]>
+): Promise<
+  | { session: SessionPayload; unauthorized: null }
+  | { session: null; unauthorized: ReturnType<typeof jsonError> }
+> {
+  const { session, unauthorized } = await requireAdminSession();
+  if (!session) return { session: null, unauthorized: unauthorized! };
+  if (!roles.includes(session.role)) {
+    return { session: null, unauthorized: jsonError("Forbidden", 403) };
+  }
+  return { session, unauthorized: null };
+}

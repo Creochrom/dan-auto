@@ -37,6 +37,7 @@ export function HeroAtmosphereCollage({ reducedMotion }: Props) {
           alt=""
           fill
           sizes="600px"
+          loading="lazy"
           className="object-cover object-[center_70%] opacity-[0.2] saturate-0 contrast-125 blur-md"
           aria-hidden
         />
@@ -54,6 +55,7 @@ export function HeroAtmosphereCollage({ reducedMotion }: Props) {
           alt=""
           fill
           sizes="300px"
+          loading="lazy"
           className="object-cover opacity-[0.36] mix-blend-overlay saturate-50"
           aria-hidden
         />
@@ -71,6 +73,7 @@ export function HeroAtmosphereCollage({ reducedMotion }: Props) {
           alt=""
           fill
           sizes="320px"
+          loading="lazy"
           className="object-cover object-[70%_center] opacity-[0.42] saturate-[0.8] contrast-110"
           aria-hidden
         />
@@ -95,6 +98,7 @@ export function HeroAtmosphereCollage({ reducedMotion }: Props) {
           alt=""
           fill
           sizes="280px"
+          loading="lazy"
           className="object-cover object-center opacity-[0.4] saturate-[0.72]"
           aria-hidden
         />
@@ -112,6 +116,7 @@ export function HeroAtmosphereCollage({ reducedMotion }: Props) {
           alt=""
           fill
           sizes="340px"
+          loading="lazy"
           className="object-cover object-[center_60%] opacity-[0.3] saturate-50 blur-[1px]"
           aria-hidden
         />

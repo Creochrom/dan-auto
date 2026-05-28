@@ -1,34 +1,18 @@
-import { lookupVehicle } from "@/lib/vehicle-lookup-server";
-import { jsonError, jsonOk } from "@/lib/api/response";
-
 /**
- * GET/POST /api/vehicles?reg=AB12CDE — vehicle lookup facade.
- * Delegates to existing DVLA/workshop lookup pipeline.
- * TODO: Unify with /api/vehicle-lookup or deprecate duplicate route.
+ * /api/vehicles is deprecated. Permanently redirected to /api/vehicle-lookup.
+ * 301 for GET (safe to cache), 308 for POST (method-preserving permanent redirect).
  */
 export async function GET(request: Request) {
-  const reg = new URL(request.url).searchParams.get("reg");
-  if (!reg?.trim()) return jsonError("reg query parameter is required");
-
-  try {
-    const result = await lookupVehicle(reg.trim());
-    return jsonOk(result);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Lookup failed";
-    return jsonError(message, 500);
-  }
+  const search = new URL(request.url).search;
+  return Response.redirect(
+    new URL(`/api/vehicle-lookup${search}`, request.url),
+    301
+  );
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as { reg?: string };
-    const reg = body.reg?.trim();
-    if (!reg) return jsonError("reg is required");
-
-    const result = await lookupVehicle(reg);
-    return jsonOk(result);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Lookup failed";
-    return jsonError(message, 500);
-  }
+  return Response.redirect(
+    new URL("/api/vehicle-lookup", request.url),
+    308
+  );
 }

@@ -1,7 +1,20 @@
-import type { ChatMessage } from "@/lib/types/chat";
-import type { IntakeSeverity, SymptomCategory } from "@/lib/types/intake";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
+import type { BookingChatContext, ChatMessage, LeadDraft } from "@/lib/types/chat";
+import type { IntakeSeverity, MechanicIntakeSummary, SymptomCategory } from "@/lib/types/intake";
 import type { IntakeFileRef } from "@/lib/types/service-intake";
 import type { UrgencyLevel } from "@/lib/types/service-intake";
+
+/**
+ * Client-provided session state for workshop handoff when the serverless
+ * instance no longer has the in-memory chat session (Vercel cold instances).
+ */
+export type AiIntakeSessionSnapshot = {
+  messages: ChatMessage[];
+  leadDraft?: LeadDraft;
+  mechanicSummary?: MechanicIntakeSummary;
+  advisorRoute?: AdvisorRouteContext;
+  bookingContext?: BookingChatContext;
+};
 
 export type AiIntakeSubmitInput = {
   chatSessionId: string;
@@ -12,6 +25,8 @@ export type AiIntakeSubmitInput = {
   customerName?: string;
   customerPhone?: string;
   preferredCallbackTime?: string;
+  /** Fallback when server memory has no session (production serverless). */
+  snapshot?: AiIntakeSessionSnapshot;
 };
 
 /** Customer's overall intent for this intake — drives workshop routing. */

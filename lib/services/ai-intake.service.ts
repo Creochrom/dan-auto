@@ -8,6 +8,7 @@ import {
   renderAiIntakeEmailHtml,
   renderAiIntakeEmailText,
 } from "@/lib/email/templates/ai-intake";
+import { resolveAiIntakeSession } from "@/lib/services/ai-intake-session";
 import { chatRepository } from "@/lib/repositories/chat.repository";
 import { leadService } from "@/lib/services/lead.service";
 import { vehicleMemoryService } from "@/lib/services/vehicle-memory.service";
@@ -19,10 +20,11 @@ export const aiIntakeService = {
     const sessionId = sanitizePlainText(input.chatSessionId, 64);
     if (!sessionId) throw new Error("chatSessionId is required");
 
-    const session = chatRepository.findById(sessionId);
+    const fromMemory = await chatRepository.findById(sessionId);
+    const session = await resolveAiIntakeSession(sessionId, input.snapshot);
     if (!session) throw new Error("Intake session not found");
 
-    if (session.intakeEmailedAt) {
+    if (fromMemory?.intakeEmailedAt) {
       throw new Error("This intake was already sent to the workshop");
     }
 
@@ -32,8 +34,8 @@ export const aiIntakeService = {
 
     const name = input.customerName?.trim();
     const phone = input.customerPhone?.trim();
-    if (name || phone) {
-      chatRepository.updateLeadDraft(sessionId, {
+    if (fromMemory && (name || phone)) {
+      await chatRepository.updateLeadDraft(sessionId, {
         ...(session.leadDraft ?? {}),
         ...(name ? { name } : {}),
         ...(phone ? { phone } : {}),
@@ -41,22 +43,33 @@ export const aiIntakeService = {
           ? { callbackWindow: input.preferredCallbackTime.trim() }
           : {}),
       });
-      if (session.structuredIntake && name) {
-        chatRepository.updateStructuredIntake(sessionId, {
-          ...session.structuredIntake,
+      if (fromMemory?.structuredIntake && name) {
+        await chatRepository.updateStructuredIntake(sessionId, {
+          ...fromMemory.structuredIntake,
           customer: {
-            ...session.structuredIntake.customer,
+            ...fromMemory.structuredIntake.customer,
             name,
-            contact: phone ?? session.structuredIntake.customer.contact,
+            contact: phone ?? fromMemory.structuredIntake.customer.contact,
           },
-          intent: session.structuredIntake.intent || "callback",
+          intent: fromMemory.structuredIntake.intent || "callback",
         });
       }
     }
 
-    const refreshed = chatRepository.findById(sessionId) ?? session;
+    const refreshed = (await chatRepository.findById(sessionId)) ?? session;
 
-    const summary = buildAiIntakeWorkshopSummary(refreshed, {
+    if (name || phone || input.preferredCallbackTime?.trim()) {
+      refreshed.leadDraft = {
+        ...(refreshed.leadDraft ?? {}),
+        ...(name ? { name } : {}),
+        ...(phone ? { phone } : {}),
+        ...(input.preferredCallbackTime?.trim()
+          ? { callbackWindow: input.preferredCallbackTime.trim() }
+          : {}),
+      };
+    }
+
+    const summary = await buildAiIntakeWorkshopSummary(refreshed, {
       uploadIds: input.uploadIds,
       customerEmail: input.customerEmail?.trim(),
     });
@@ -91,18 +104,20 @@ export const aiIntakeService = {
       replyTo: summary.customerEmail,
     });
 
-    chatRepository.markIntakeEmailed(sessionId, sent.id);
+    if (fromMemory) {
+      await chatRepository.markIntakeEmailed(sessionId, sent.id);
+    }
 
     // Persist into vehicle memory so the next visit greets this customer
     // as returning. Safe to call with partial data — the service no-ops
     // on missing/invalid registration.
     try {
-      vehicleMemoryService.recordIntake(summary);
+      await vehicleMemoryService.recordIntake(summary);
     } catch (err) {
       console.warn("[ai-intake] vehicle memory persistence failed", err);
     }
 
-    if (!session.leadCaptured) {
+    if (!fromMemory?.leadCaptured) {
       await leadService.create({
         name: summary.customerName,
         phone: summary.customerPhone,
@@ -129,7 +144,9 @@ export const aiIntakeService = {
           .filter(Boolean)
           .join("\n"),
       });
-      chatRepository.markLeadCaptured(sessionId);
+      if (fromMemory) {
+        await chatRepository.markLeadCaptured(sessionId);
+      }
     }
 
     const confirmationMessage =
