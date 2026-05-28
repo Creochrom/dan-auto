@@ -10,6 +10,7 @@ import {
 type Props = {
   layout: KeyboardLayoutHint;
   highlighted?: boolean;
+  explicitSelection?: boolean;
 };
 
 const CODES: Record<KeyboardLayoutHint, string> = {
@@ -135,8 +136,17 @@ const FLAG_BY_LAYOUT: Record<
   ru: RuFlag,
 };
 
-export function PlateKeyboardIndicator({ layout, highlighted = false }: Props) {
-  const Flag = layout === "other" ? null : FLAG_BY_LAYOUT[layout];
+export function PlateKeyboardIndicator({
+  layout,
+  highlighted = false,
+  explicitSelection = false,
+}: Props) {
+  // Keep first paint locale-neutral. Only show per-locale visuals after
+  // explicit user interaction (typed key/layout hint).
+  const effectiveLayout: KeyboardLayoutHint = explicitSelection ? layout : "other";
+  const shouldShowFlag = explicitSelection && effectiveLayout !== "other";
+  const Flag = shouldShowFlag ? FLAG_BY_LAYOUT[effectiveLayout] : null;
+  const codeLabel = explicitSelection ? CODES[effectiveLayout] : "EN";
 
   if (highlighted) {
     return (
@@ -155,10 +165,10 @@ export function PlateKeyboardIndicator({ layout, highlighted = false }: Props) {
 
   return (
     <div
-      className={`hero-plate-kbd hero-plate-kbd--${layout}`}
+      className={`hero-plate-kbd hero-plate-kbd--${effectiveLayout}`}
       role="img"
-      aria-label={KEYBOARD_LAYOUT_LABELS[layout]}
-      title={KEYBOARD_LAYOUT_LABELS[layout]}
+      aria-label={KEYBOARD_LAYOUT_LABELS[effectiveLayout]}
+      title={KEYBOARD_LAYOUT_LABELS[effectiveLayout]}
     >
       {Flag ? (
         <Flag />
@@ -169,7 +179,7 @@ export function PlateKeyboardIndicator({ layout, highlighted = false }: Props) {
           aria-hidden
         />
       )}
-      <span className="hero-plate-kbd-label">{CODES[layout]}</span>
+      <span className="hero-plate-kbd-label">{codeLabel}</span>
     </div>
   );
 }

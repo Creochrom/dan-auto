@@ -10,6 +10,7 @@ import {
   type BookingPrefill,
 } from "@/lib/booking-prefill";
 import { writeRememberedCustomer } from "@/lib/booking-customer-memory";
+import { scrollToSection } from "@/lib/scroll-to-section";
 
 export type BookVisitOptions = {
   scroll?: boolean;
@@ -42,10 +43,7 @@ export function useBookVisit() {
       mergeBookingPrefill(patch);
 
       if (options?.scroll !== false) {
-        document.getElementById("booking")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
+        scrollToSection("booking");
       }
     },
     []

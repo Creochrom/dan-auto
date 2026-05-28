@@ -88,7 +88,11 @@ function PlateInputInner({
   const [validTypingGlow, setValidTypingGlow] = useState(false);
   const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const validGlowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { layout: keyboardLayout, observeKey } = useKeyboardLayoutIndicator();
+  const {
+    layout: keyboardLayout,
+    observeKey,
+    explicitSelection,
+  } = useKeyboardLayoutIndicator();
 
   const triggerInvalidFeedback = useCallback(
     (keySample?: string) => {
@@ -240,6 +244,7 @@ function PlateInputInner({
           <PlateKeyboardIndicator
             layout={keyboardLayout}
             highlighted={layoutWarning}
+            explicitSelection={explicitSelection}
           />
           <input
             ref={inputRef as RefObject<HTMLInputElement | null>}

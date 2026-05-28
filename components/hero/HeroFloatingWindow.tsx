@@ -115,7 +115,7 @@ export function HeroFloatingWindow({
     return () => manager.unregisterWindow(id);
   }, []);
 
-  const enterMotion = heroWindowMotion(reduceMotion, entranceDelay);
+  const enterMotion = heroWindowMotion(reduceMotion, entranceDelay, tier);
 
   const handleActivate = useCallback(() => {
     const id = windowId;

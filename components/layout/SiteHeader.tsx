@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent,
@@ -79,6 +80,7 @@ function SectionCta({
 export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
   const { isLocalizedExperience, messages, returnToEnglish } = useI18n();
   const bookVisit = useBookVisit();
+  const headerRef = useRef<HTMLElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -99,6 +101,32 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const header = headerRef.current;
+    if (!header) return;
+
+    const applyHeight = () => {
+      const rect = header.getBoundingClientRect();
+      const px = `${Math.max(0, Math.round(rect.height))}px`;
+      root.style.setProperty("--site-nav-current-height", px);
+    };
+
+    applyHeight();
+
+    const resizeObserver = new ResizeObserver(applyHeight);
+    resizeObserver.observe(header);
+    window.addEventListener("resize", applyHeight, { passive: true });
+    window.addEventListener("scroll", applyHeight, { passive: true });
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", applyHeight);
+      window.removeEventListener("scroll", applyHeight);
+      root.style.removeProperty("--site-nav-current-height");
+    };
   }, []);
 
   useEffect(() => {
@@ -215,6 +243,7 @@ export function SiteHeader({ phone, phoneHref }: SiteHeaderProps) {
   return (
     <>
       <header
+        ref={headerRef}
         className={`site-nav ${scrolled ? "site-nav--scrolled" : ""}`}
         data-scrolled={scrolled ? "true" : "false"}
       >

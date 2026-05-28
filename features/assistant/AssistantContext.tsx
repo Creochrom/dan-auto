@@ -13,6 +13,7 @@ import type { BookingChatContext } from "@/lib/types/chat";
 import type { HeroConciergeMode } from "@/lib/types/hero-concierge";
 import { mergeBookingPrefill } from "@/lib/booking-prefill";
 import { formatPlate } from "@/lib/format-plate";
+import { scrollToSection } from "@/lib/scroll-to-section";
 
 export type OpenAssistantOptions = {
   registration?: string;
@@ -96,10 +97,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setHeroLaunchId((g) => g + 1);
 
     if (typeof document !== "undefined") {
-      document.getElementById("hero-section")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      scrollToSection("hero-section");
     }
   }, []);
 

@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   hintFromTypedChar,
-  inferLayoutFromKeyboardApi,
-  inferLayoutFromLanguages,
   type KeyboardLayoutHint,
 } from "@/lib/keyboard-layout";
 
@@ -17,31 +15,19 @@ export type { KeyboardLayoutHint };
 // mismatch breaks React hydration, which in turn freezes framer-motion
 // `whileInView` sections at their `opacity: 0` initial state. We render
 // a fixed default on first paint and refine after mount.
-const SSR_SAFE_DEFAULT: KeyboardLayoutHint = "en";
+const SSR_SAFE_DEFAULT: KeyboardLayoutHint = "other";
 
 export function useKeyboardLayoutIndicator() {
   const [layout, setLayout] = useState<KeyboardLayoutHint>(SSR_SAFE_DEFAULT);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const fromLanguages = inferLayoutFromLanguages();
-    if (fromLanguages !== SSR_SAFE_DEFAULT) {
-      setLayout(fromLanguages);
-    }
-
-    void inferLayoutFromKeyboardApi().then((hint) => {
-      if (!cancelled && hint) setLayout(hint);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [explicitSelection, setExplicitSelection] = useState(false);
 
   const observeKey = useCallback((key: string) => {
     const hint = hintFromTypedChar(key);
-    if (hint) setLayout(hint);
+    if (hint) {
+      setLayout(hint);
+      setExplicitSelection(true);
+    }
   }, []);
 
-  return { layout, observeKey };
+  return { layout, observeKey, explicitSelection };
 }

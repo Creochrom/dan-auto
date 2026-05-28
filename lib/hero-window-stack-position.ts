@@ -44,9 +44,9 @@ type StackTierConfig = {
 
 function tierConfig(tier: Exclude<HeroViewportTier, "desktop">): StackTierConfig {
   if (tier === "mobile") {
-    return { pad: 12, topAnchor: 72, minTop: 20, cascadeStep: 28 };
+    return { pad: 10, topAnchor: 56, minTop: 8, cascadeStep: 20 };
   }
-  return { pad: 16, topAnchor: 88, minTop: 28, cascadeStep: HERO_WINDOW_TITLEBAR_PX };
+  return { pad: 12, topAnchor: 64, minTop: 12, cascadeStep: 24 };
 }
 
 function usableLayerHeight(layer: LayerBounds, tier: Exclude<HeroViewportTier, "desktop">): number {
@@ -78,8 +78,17 @@ export function computeResponsiveStackPlacement({
 > {
   const { pad, topAnchor, minTop, cascadeStep } = tierConfig(tier);
   const usableH = usableLayerHeight(layer, tier);
+  const reservedBottom =
+    tier === "mobile"
+      ? Math.max(72, Math.min(120, Math.round(usableH * 0.17)))
+      : Math.max(84, Math.min(148, Math.round(usableH * 0.2)));
+  const maxPlayableHeight = Math.max(96, usableH - reservedBottom);
 
-  const winW = Math.min(windowWidth, Math.max(0, layer.width - pad * 2));
+  const maxWidthRatio = tier === "mobile" ? 0.9 : 0.86;
+  const winW = Math.min(
+    windowWidth,
+    Math.max(0, Math.floor(layer.width * maxWidthRatio) - pad * 2)
+  );
   let top = topAnchor;
   let left = Math.max(pad, (layer.width - winW) / 2);
 
@@ -96,7 +105,7 @@ export function computeResponsiveStackPlacement({
   const maxLeft = Math.max(pad, layer.width - winW - pad);
   left = clamp(left, pad, maxLeft);
 
-  const maxTop = Math.max(minTop, usableH - windowHeight - pad);
+  const maxTop = Math.max(minTop, maxPlayableHeight - windowHeight - pad);
   top = clamp(top, minTop, maxTop);
 
   return {

@@ -41,6 +41,7 @@ import type { VehicleResult } from "@/lib/types/vehicle";
 import { formatPlate, stripPlate } from "@/lib/format-plate";
 import { readMemberStatus, setMemberStatus } from "@/lib/membership";
 import { createLead } from "@/lib/api/client";
+import { scrollToSection } from "@/lib/scroll-to-section";
 import {
   BUSINESS,
   WHATSAPP_HREF,
@@ -337,7 +338,7 @@ export default function Home() {
   }, [quoteText]);
 
   const scrollTo = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    scrollToSection(id);
   }, []);
 
   const runQuote = useCallback(() => {
@@ -1234,7 +1235,7 @@ export default function Home() {
         initial={{ y: 80 }}
         animate={{ y: 0 }}
         transition={{ delay: 0.8, duration: 0.5, ease: EASE }}
-        className="mobile-sticky-cta fixed inset-x-0 bottom-0 z-50 border-t border-amber-500/20 bg-black/95 p-3 shadow-[0_-12px_48px_rgba(201,162,39,0.1)] backdrop-blur-xl lg:hidden"
+        className="mobile-sticky-cta fixed inset-x-0 bottom-0 z-50 hidden border-t border-amber-500/20 bg-black/95 p-3 shadow-[0_-12px_48px_rgba(201,162,39,0.1)] backdrop-blur-xl"
       >
         <div className="mx-auto flex max-w-lg gap-2">
           <a

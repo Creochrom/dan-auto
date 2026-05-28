@@ -38,6 +38,20 @@ function normaliseLangTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/_/g, "-");
 }
 
+function inferFromLanguageCode(rawCode: string): KeyboardLayoutHint {
+  const code = normaliseLangTag(rawCode).split("-")[0] ?? "en";
+  if (code === "pl") return "pl";
+  if (code === "zh" || code === "yue" || code === "cmn") return "zh";
+  if (code === "hi" || code === "bn" || code === "pa" || code === "gu" || code === "mr") {
+    return "in";
+  }
+  if (code === "ro") return "ro";
+  if (code === "pt") return "pt";
+  if (code === "uk" || code === "ua") return "ua";
+  if (code === "ru") return "ru";
+  return "en";
+}
+
 /** Initial hint from browser locale list.
  *
  * NOTE: Node 22+ defines a global `navigator` reflecting the host OS
@@ -55,22 +69,19 @@ export function inferLayoutFromLanguages(): KeyboardLayoutHint {
   const langs = [...(navigator.languages ?? []), navigator.language].filter(Boolean);
 
   for (const raw of langs) {
-    const tag = normaliseLangTag(raw);
-    const base = tag.split("-")[0] ?? tag;
-
-    if (base === "pl" || tag.startsWith("pl-")) return "pl";
-    if (base === "zh" || tag.startsWith("zh-") || base === "yue" || base === "cmn") return "zh";
-    if (base === "hi" || base === "bn" || base === "pa" || base === "gu" || base === "mr") {
-      return "in";
-    }
-    if (base === "ro" || tag.startsWith("ro-")) return "ro";
-    if (base === "pt" || tag.startsWith("pt-")) return "pt";
-    if (base === "uk" || tag.startsWith("uk-")) return "ua";
-    if (base === "ru" || tag.startsWith("ru-")) return "ru";
-    if (base === "en" || tag.endsWith("-gb") || tag === "en-gb") return "en";
+    const hint = inferFromLanguageCode(raw);
+    if (hint !== "en") return hint;
   }
 
   return "en";
+}
+
+export function keyboardLayoutFromLocaleCookie(): KeyboardLayoutHint | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)dan_locale=([^;]+)/);
+  const raw = match?.[1]?.trim().toLowerCase();
+  if (!raw) return null;
+  return inferFromLanguageCode(raw);
 }
 
 /** Infer layout from a typed character (typically invalid / wrong-script input) */
