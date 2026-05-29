@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Copy, Loader2, Mail, Phone, Sparkles } from "lucide-react";
@@ -98,7 +98,7 @@ function nextStatus(current: JobStatus): JobStatus | null {
   return null;
 }
 
-export default function AdminJobsCockpitPage() {
+function AdminJobsCockpitContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -885,5 +885,19 @@ export default function AdminJobsCockpitPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function AdminJobsCockpitPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-[1600px] px-3 py-6 sm:px-5">
+          <p className="text-sm text-zinc-400">Loading workshop jobs…</p>
+        </main>
+      }
+    >
+      <AdminJobsCockpitContent />
+    </Suspense>
   );
 }

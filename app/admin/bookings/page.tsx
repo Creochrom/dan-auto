@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { adminFetch } from "@/lib/admin/client";
@@ -15,7 +15,7 @@ import { BOOKING_STATUSES, type Booking, type BookingStatus } from "@/lib/types/
  * Booking management — read-only list (admin session + STORAGE_BACKEND).
  * TODO: filters, status updates.
  */
-export default function AdminBookingsPage() {
+function AdminBookingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const regParam = searchParams.get("reg") ?? "";
@@ -252,5 +252,19 @@ export default function AdminBookingsPage() {
         </ul>
       )}
     </main>
+  );
+}
+
+export default function AdminBookingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+          <p className="text-sm text-zinc-400">Loading booking requests...</p>
+        </main>
+      }
+    >
+      <AdminBookingsContent />
+    </Suspense>
   );
 }
