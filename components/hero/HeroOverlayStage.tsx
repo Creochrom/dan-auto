@@ -15,7 +15,11 @@ export function HeroOverlayStage({ active, children }: HeroOverlayStageProps) {
   if (!active) return null;
 
   return (
-    <div className="hero-overlay-stage" aria-live="polite">
+    <div
+      className="hero-overlay-stage"
+      data-hero-layer="panels"
+      aria-live="polite"
+    >
       {children}
     </div>
   );

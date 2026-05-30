@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-/** Stacking within `.hero-window-layer` (above hero artwork, below hero modals). */
+/** Stacking within `.hero-window-layer` (layer 4 — relative offsets inside --hero-z-cards). */
 const HERO_WINDOW_Z_BASE = 10;
 
 type HeroWindowManagerValue = {

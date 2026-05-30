@@ -7,11 +7,13 @@ import { deriveVehicleInsights } from "@/lib/vehicle/derive-vehicle-insights";
 
 type Props = {
   registration: string;
+  /** When true, load DVLA data immediately (no extra tap). */
+  autoLoad?: boolean;
 };
 
 /** Lazy DVLA pre-check for front desk — loads on demand to save API calls. */
-export function BookingVehiclePrecheck({ registration }: Props) {
-  const [open, setOpen] = useState(false);
+export function BookingVehiclePrecheck({ registration, autoLoad = false }: Props) {
+  const [open, setOpen] = useState(autoLoad);
   const { report, loading, error } = useVehicleReport(open ? registration : null);
 
   if (!open) {

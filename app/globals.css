@@ -29,13 +29,25 @@
   --hero-ribbon-top: 72px;
   --hero-ribbon-bottom: 60px;
   --hero-ribbon-total: calc(var(--hero-ribbon-top) + var(--hero-ribbon-bottom));
+  --hero-ribbon-gap: clamp(0.5rem, 1.4vh, 1.1rem);
   --hero-viewport-cap: 1200px;
+  --hero-viewport-height: calc(100dvh - var(--site-nav-current-height));
+  --hero-shell-height: min(100dvh, var(--hero-viewport-cap));
+  /* Hero layer stack — see docs/HERO_ARCHITECTURE.md */
+  --hero-z-bg: 0;
+  --hero-z-gradient: 1;
+  --hero-z-content: 10;
+  --hero-z-fade: 11;
+  --hero-z-ribbons: 20;
+  --hero-z-cards: 30;
+  --hero-z-panels: 40;
+  --hero-z-modals: 50;
   --site-mobile-cta-height: 0px;
   --site-content-max: 1580px;
   --site-gutter-inline: clamp(14px, 3vw, 40px);
   --section-anchor-gap: clamp(0.75rem, 1.8vh, 1.25rem);
   --z-content: 1;
-  --z-hero-overlay: 40;
+  --z-hero-overlay: var(--hero-z-panels);
   --z-noise: 50;
   --z-nav: 100;
   --z-nav-overlay: 110;
@@ -714,7 +726,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 6;
+  z-index: var(--hero-z-fade);
   pointer-events: none;
   height: 4rem;
   background: linear-gradient(
@@ -861,20 +873,37 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 44fr) minmax(0, 56fr);
   align-items: center;
-  min-height: clamp(520px, 58vh, 700px);
+  min-height: min(var(--hero-viewport-height), 700px);
 }
 
-/* Layer 3 — copy, plate, CTAs (above decorative vehicle art) */
+/* Layer 2 — copy, plate, CTAs (above decorative vehicle art) */
 .hero-left {
   position: relative;
-  z-index: 20;
+  z-index: var(--hero-z-content);
   max-width: 560px;
 }
 
-/* Layer 1 — vehicle column is decorative; must not paint over .hero-left */
+/* Readability darkening — invisible shadow behind content (layer 1 within column) */
+.hero-landing .hero-left {
+  isolation: isolate;
+}
+
+.hero-landing .hero-left::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-landing .hero-left > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Layer 0 — vehicle column is decorative; must not paint over .hero-left */
 .hero-right {
   position: relative;
-  z-index: 0;
+  z-index: var(--hero-z-bg);
   height: clamp(520px, 58vh, 700px);
   overflow: visible;
   pointer-events: none;
@@ -1016,30 +1045,54 @@ body {
   position: relative;
 }
 
+.hero-slide {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .hero-stage {
   position: relative;
   min-height: 0;
 }
 
-/* Layer 4 — floating windows (above hero content + vehicle art) */
-.hero-stage-shell > .hero-window-layer {
+/* Layer 4 — floating windows (above hero content + ribbons when in interactive root) */
+.hero-interactive-root {
   position: absolute;
   inset: 0;
-  z-index: 40;
+  z-index: var(--hero-z-cards);
   overflow: visible;
   pointer-events: none;
 }
 
-.hero-report-motion-host {
-  display: contents;
+.hero-interactive-root .hero-window-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
 }
 
-.hero-stage-shell > .hero-window-layer .hero-floating-window,
-.hero-stage-shell > .hero-window-layer .hero-floating-pill {
+.hero-interactive-root .hero-overlay-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.hero-interactive-root .hero-window-layer .hero-floating-window,
+.hero-interactive-root .hero-window-layer .hero-floating-pill,
+.hero-interactive-root .hero-overlay-stage > * {
   pointer-events: auto;
+}
+
+.hero-interactive-root .hero-window-layer .hero-floating-window,
+.hero-interactive-root .hero-window-layer .hero-floating-pill {
   position: absolute;
   --hero-window-max-h: min(
-    calc(100dvh - var(--site-nav-height) - 28px),
+    var(--hero-viewport-height),
     calc(100% - 20px)
   );
   max-height: var(--hero-window-max-h);
@@ -1096,14 +1149,21 @@ body {
   }
 }
 
-/* Hero composition — content + full-area overlay stage for draggable panels */
+.hero-report-motion-host {
+  display: contents;
+}
+
+/* Hero composition — slide stack root; interactive UI lives in .hero-interactive-root */
 .hero-composition {
   position: relative;
   isolation: isolate;
+  overflow: visible;
 }
 
-/* Hero info ribbons — below hero, natural document flow */
+/* Hero info ribbons — layer 3, document flow below viewport stage */
 .hero-info-ribbons {
+  position: relative;
+  z-index: var(--hero-z-ribbons);
   padding-top: 1rem;
   background: linear-gradient(180deg, #070707 0%, #050505 100%);
 }
@@ -1124,13 +1184,22 @@ body {
 .hero-landing {
   display: flex;
   flex-direction: column;
-  min-height: min(100dvh, var(--hero-viewport-cap));
-  max-height: min(100dvh, var(--hero-viewport-cap));
-  overflow: hidden;
+  min-height: var(--hero-shell-height);
+  max-height: var(--hero-shell-height);
+  overflow: visible;
   position: relative;
-  isolation: isolate;
-  z-index: 0;
   background: #030303;
+}
+
+.hero-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: calc(
+    var(--hero-shell-height) - var(--hero-ribbon-total) - var(--hero-ribbon-gap)
+  );
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
 }
 
 main {
@@ -1149,10 +1218,10 @@ main > div#members {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding-top: var(--site-nav-height);
+  padding-top: var(--site-nav-current-height);
   padding-bottom: 0;
   overflow-x: clip;
-  overflow-y: hidden;
+  overflow-y: visible;
 }
 
 .hero-landing .hero-container {
@@ -1171,6 +1240,13 @@ main > div#members {
 }
 
 .hero-landing .hero-stage-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-landing .hero-slide {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -1204,7 +1280,7 @@ main > div#members {
 .hero-landing .hero-info-ribbons {
   flex-shrink: 0;
   padding-top: 0;
-  margin-top: clamp(0.5rem, 1.4vh, 1.1rem);
+  margin-top: var(--hero-ribbon-gap);
 }
 
 .hero-ribbon-features-track {
@@ -1213,21 +1289,6 @@ main > div#members {
 
 /* Mobile/tablet — scroll rail: items keep natural width, no compression/clipping */
 @media (max-width: 1023px) {
-  .hero-landing {
-    min-height: auto;
-    max-height: none;
-    overflow: visible;
-  }
-
-  .hero-landing .hero {
-    overflow-y: visible;
-    overflow-x: clip;
-  }
-
-  .hero-landing .hero-stage {
-    align-items: flex-start;
-  }
-
   .hero-ribbon-features-track {
     align-items: center;
   }
@@ -1300,32 +1361,18 @@ main > div#members {
   .hero-landing {
     --hero-stage-height: clamp(
       400px,
-      calc(100dvh - var(--site-nav-height) - var(--hero-ribbon-total) - 1.25rem),
+      calc(
+        var(--hero-shell-height) - var(--hero-ribbon-total) - var(--hero-ribbon-gap) -
+          var(--site-nav-current-height)
+      ),
       740px
     );
   }
 
   .hero-landing .hero {
     position: relative;
-    overflow: hidden;
-  }
-
-  /* Cinematic left fade — image may extend under copy */
-  .hero-landing .hero::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background: linear-gradient(
-      to right,
-      rgb(3 3 3) 0%,
-      rgba(3, 3, 3, 0.94) 18%,
-      rgba(3, 3, 3, 0.78) 32%,
-      rgba(3, 3, 3, 0.42) 46%,
-      rgba(3, 3, 3, 0.12) 58%,
-      transparent 72%
-    );
+    overflow-x: clip;
+    overflow-y: visible;
   }
 
   .hero-landing .hero-container {
@@ -1340,24 +1387,25 @@ main > div#members {
 
   .hero-landing .hero-composition {
     position: relative;
-    z-index: 2;
+    z-index: auto;
+    overflow: visible;
   }
 
   .hero-landing .hero-stage-shell {
     position: relative;
-    z-index: 2;
+    z-index: auto;
     overflow: visible;
   }
 
   .hero-landing .hero-stage {
     position: relative;
-    z-index: 2;
+    z-index: auto;
     overflow: visible;
   }
 
   .hero-landing .hero-grid {
     position: relative;
-    z-index: 2;
+    z-index: auto;
     display: grid;
     height: 100%;
     align-items: center;
@@ -1370,40 +1418,31 @@ main > div#members {
 
   .hero-landing .hero-left {
     position: relative;
-    z-index: 3;
+    z-index: calc(var(--hero-z-content) + 1);
     grid-column: 1;
     grid-row: 1;
     align-self: center;
     max-width: clamp(480px, 46vw, 660px);
-    isolation: isolate;
   }
 
-  /* Cinematic readability — above image, below copy */
-  .hero-landing .hero-grid::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: calc(50% - 50vw);
-    width: min(78vw, 920px);
-    z-index: 1;
-    pointer-events: none;
+  /* Readability darkening — viewport-left shadow fading before centre */
+  .hero-landing .hero-left::before {
+    top: -18%;
+    bottom: -18%;
+    left: 50%;
+    margin-left: -50vw;
+    width: min(58vw, 700px);
     background: linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.82) 0%,
-      rgba(0, 0, 0, 0.58) 35%,
-      rgba(0, 0, 0, 0.22) 65%,
-      rgba(0, 0, 0, 0) 100%
+      rgba(3, 3, 3, 0.84) 0%,
+      rgba(3, 3, 3, 0.58) 30%,
+      rgba(3, 3, 3, 0.24) 54%,
+      transparent 70%
     );
   }
 
-  .hero-landing .hero-left > * {
-    position: relative;
-    z-index: 1;
-  }
-
   .hero-landing .hero-right {
-    z-index: 0;
+    z-index: var(--hero-z-bg);
   }
 
   .hero-landing .hero-badge {
@@ -1449,7 +1488,7 @@ main > div#members {
     left: auto;
     height: 100%;
     margin: 0;
-    z-index: 0;
+    z-index: var(--hero-z-bg);
     overflow: hidden;
     pointer-events: none;
     align-self: stretch;
@@ -1559,7 +1598,7 @@ main > div#members {
     content: "";
     position: absolute;
     inset: 0;
-    z-index: 3;
+    z-index: var(--hero-z-gradient);
     pointer-events: none;
     background-image:
       linear-gradient(
@@ -1608,18 +1647,13 @@ main > div#members {
     --hero-sm-plate-trust: clamp(9px, calc(2vw + 0.08vh), 11px);
     --hero-sm-plate-field-h: clamp(58px, calc(7.5vh + 0.6vw), 68px);
     --hero-sm-plate-submit-fs: clamp(11px, calc(2.8vw + 0.08vh), 12px);
-    --hero-landing-height: min(
-      100dvh,
-      var(--hero-viewport-cap)
-    );
-    min-height: var(--hero-landing-height);
-    max-height: var(--hero-landing-height);
   }
 
   .hero-landing .hero {
     position: static;
     flex: 1 1 0;
-    overflow: hidden;
+    overflow-x: clip;
+    overflow-y: visible;
   }
 
   .hero-landing .hero::after {
@@ -1641,6 +1675,10 @@ main > div#members {
     position: relative;
     z-index: auto;
     overflow: visible;
+  }
+
+  .hero-landing .hero-stage {
+    align-items: flex-start;
   }
 
   .hero-landing .hero-grid {
@@ -1667,7 +1705,7 @@ main > div#members {
     max-width: 100vw;
     height: 100%;
     margin: 0;
-    z-index: 0;
+    z-index: var(--hero-z-bg);
     overflow: hidden;
     align-self: unset;
   }
@@ -1679,7 +1717,7 @@ main > div#members {
 
   .hero-landing .hero-left {
     position: relative;
-    z-index: 2;
+    z-index: var(--hero-z-content);
     grid-column: unset;
     grid-row: unset;
     align-self: unset;
@@ -1691,9 +1729,20 @@ main > div#members {
     align-items: center;
   }
 
+  /* Readability darkening — stronger over-image text on tablet/mobile */
   .hero-landing .hero-left::before {
-    content: none;
-    display: none;
+    top: -24%;
+    bottom: -18%;
+    left: 50%;
+    margin-left: -50vw;
+    width: 100vw;
+    background: radial-gradient(
+      ellipse 72% 82% at 50% 46%,
+      rgba(3, 3, 3, 0.76) 0%,
+      rgba(3, 3, 3, 0.5) 42%,
+      rgba(3, 3, 3, 0.16) 68%,
+      transparent 100%
+    );
   }
 
   .hero-landing .hero-bottom-fade {
@@ -1762,6 +1811,16 @@ main > div#members {
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
+  .hero-landing .hero-left::before {
+    background: radial-gradient(
+      ellipse 68% 78% at 50% 47%,
+      rgba(3, 3, 3, 0.68) 0%,
+      rgba(3, 3, 3, 0.44) 44%,
+      rgba(3, 3, 3, 0.14) 70%,
+      transparent 100%
+    );
+  }
+
   .hero-landing {
     --hero-sm-content-max: clamp(28rem, 78vw, 44rem);
     --hero-sm-heading: clamp(2.875rem, calc(6.2vw + 0.9rem + 1.1vh), 4.75rem);
@@ -1794,6 +1853,18 @@ main > div#members {
 }
 
 @media (max-width: 767px) {
+  .hero-landing .hero-left::before {
+    top: -28%;
+    bottom: -22%;
+    background: radial-gradient(
+      ellipse 78% 88% at 50% 44%,
+      rgba(3, 3, 3, 0.88) 0%,
+      rgba(3, 3, 3, 0.62) 38%,
+      rgba(3, 3, 3, 0.24) 64%,
+      transparent 100%
+    );
+  }
+
   .hero-landing {
     --hero-sm-content-max: clamp(18.5rem, 96vw, 26rem);
     --hero-sm-heading: clamp(2rem, calc(9.8vw + 0.5rem + 0.22vh), 2.875rem);
@@ -1831,7 +1902,7 @@ main > div#members {
 .hero-overlay-stage {
   position: absolute;
   inset: 0;
-  z-index: 40;
+  z-index: var(--hero-z-panels);
   overflow: visible;
   pointer-events: none;
 }
@@ -1844,7 +1915,7 @@ main > div#members {
 .hero-overlay-stage .hero-floating-pill {
   position: absolute;
   --hero-window-max-h: min(
-    calc(100dvh - var(--site-nav-height) - 28px),
+    var(--hero-viewport-height),
     calc(100% - 20px)
   );
   max-height: var(--hero-window-max-h);
@@ -2982,6 +3053,7 @@ main > div#members {
   .hero-left {
     position: relative;
     z-index: 2;
+    isolation: isolate;
     display: flex;
     width: 100%;
     max-width: var(--hero-sm-content-max);
@@ -2994,11 +3066,27 @@ main > div#members {
   }
 
   .hero-left::before {
-    content: none;
-    display: none;
+    content: "";
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    top: -24%;
+    bottom: -18%;
+    left: 50%;
+    margin-left: -50vw;
+    width: 100vw;
+    background: radial-gradient(
+      ellipse 72% 82% at 50% 46%,
+      rgba(3, 3, 3, 0.76) 0%,
+      rgba(3, 3, 3, 0.5) 42%,
+      rgba(3, 3, 3, 0.16) 68%,
+      transparent 100%
+    );
   }
 
   .hero-left > * {
+    position: relative;
+    z-index: 1;
     width: 100%;
   }
 
@@ -3349,8 +3437,19 @@ main > div#members {
     padding: 0;
   }
 
-  .hero-left::before {
-    display: none;
+  .hero-landing .hero-left::before {
+    top: -18%;
+    bottom: -18%;
+    left: 50%;
+    margin-left: -50vw;
+    width: min(58vw, 700px);
+    background: linear-gradient(
+      90deg,
+      rgba(3, 3, 3, 0.84) 0%,
+      rgba(3, 3, 3, 0.58) 30%,
+      rgba(3, 3, 3, 0.24) 54%,
+      transparent 70%
+    );
   }
 
   .hero-left > * {

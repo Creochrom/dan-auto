@@ -1,6 +1,7 @@
 "use client";
 
 import { BookingStatusBadge } from "@/features/booking/components/BookingStatusBadge";
+import { WorkshopCustomerPhone } from "@/features/booking/components/WorkshopCustomerPhone";
 import type { Booking } from "@/lib/types/booking";
 
 type Props = {
@@ -24,9 +25,8 @@ export function BookingCard({ booking }: Props) {
         <BookingStatusBadge status={booking.status} />
       </div>
       <p className="mt-3 text-xs text-zinc-500">{dateTime}</p>
-      <p className="mt-2 text-sm text-zinc-300">
-        {booking.customerName} · {booking.customerPhone}
-      </p>
+      <p className="mt-2 text-sm text-zinc-300">{booking.customerName}</p>
+      <WorkshopCustomerPhone phone={booking.customerPhone} variant="inline" className="mt-1" />
       {intake && (
         <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-400">
           <p className="line-clamp-2">{intake.symptoms}</p>

@@ -16,6 +16,8 @@ export type LayerBounds = {
   width: number;
   height: number;
   top?: number;
+  minTop?: number;
+  maxBottom?: number;
 };
 
 export function getHeroViewportTier(viewportWidth: number): HeroViewportTier {
@@ -65,6 +67,25 @@ function usableLayerHeight(layer: LayerBounds, tier: Exclude<HeroViewportTier, "
   return Math.max(120, Math.min(layer.height, viewportCap));
 }
 
+function resolveVerticalBounds(
+  layer: LayerBounds,
+  tier: HeroViewportTier
+): { minTop: number; maxBottom: number } {
+  const fallbackMin = tier === "mobile" ? 8 : 12;
+  const fallbackBottom = Math.max(140, layer.height - (tier === "mobile" ? 24 : 32));
+  const minTop = clamp(
+    typeof layer.minTop === "number" ? layer.minTop : fallbackMin,
+    fallbackMin,
+    Math.max(fallbackMin, layer.height - 120)
+  );
+  const maxBottom = clamp(
+    typeof layer.maxBottom === "number" ? layer.maxBottom : fallbackBottom,
+    minTop + 120,
+    layer.height
+  );
+  return { minTop, maxBottom };
+}
+
 /**
  * Mobile/tablet stacked window positions — first window centered, each next
  * cascades up+right by title bar height; flips downward when top bound is hit.
@@ -81,11 +102,16 @@ export function computeResponsiveStackPlacement({
 > {
   const { pad, topAnchor, minTop, cascadeStep } = tierConfig(tier);
   const usableH = usableLayerHeight(layer, tier);
+  const bounds = resolveVerticalBounds(layer, tier);
+  const safeMinTop = Math.max(minTop, bounds.minTop);
   const reservedBottom =
     tier === "mobile"
       ? Math.max(72, Math.min(120, Math.round(usableH * 0.17)))
       : Math.max(84, Math.min(148, Math.round(usableH * 0.2)));
-  const maxPlayableHeight = Math.max(96, usableH - reservedBottom);
+  const maxPlayableHeight = Math.max(
+    safeMinTop + 96,
+    Math.min(bounds.maxBottom, usableH - reservedBottom)
+  );
 
   const maxWidthRatio = tier === "mobile" ? 0.9 : 0.86;
   const winW = Math.min(
@@ -97,7 +123,7 @@ export function computeResponsiveStackPlacement({
 
   for (let i = 0; i < cascadeIndex; i++) {
     const upTop = top - cascadeStep;
-    if (upTop < minTop) {
+    if (upTop < safeMinTop) {
       top += cascadeStep;
     } else {
       top = upTop;
@@ -108,8 +134,8 @@ export function computeResponsiveStackPlacement({
   const maxLeft = Math.max(pad, layer.width - winW - pad);
   left = clamp(left, pad, maxLeft);
 
-  const maxTop = Math.max(minTop, maxPlayableHeight - windowHeight - pad);
-  top = clamp(top, minTop, maxTop);
+  const maxTop = Math.max(safeMinTop, maxPlayableHeight - windowHeight - pad);
+  top = clamp(top, safeMinTop, maxTop);
 
   return {
     top,
@@ -134,14 +160,17 @@ function clampNumericSpawn(
   anchor: Pick<CSSProperties, "top" | "left" | "right">,
   windowWidth: number,
   windowHeight: number,
-  layer: LayerBounds
+  layer: LayerBounds,
+  tier: HeroViewportTier
 ): Pick<CSSProperties, "top" | "left" | "right"> {
   const pad = 12;
   const next = { ...anchor };
+  const bounds = resolveVerticalBounds(layer, tier);
 
   if (typeof next.top === "number") {
-    const maxTop = Math.max(pad, layer.height - windowHeight - pad);
-    next.top = clamp(next.top, pad, maxTop);
+    const minTop = Math.max(pad, bounds.minTop);
+    const maxTop = Math.max(minTop, bounds.maxBottom - windowHeight - pad);
+    next.top = clamp(next.top, minTop, maxTop);
   }
 
   if (typeof next.left === "number") {
@@ -181,7 +210,7 @@ export function resolveFloatingWindowPlacement(
     if (tier === "desktop" && layer && layer.width >= 1) {
       return {
         ...base,
-        ...clampNumericSpawn(base, windowWidth, windowHeight, layer),
+        ...clampNumericSpawn(base, windowWidth, windowHeight, layer, tier),
       };
     }
     return base;

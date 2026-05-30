@@ -169,6 +169,7 @@ function PremiumHeroWindowStack({
     <div
       ref={layerRef}
       className="hero-window-layer"
+      data-hero-layer="cards"
       aria-live="polite"
     >
       <HeroWindowStackProvider windowOrder={windowOrder}>
@@ -290,7 +291,7 @@ function PremiumHeroInner({
   const [focusedWindowId, setFocusedWindowId] = useState<string | null>(null);
 
   const heroStageRef = useRef<HTMLDivElement>(null);
-  const heroOverlayStageRef = useRef<HTMLDivElement>(null);
+  const heroInteractiveRef = useRef<HTMLDivElement>(null);
   const { bringToFront } = useHeroWindowManager();
   const { heroLaunchId, heroConciergeMode, advisorRoute: heroAdvisorRoute } =
     useAssistant();
@@ -512,10 +513,11 @@ function PremiumHeroInner({
   return (
     <HeroLandingShell
       hero={
-      <section className="hero" id="hero-section" aria-labelledby="hero-heading">
+      <section className="hero" id="hero-section" aria-labelledby="hero-heading" data-hero-layer="content">
         <div className="hero-container pt-2 sm:pt-4 lg:pt-2">
-          <div className="hero-composition" ref={heroOverlayStageRef}>
+          <div className="hero-composition">
           <div className="hero-stage-shell">
+            <div className="hero-slide" data-hero-slide="0">
             <div className="hero-stage" ref={heroStageRef}>
               <div className="hero-grid">
               <div className="hero-left w-full max-w-none">
@@ -609,7 +611,7 @@ function PremiumHeroInner({
 
               </div>
 
-              <div className="hero-right" aria-hidden="true">
+              <div className="hero-right" aria-hidden="true" data-hero-layer="background">
                 <div className="hero-bmw-glow" aria-hidden />
                 <div className="hero-bmw">
                   <div className="hero-bmw-media">
@@ -630,7 +632,16 @@ function PremiumHeroInner({
                 </div>
               </div>
             </div>
-
+            </div>
+          </div>
+          </div>
+        </div>
+        <div className="hero-bottom-fade" aria-hidden data-hero-layer="gradient" />
+      </section>
+      }
+      interactiveRef={heroInteractiveRef}
+      interactive={
+        <>
             <PremiumHeroWindowStack
               showReportSuite={showReportSuite}
               vehicleReport={vehicleReport}
@@ -666,7 +677,6 @@ function PremiumHeroInner({
               heroConciergeMode={heroConciergeMode}
               heroAdvisorRoute={heroAdvisorRoute}
             />
-          </div>
 
           <HeroOverlayStage active={overlayActive}>
             {vehicleData && (
@@ -681,7 +691,7 @@ function PremiumHeroInner({
                       stackDepth={9}
                       entranceDelay={0.05}
                       focusBoost={focusBoostFor("estimate")}
-                      dragConstraints={heroOverlayStageRef}
+                      dragConstraints={heroInteractiveRef}
                       defaultPosition={MODAL_DEFAULT}
                       onActivate={() => activateWindow("estimate")}
                       onMinimize={() => setEstimateMinimized(true)}
@@ -702,7 +712,7 @@ function PremiumHeroInner({
                       stackDepth={10}
                       entranceDelay={0.05}
                       focusBoost={focusBoostFor("inspection")}
-                      dragConstraints={heroOverlayStageRef}
+                      dragConstraints={heroInteractiveRef}
                       defaultPosition={MODAL_DEFAULT}
                       onActivate={() => activateWindow("inspection")}
                       onMinimize={() => setInspectionMinimized(true)}
@@ -722,10 +732,7 @@ function PremiumHeroInner({
               </HeroWindowStackProvider>
             )}
           </HeroOverlayStage>
-          </div>
-        </div>
-        <div className="hero-bottom-fade" aria-hidden />
-      </section>
+        </>
       }
       ribbons={
         <HeroPremiumInfoStrip badges={trustBadges} onCreateAccount={onCreateAccount} />

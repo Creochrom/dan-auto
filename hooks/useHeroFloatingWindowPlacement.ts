@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from "react";
 import {
+  HERO_WINDOW_EST_HEIGHT_PX,
   getHeroViewportTier,
   resolveFloatingWindowPlacement,
   type HeroViewportTier,
@@ -29,6 +30,7 @@ export function useHeroFloatingWindowPlacement({
   cascadeIndex,
   stackDepth,
   windowWidth,
+  windowHeight = HERO_WINDOW_EST_HEIGHT_PX,
   defaultPosition,
   containerRef,
   freezePlacement = false,
@@ -36,6 +38,7 @@ export function useHeroFloatingWindowPlacement({
   cascadeIndex: number;
   stackDepth: number;
   windowWidth: number;
+  windowHeight?: number;
   defaultPosition: LegacyPosition | HeroWindowPosition;
   containerRef?: RefObject<HTMLElement | null>;
   /** When true, stop recomputing spawn position (user has dragged). */
@@ -59,11 +62,32 @@ export function useHeroFloatingWindowPlacement({
     setTier(nextTier);
 
     const container = containerRef?.current;
-    const layer = container
+    const layerRect = container?.getBoundingClientRect();
+    const header = document.querySelector("header.site-nav");
+    const headerRect = header?.getBoundingClientRect();
+    const ribbons = document.querySelector(".hero-info-ribbons");
+    const ribbonsRect = ribbons?.getBoundingClientRect();
+    const safeTopPad = nextTier === "mobile" ? 8 : 12;
+    const safeBottomPad = nextTier === "mobile" ? 10 : 14;
+
+    const layer = container && layerRect
       ? {
           width: container.clientWidth,
           height: container.clientHeight,
-          top: container.getBoundingClientRect().top,
+          top: layerRect.top,
+          minTop: Math.max(
+            0,
+            Math.round((headerRect?.bottom ?? layerRect.top) - layerRect.top + safeTopPad)
+          ),
+          maxBottom: Math.max(
+            HERO_WINDOW_EST_HEIGHT_PX,
+            Math.round(
+              Math.min(
+                layerRect.bottom - safeBottomPad,
+                (ribbonsRect?.top ?? layerRect.bottom) - safeBottomPad
+              ) - layerRect.top
+            )
+          ),
         }
       : null;
 
@@ -72,6 +96,7 @@ export function useHeroFloatingWindowPlacement({
       cascadeIndex,
       stackDepth,
       windowWidth,
+      windowHeight,
       defaultPosition: toHeroWindowPosition(defaultPosition),
       layer,
     });
@@ -80,6 +105,7 @@ export function useHeroFloatingWindowPlacement({
     cascadeIndex,
     stackDepth,
     windowWidth,
+    windowHeight,
     defaultPosition,
     containerRef,
     freezePlacement,

@@ -20,6 +20,7 @@ import { useHeroWindowManagerOptional } from "@/components/hero/windows/HeroWind
 import { useHeroWindowStackOptional } from "@/components/hero/windows/HeroWindowStackContext";
 import { useHeroFloatingWindowPlacement } from "@/hooks/useHeroFloatingWindowPlacement";
 import { heroWindowMotion } from "@/lib/hero-window-motion";
+import { HERO_WINDOW_EST_HEIGHT_PX } from "@/lib/hero-window-stack-position";
 import type { HeroWindowPosition } from "@/lib/hero-window-position";
 
 type LegacyPosition = { x: number; y: number };
@@ -87,15 +88,33 @@ export function HeroFloatingWindow({
   const [spawnLocked, setSpawnLocked] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [manualOffset, setManualOffset] = useState({ x: 0, y: 0 });
+  const [windowHeight, setWindowHeight] = useState(HERO_WINDOW_EST_HEIGHT_PX);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const { tier, placement: anchorStyle } = useHeroFloatingWindowPlacement({
     cascadeIndex,
     stackDepth,
     windowWidth: width,
+    windowHeight,
     defaultPosition,
     containerRef: dragConstraints,
     freezePlacement: spawnLocked || isDragging,
   });
+
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+
+    const measure = () => {
+      const next = Math.max(HERO_WINDOW_EST_HEIGHT_PX, Math.round(node.getBoundingClientRect().height));
+      setWindowHeight((prev) => (prev === next ? prev : next));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [children, minimized, chromeless, flatPanel, title]);
 
   const dragEnabled = !reduceMotion;
   const managedZ =
@@ -156,13 +175,47 @@ export function HeroFloatingWindow({
   const handleDragEnd = useCallback(
     (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       setIsDragging(false);
+      const container = dragConstraints?.current;
+      const self = rootRef.current;
+      if (!container || !self) {
+        setManualOffset((prev) => ({
+          x: prev.x + info.offset.x,
+          y: prev.y + info.offset.y,
+        }));
+        setSpawnLocked(true);
+        return;
+      }
+
+      const header = document.querySelector("header.site-nav");
+      const ribbons = document.querySelector(".hero-info-ribbons");
+      const containerRect = container.getBoundingClientRect();
+      const selfRect = self.getBoundingClientRect();
+      const headerBottom = header?.getBoundingClientRect().bottom ?? containerRect.top;
+      const ribbonsTop = ribbons?.getBoundingClientRect().top ?? containerRect.bottom;
+      const padTop = tier === "mobile" ? 8 : 12;
+      const padBottom = tier === "mobile" ? 10 : 14;
+      const minTop = Math.max(containerRect.top + padTop, headerBottom + padTop);
+      const maxBottom = Math.min(containerRect.bottom - padBottom, ribbonsTop - padBottom);
+      const maxTop = Math.max(minTop, maxBottom - selfRect.height);
+
+      const nextLeft = selfRect.left + info.offset.x;
+      const nextTop = selfRect.top + info.offset.y;
+      const minLeft = containerRect.left + 8;
+      const maxLeft = Math.max(minLeft, containerRect.right - selfRect.width - 8);
+
+      const clampedLeft = Math.min(maxLeft, Math.max(minLeft, nextLeft));
+      const clampedTop = Math.min(maxTop, Math.max(minTop, nextTop));
+
+      const dx = clampedLeft - selfRect.left;
+      const dy = clampedTop - selfRect.top;
+
       setManualOffset((prev) => ({
-        x: prev.x + info.offset.x,
-        y: prev.y + info.offset.y,
+        x: prev.x + dx,
+        y: prev.y + dy,
       }));
       setSpawnLocked(true);
     },
-    []
+    [dragConstraints, tier]
   );
 
   const positionStyle: CSSProperties = {
@@ -287,6 +340,7 @@ export function HeroFloatingWindow({
   if (chromeless) {
     return (
       <motion.div
+        ref={rootRef}
         role="dialog"
         aria-label={ariaLabel ?? title}
         {...dragMotionProps}
@@ -319,6 +373,7 @@ export function HeroFloatingWindow({
 
   return (
     <motion.div
+      ref={rootRef}
       role="dialog"
       aria-label={ariaLabel ?? title}
       {...dragMotionProps}

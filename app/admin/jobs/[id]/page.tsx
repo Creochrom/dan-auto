@@ -7,12 +7,18 @@ import { Copy, Loader2, Mail, Phone, Sparkles } from "lucide-react";
 import { adminFetch } from "@/lib/admin/client";
 import { askWorkshopCopilot } from "@/features/copilot/services/copilot-client";
 import { JobAttachmentsPanel } from "@/components/workshop/JobAttachmentsPanel";
+import { JobCockpitSection } from "@/components/workshop/JobCockpitSection";
 import { JobInvoiceDraftPanel } from "@/components/workshop/JobInvoiceDraftPanel";
 import { JobMilestoneBar } from "@/components/workshop/JobMilestoneBar";
 import { JobTimelineFeed } from "@/components/workshop/JobTimelineFeed";
 import { VehicleIntelligencePanel } from "@/components/vehicle/VehicleIntelligencePanel";
 import { useVehicleReport } from "@/hooks/useVehicleReport";
 import { setActiveJobContext } from "@/lib/workshop/active-job-context";
+import type { Booking } from "@/lib/types/booking";
+import {
+  formatPipelineGbp,
+  parseEstimatedRangePence,
+} from "@/lib/workshop/revenue-pipeline";
 import type { WorkshopMilestoneId } from "@/lib/workshop/job-milestones";
 import {
   JOB_STATUSES,
@@ -56,6 +62,26 @@ function compactDate(value: string) {
   });
 }
 
+function telHref(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, "");
+  return digits.startsWith("+") ? `tel:${digits}` : `tel:${digits.replace(/^0/, "+44")}`;
+}
+
+function formatBookingSlot(booking: Booking): string {
+  const date = new Date(`${booking.preferredDate}T12:00:00`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  return `${date} · ${booking.preferredTime}`;
+}
+
+type BookingDetailResponse = {
+  ok?: boolean;
+  data?: { booking?: Booking };
+  error?: string;
+};
+
 export default function AdminJobDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -73,6 +99,7 @@ export default function AdminJobDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [draftMessage, setDraftMessage] = useState("");
+  const [linkedBooking, setLinkedBooking] = useState<Booking | null>(null);
   const { report: vehicleReport, loading: vehicleLoading, error: vehicleError } =
     useVehicleReport(job?.registration);
 
@@ -99,6 +126,27 @@ export default function AdminJobDetailPage() {
       setAttachments(
         Array.isArray(json.data.attachments) ? json.data.attachments : []
       );
+
+      const bookingId = json.data.job.bookingId;
+      if (bookingId) {
+        try {
+          const bookingRes = await adminFetch(`/api/bookings/${bookingId}`, {
+            credentials: "include",
+          });
+          const bookingJson = (await bookingRes
+            .json()
+            .catch(() => null)) as BookingDetailResponse | null;
+          setLinkedBooking(
+            bookingRes.ok && bookingJson?.ok && bookingJson.data?.booking
+              ? bookingJson.data.booking
+              : null
+          );
+        } catch {
+          setLinkedBooking(null);
+        }
+      } else {
+        setLinkedBooking(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load job details.");
     } finally {
@@ -261,6 +309,15 @@ export default function AdminJobDetailPage() {
     )}`;
   }, [job, draftMessage]);
 
+  const indicativeRange = useMemo(() => {
+    const parsed = parseEstimatedRangePence(linkedBooking?.intakeSummary?.estimatedRange);
+    if (!parsed) return null;
+    if (parsed.minPence === parsed.maxPence) {
+      return formatPipelineGbp(parsed.minPence);
+    }
+    return `${formatPipelineGbp(parsed.minPence)} – ${formatPipelineGbp(parsed.maxPence)}`;
+  }, [linkedBooking]);
+
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -300,47 +357,61 @@ export default function AdminJobDetailPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Job detail</p>
-          <h1 className="mt-2 font-mono text-2xl font-semibold text-white">
-            {job.registration}
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">{job.service}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Link
-            href={`/admin/vehicle/${encodeURIComponent(job.registration)}`}
-            className="text-zinc-400 hover:text-white"
-          >
-            History
-          </Link>
-          <Link
-            href={`/admin/workshop-assistant?jobId=${encodeURIComponent(job.id)}&reg=${encodeURIComponent(
-              job.registration
-            )}`}
-            className="text-cyan hover:underline"
-          >
-            Workshop Assistant
-          </Link>
-          <Link
-            href={`/admin/jobs?job=${encodeURIComponent(job.id)}`}
-            className="text-zinc-400 hover:text-white"
-          >
-            Cockpit
-          </Link>
-          <Link href="/admin/today" className="text-[#d4a63c] hover:underline">
-            ← Today
-          </Link>
+    <main className="mx-auto max-w-3xl px-3 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+      <div className="sticky top-0 z-20 -mx-3 mb-4 border-b border-white/10 bg-[#0a0a0a]/95 px-3 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Job cockpit</p>
+            <h1 className="mt-1 font-mono text-xl font-semibold text-white sm:text-2xl">
+              {job.registration}
+            </h1>
+            <p className="truncate text-xs text-zinc-500">{job.service}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={telHref(job.customerPhone)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#d4a63c]/40 bg-[#d4a63c]/10 px-4 py-2 text-xs font-semibold text-[#e8d5a3] hover:border-[#d4a63c]/60"
+            >
+              <Phone className="h-3.5 w-3.5" />
+              Call
+            </a>
+            <Link
+              href="/admin/today"
+              className="min-h-11 rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:border-white/25 hover:text-white"
+            >
+              Today
+            </Link>
+          </div>
         </div>
       </div>
 
-      <section className="premium-card mb-4 rounded-2xl p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Status — one tap
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2 text-xs">
+        <Link
+          href={`/admin/vehicle/${encodeURIComponent(job.registration)}`}
+          className="text-zinc-500 hover:text-white"
+        >
+          Vehicle history
+        </Link>
+        <span className="text-zinc-700">·</span>
+        <Link
+          href={`/admin/workshop-assistant?jobId=${encodeURIComponent(job.id)}&reg=${encodeURIComponent(
+            job.registration
+          )}`}
+          className="text-cyan hover:underline"
+        >
+          Workshop Assistant
+        </Link>
+        <span className="text-zinc-700">·</span>
+        <Link
+          href={`/admin/jobs?job=${encodeURIComponent(job.id)}`}
+          className="text-zinc-500 hover:text-white"
+        >
+          Legacy cockpit
+        </Link>
+      </div>
+
+      <JobCockpitSection title="Status" description="One tap to update job state.">
+        <div className="flex flex-wrap gap-2">
           {JOB_STATUSES.map((status) => {
             const active = job.status === status;
             return (
@@ -360,133 +431,70 @@ export default function AdminJobDetailPage() {
             );
           })}
         </div>
-      </section>
+      </JobCockpitSection>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="premium-card rounded-2xl p-5 lg:col-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-white">Customer message (draft)</p>
-            <button
-              type="button"
-              onClick={() => void handleDraftCustomerUpdate()}
-              disabled={drafting}
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#d4a63c]/35 bg-[#d4a63c]/10 px-4 py-2 text-xs font-semibold text-[#e8d5a3] hover:border-[#d4a63c]/60 disabled:opacity-50"
-            >
-              {drafting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              Draft update
-            </button>
-          </div>
-          <p className="mt-1 text-xs text-amber-200/80">
-            You copy and send — nothing goes to the customer automatically.
-          </p>
-
-          <textarea
-            value={draftMessage}
-            onChange={(e) => setDraftMessage(e.target.value)}
-            rows={8}
-            placeholder="Generate a draft, edit, then copy to WhatsApp or SMS."
-            className="input-premium mt-3 w-full resize-y rounded-xl px-4 py-3 text-sm text-white"
+      <JobCockpitSection
+        title="Vehicle"
+        description="DVLA intelligence for this registration."
+        className="mt-4"
+      >
+        {vehicleLoading ? (
+          <p className="text-xs text-zinc-500">Loading vehicle intelligence…</p>
+        ) : vehicleReport ? (
+          <VehicleIntelligencePanel
+            report={vehicleReport}
+            registration={job.registration}
+            assistantHref={`/admin/workshop-assistant?jobId=${encodeURIComponent(job.id)}&reg=${encodeURIComponent(job.registration)}`}
           />
+        ) : vehicleError ? (
+          <div>
+            <p className="text-xs text-zinc-500">Vehicle intelligence unavailable</p>
+            <p className="mt-2 text-xs text-amber-200/90">{vehicleError}</p>
+          </div>
+        ) : (
+          <p className="text-xs text-zinc-500">No vehicle data loaded.</p>
+        )}
+      </JobCockpitSection>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void handleCopyDraft()}
-              disabled={!draftMessage.trim()}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs text-zinc-200 hover:border-white/30 disabled:opacity-50"
-            >
-              <Copy className="h-3.5 w-3.5" />
-              Copy for WhatsApp
-            </button>
+      <JobCockpitSection
+        title="Customer"
+        description="Contact and appointment details."
+        className="mt-4"
+      >
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium text-white">{job.customerName}</p>
             <a
-              href={mailtoHref}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs text-zinc-200 hover:border-white/30"
-            >
-              <Mail className="h-3.5 w-3.5" />
-              Email draft
-            </a>
-            <a
-              href={`tel:${job.customerPhone.replace(/\s+/g, "")}`}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs text-zinc-200 hover:border-white/30"
+              href={telHref(job.customerPhone)}
+              className="mt-1 inline-flex items-center gap-1.5 text-sm text-[#d4a63c] hover:underline"
             >
               <Phone className="h-3.5 w-3.5" />
-              Call
+              {job.customerPhone}
             </a>
           </div>
-
-          {error && (
-            <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-              {error}
+          {linkedBooking ? (
+            <p className="text-xs text-zinc-400">
+              Slot: {formatBookingSlot(linkedBooking)}
             </p>
+          ) : (
+            <p className="text-xs text-zinc-500">Walk-in · {compactDate(job.createdAt)}</p>
           )}
-        </section>
-
-        <aside className="space-y-4">
-          {vehicleLoading ? (
-            <div className="premium-card rounded-2xl p-5">
-              <p className="text-xs text-zinc-500">Loading vehicle intelligence...</p>
-            </div>
-          ) : vehicleReport ? (
-            <VehicleIntelligencePanel
-              report={vehicleReport}
-              registration={job.registration}
-              assistantHref={`/admin/workshop-assistant?jobId=${encodeURIComponent(job.id)}&reg=${encodeURIComponent(job.registration)}`}
-            />
-          ) : vehicleError ? (
-            <div className="premium-card rounded-2xl p-5">
-              <p className="text-xs text-zinc-500">Vehicle intelligence unavailable</p>
-              <p className="mt-2 text-xs text-amber-200/90">{vehicleError}</p>
-            </div>
+          {job.symptomsText ? (
+            <p className="text-xs leading-relaxed text-zinc-400">{job.symptomsText}</p>
           ) : null}
-
-          <div className="premium-card rounded-2xl p-5">
-            <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Customer</p>
-            <p className="mt-3 text-sm text-white">{job.customerName}</p>
-            <p className="text-xs text-zinc-400">{job.customerPhone}</p>
-            <p className="mt-3 text-xs text-zinc-500">
-              {JOB_STATUS_LABELS[job.status as JobStatus]}
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">{compactDate(job.createdAt)}</p>
-            {job.symptomsText && (
-              <p className="mt-3 text-xs leading-relaxed text-zinc-400">{job.symptomsText}</p>
-            )}
-          </div>
-
-          <div className="premium-card rounded-2xl p-5">
-            <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-              Workshop notes
-            </p>
-            <textarea
-              value={workshopNotes}
-              onChange={(e) => setWorkshopNotes(e.target.value)}
-              rows={4}
-              className="input-premium mt-2 w-full resize-y rounded-xl px-3 py-2 text-xs text-white"
-            />
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handleSaveWorkshopNotes}
-              className="mt-2 min-h-10 rounded-full border border-white/15 px-3 py-1.5 text-xs text-zinc-300 hover:border-white/30"
-            >
-              Save notes
-            </button>
-          </div>
-        </aside>
-      </div>
-
-      <section className="premium-card mt-4 rounded-2xl p-5">
-        <p className="text-sm font-semibold text-white">Timeline</p>
-        <div className="mt-3">
-          <JobMilestoneBar
-            disabled={saving}
-            loadingId={milestoneLoading}
-            onMilestone={(id) => void handleMilestone(id)}
-          />
         </div>
+      </JobCockpitSection>
+
+      <JobCockpitSection
+        title="Timeline"
+        description="Milestones, bay notes, and job history."
+        className="mt-4"
+      >
+        <JobMilestoneBar
+          disabled={saving}
+          loadingId={milestoneLoading}
+          onMilestone={(id) => void handleMilestone(id)}
+        />
         <div className="mt-4">
           <JobTimelineFeed events={timeline} />
         </div>
@@ -506,30 +514,112 @@ export default function AdminJobDetailPage() {
             Add note
           </button>
         </div>
-      </section>
+      </JobCockpitSection>
 
-      <section className="premium-card mt-4 rounded-2xl p-5">
+      <JobCockpitSection
+        title="Workshop notes"
+        description="Internal notes — not sent to the customer."
+        className="mt-4"
+      >
+        <textarea
+          value={workshopNotes}
+          onChange={(e) => setWorkshopNotes(e.target.value)}
+          rows={4}
+          className="input-premium w-full resize-y rounded-xl px-3 py-2 text-sm text-white"
+        />
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleSaveWorkshopNotes}
+          className="mt-2 min-h-10 rounded-full border border-white/15 px-3 py-1.5 text-xs text-zinc-300 hover:border-white/30"
+        >
+          Save notes
+        </button>
+      </JobCockpitSection>
+
+      <JobCockpitSection
+        title="AI summary"
+        description="Draft a customer update — you copy and send manually."
+        className="mt-4"
+      >
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => void handleDraftCustomerUpdate()}
+            disabled={drafting}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#d4a63c]/35 bg-[#d4a63c]/10 px-4 py-2 text-xs font-semibold text-[#e8d5a3] hover:border-[#d4a63c]/60 disabled:opacity-50"
+          >
+            {drafting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            Draft update
+          </button>
+        </div>
+        <textarea
+          value={draftMessage}
+          onChange={(e) => setDraftMessage(e.target.value)}
+          rows={6}
+          placeholder="Generate a draft, edit, then copy to WhatsApp or SMS."
+          className="input-premium mt-3 w-full resize-y rounded-xl px-4 py-3 text-sm text-white"
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void handleCopyDraft()}
+            disabled={!draftMessage.trim()}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs text-zinc-200 hover:border-white/30 disabled:opacity-50"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy for WhatsApp
+          </button>
+          <a
+            href={mailtoHref}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs text-zinc-200 hover:border-white/30"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Email draft
+          </a>
+        </div>
+      </JobCockpitSection>
+
+      <JobCockpitSection
+        title="Value"
+        description="Invoice draft and indicative estimate from intake."
+        className="mt-4"
+      >
+        {indicativeRange ? (
+          <p className="mb-3 text-xs text-zinc-400">
+            Indicative range from booking intake:{" "}
+            <span className="font-medium text-[#e8d5a3]">{indicativeRange}</span>
+          </p>
+        ) : null}
         <JobInvoiceDraftPanel
           jobId={job.id}
           disabled={saving}
           onSaved={() => void loadJob()}
         />
-      </section>
+      </JobCockpitSection>
 
-      <section className="premium-card mt-4 rounded-2xl p-5">
-        <p className="text-sm font-semibold text-white">Attachments</p>
-        <p className="mt-1 text-xs text-zinc-500">
-          Photos, damage, invoices (PDF). Shown in timeline when uploaded.
+      <JobCockpitSection
+        title="Attachments"
+        description="Photos, damage, invoices (PDF). Shown in timeline when uploaded."
+        className="mt-4"
+      >
+        <JobAttachmentsPanel
+          jobId={job.id}
+          attachments={attachments}
+          disabled={saving}
+          onUploaded={() => void loadJob()}
+        />
+      </JobCockpitSection>
+
+      {error ? (
+        <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          {error}
         </p>
-        <div className="mt-3">
-          <JobAttachmentsPanel
-            jobId={job.id}
-            attachments={attachments}
-            disabled={saving}
-            onUploaded={() => void loadJob()}
-          />
-        </div>
-      </section>
+      ) : null}
     </main>
   );
 }

@@ -6,9 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { adminFetch } from "@/lib/admin/client";
 import { formatPlate, stripPlate } from "@/lib/format-plate";
 import { AdminQuickLinks } from "@/components/enterprise/AdminQuickLinks";
-import { AdminStatusBadge } from "@/components/enterprise/AdminStatusBadge";
-import { BookingCard } from "@/features/booking/components/BookingCard";
-import { BookingVehiclePrecheck } from "@/components/vehicle/BookingVehiclePrecheck";
+import { WorkshopBookingCard } from "@/features/booking/components/WorkshopBookingCard";
 import { BOOKING_STATUSES, type Booking, type BookingStatus } from "@/lib/types/booking";
 
 /**
@@ -199,54 +197,12 @@ function AdminBookingsContent() {
         <ul className="grid gap-4 md:grid-cols-2">
           {visibleBookings.map((b) => (
             <li key={b.id}>
-              <div className="space-y-3">
-                <BookingCard booking={b} />
-                <div className="premium-card rounded-xl p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label
-                      htmlFor={`booking-status-${b.id}`}
-                      className="text-[11px] uppercase tracking-[0.12em] text-zinc-500"
-                    >
-                      Status
-                    </label>
-                    <AdminStatusBadge kind="booking" status={b.status} />
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    <select
-                      id={`booking-status-${b.id}`}
-                      className="input-premium h-11 w-full rounded-xl px-3 text-sm"
-                      value={b.status}
-                      disabled={pendingStatusId === b.id}
-                      onChange={(e) =>
-                        void onChangeStatus(b.id, e.target.value as BookingStatus)
-                      }
-                    >
-                      {BOOKING_STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {status.replaceAll("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      disabled={pendingStatusId === b.id || b.status === "confirmed"}
-                      onClick={() => void onChangeStatus(b.id, "confirmed")}
-                      className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 disabled:opacity-50"
-                    >
-                      Confirm
-                    </button>
-                    <Link
-                      href={`/admin/bookings/${b.id}`}
-                      className="text-xs text-[#d4a63c] hover:underline"
-                    >
-                      Open detail →
-                    </Link>
-                  </div>
-                  <BookingVehiclePrecheck registration={b.registration} />
-                </div>
-              </div>
+              <WorkshopBookingCard
+                booking={b}
+                statusChanging={pendingStatusId === b.id}
+                onStatusChange={(status) => void onChangeStatus(b.id, status)}
+                onConfirm={() => void onChangeStatus(b.id, "confirmed")}
+              />
             </li>
           ))}
         </ul>

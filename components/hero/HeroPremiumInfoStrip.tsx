@@ -14,6 +14,7 @@ export function HeroPremiumInfoStrip({ badges, onCreateAccount }: Props) {
   return (
     <aside
       className="hero-info-ribbons w-full"
+      data-hero-layer="ribbons"
       aria-label="Workshop trust badges and supported brands"
     >
       <HeroFeaturesRibbon badges={badges} />
