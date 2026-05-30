@@ -1,7 +1,7 @@
 -- =============================================================================
--- Migration 006b — Job-centric backfill (data only)
+-- Migration 007 — Job-centric backfill (data only)
 -- Dan Auto Centre
--- Requires 006a_job_centric_schema.sql.
+-- Requires 006_job_centric_schema.sql.
 -- Safe to re-run: GROUP BY conflict keys before INSERT … ON CONFLICT; idempotent UPDATEs.
 --
 -- Fix for PostgreSQL 21000:

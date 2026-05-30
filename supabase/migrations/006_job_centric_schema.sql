@@ -1,8 +1,8 @@
 -- =============================================================================
--- Migration 006a — Job-centric schema (DDL only)
+-- Migration 006 — Job-centric schema (DDL only)
 -- Dan Auto Centre
 -- Safe to re-run: IF NOT EXISTS / OR REPLACE / guarded ALTER statements.
--- Backfill data: see 006b_job_centric_backfill.sql
+-- Backfill data: see 007_job_centric_backfill.sql
 -- =============================================================================
 
 -- Shared function from migration 001.

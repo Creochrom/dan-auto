@@ -17,8 +17,8 @@ Run each file once in **Supabase Dashboard → SQL Editor** (or `supabase db pus
 | 003 | `003_slot_overrides.sql` | Per-day booking slot overrides (`slot_overrides`) for `/api/booking-slots`. |
 | 004 | `004_workshop_jobs.sql` | Workshop v1: `jobs`, `job_notes`, `job_status_events`. |
 | 005 | `005_admin_users.sql` | Multi-user admin logins with roles (`admin_users`). |
-| 006 | `006_job_centric_model.sql` | `vehicles`, `customers`, `job_timeline_events`, `attachments`, `invoices`, `ai_context_snapshots`; links jobs/bookings to canonical entities. |
-| 007 | — | *Not in repo — no `007_*.sql` file.* |
+| 006 | `006_job_centric_schema.sql` | `vehicles`, `customers`, `job_timeline_events`, `attachments`, `invoices`, `ai_context_snapshots`; FK columns on jobs/bookings. |
+| 007 | `007_job_centric_backfill.sql` | Backfill vehicles/customers from bookings/jobs; link FK columns; seed job timeline. |
 | 008 | — | *Not in repo — no `008_*.sql` file.* |
 | 009 | `009_booking_statuses.sql` | Extends `bookings.status` check to include `rescheduled` and `rejected`. |
 | 010 | `010_vehicle_timeline_events.sql` | Append-only `vehicle_timeline_events` (MOT + workshop lifecycle on vehicle). |

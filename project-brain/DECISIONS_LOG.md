@@ -27,7 +27,7 @@ Short, dated entries. One decision per block. New entries go at the top.
 
 - **Why:** Workshop execution data needed canonical vehicle/customer identity centered on jobs, plus structured timeline/attachments/invoice-draft/AI-context entities without mixing customer and workshop AI domains.
 - **Impact:**
-  - `supabase/migrations/006_job_centric_model.sql` adds `vehicles`, `customers`, `job_timeline_events`, `attachments`, `invoices` (draft-only), `ai_context_snapshots`, and links `jobs`/`bookings` to `vehicle_id` + `customer_id` with idempotent backfill and compatibility-safe constraints.
+  - `supabase/migrations/006_job_centric_schema.sql` + `007_job_centric_backfill.sql` add `vehicles`, `customers`, `job_timeline_events`, `attachments`, `invoices` (draft-only), `ai_context_snapshots`, and link `jobs`/`bookings` to `vehicle_id` + `customer_id` with idempotent backfill and compatibility-safe constraints.
   - `lib/types/job.ts` extends job identity with linked `vehicle`/`customer` refs while preserving `registration` / `customerName` / `customerPhone` convenience fields for existing API consumers.
   - `lib/types/workshop-data.ts` introduces normalized TS contracts for new entities and creation/update payloads.
   - Added repository + thin service pairs for vehicles, customers, timeline events, attachments, invoices, and AI context snapshots in `lib/repositories/*`, `lib/repositories/supabase/*`, and `lib/services/*`.
