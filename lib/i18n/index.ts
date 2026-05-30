@@ -13,22 +13,6 @@ export const messages: Record<Locale, Messages> = { en, ru, pl, ro, uk };
 
 export const LOCALE_COOKIE = "dan_locale";
 
-const BROWSER_MAP: Record<string, Locale> = {
-  ru: "ru",
-  pl: "pl",
-  ro: "ro",
-  uk: "uk",
-  ua: "uk",
-};
-
-export function detectBrowserLocale(): Locale | null {
-  if (typeof navigator === "undefined") return null;
-  const lang = navigator.language?.toLowerCase() ?? "";
-  const code = lang.split("-")[0];
-  if (code === "en") return null;
-  return BROWSER_MAP[code] ?? null;
-}
-
 export function t(locale: Locale): Messages {
   return messages[locale] ?? en;
 }

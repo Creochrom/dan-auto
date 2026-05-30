@@ -1,14 +1,15 @@
 "use client";
 
 import { AssistantProvider } from "@/features/assistant/AssistantContext";
+import { CookieConsentProvider } from "@/components/compliance/CookieConsentProvider";
 import { I18nProvider } from "./I18nProvider";
-import { GoogleTranslateMount } from "./GoogleTranslateMount";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <I18nProvider>
-      <AssistantProvider>{children}</AssistantProvider>
-      <GoogleTranslateMount />
+      <CookieConsentProvider>
+        <AssistantProvider>{children}</AssistantProvider>
+      </CookieConsentProvider>
     </I18nProvider>
   );
 }

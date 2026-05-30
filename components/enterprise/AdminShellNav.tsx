@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpenText,
   Calendar,
   LayoutDashboard,
   Users,
@@ -14,6 +15,7 @@ const NAV = [
   { href: "/admin/jobs", label: "Jobs", icon: Wrench },
   { href: "/admin/bookings", label: "Bookings", icon: Calendar },
   { href: "/admin/leads", label: "Customers", icon: Users },
+  { href: "/admin/docs", label: "Documentation", icon: BookOpenText },
   {
     href: "/admin/workshop-assistant",
     label: "Workshop Assistant",

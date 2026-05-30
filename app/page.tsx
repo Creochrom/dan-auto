@@ -36,6 +36,7 @@ import { MotSection } from "@/features/marketing/components/MotSection";
 import { useAssistant } from "@/features/assistant/AssistantContext";
 import { BookVisitLink, useBookVisit } from "@/features/booking";
 import { useI18n } from "@/components/providers/I18nProvider";
+import { useCookieConsentOptional } from "@/components/compliance/CookieConsentProvider";
 import type { SavedVehicle } from "@/lib/platform/types";
 import type { VehicleResult } from "@/lib/types/vehicle";
 import { formatPlate, stripPlate } from "@/lib/format-plate";
@@ -275,6 +276,7 @@ function SectionHeader({
 
 export default function Home() {
   const { isLocalizedExperience, messages, returnToEnglish } = useI18n();
+  const { openSettings: openCookieSettings, openPrivacyPolicy } = useCookieConsentOptional();
   const { openAssistant } = useAssistant();
 
   const [heroPlate, setHeroPlate] = useState("");
@@ -1209,23 +1211,46 @@ export default function Home() {
               )}
             </nav>
           </div>
-          <div className="mt-10 flex flex-col gap-3 border-t border-white/8 pt-8 text-xs text-zinc-600 sm:flex-row sm:items-center sm:justify-between">
-            <p>© {new Date().getFullYear()} Dan Auto. All rights reserved.</p>
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <a href="/admin" className="transition hover:text-cyan">
-                Admin
-              </a>
-              <a href="/privacy" className="transition hover:text-cyan">
-                Privacy
-              </a>
-              <a href="#contact" className="transition hover:text-cyan">
+          <div className="mt-10 flex flex-col gap-4 border-t border-white/8 pt-8 text-xs text-zinc-600 sm:flex-row sm:items-center sm:justify-between">
+            <p className="shrink-0">© {new Date().getFullYear()} Dan Auto. All rights reserved.</p>
+            <nav
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:justify-end"
+              aria-label="Legal and site links"
+            >
+              <button
+                type="button"
+                onClick={openPrivacyPolicy}
+                className="font-medium text-zinc-400 transition hover:text-[#d4a63c]"
+              >
+                Privacy Policy
+              </button>
+              <a href="#contact" className="transition hover:text-[#d4a63c]">
                 Contact
               </a>
-              <a href="#contact" className="transition hover:text-cyan">
+              <a href="#contact" className="transition hover:text-[#d4a63c]">
                 Hours
               </a>
-              <span>Terms · Cookies</span>
-            </p>
+              <span className="hidden text-zinc-700 sm:inline" aria-hidden>
+                ·
+              </span>
+              <span className="text-zinc-500">Terms</span>
+              <span className="text-zinc-700" aria-hidden>
+                ·
+              </span>
+              <button
+                type="button"
+                onClick={openCookieSettings}
+                className="text-left transition hover:text-[#d4a63c]"
+              >
+                Cookies
+              </button>
+              <span className="hidden text-zinc-700 sm:inline" aria-hidden>
+                ·
+              </span>
+              <a href="/admin" className="transition hover:text-zinc-500">
+                Admin
+              </a>
+            </nav>
           </div>
         </div>
       </footer>

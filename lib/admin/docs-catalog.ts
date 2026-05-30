@@ -12,6 +12,22 @@ const ROOT = process.cwd();
 
 export const ADMIN_DOCS: AdminDocEntry[] = [
   {
+    slug: "workshop-go-live",
+    title: "Workshop Go-Live Checklist",
+    description:
+      "Production-ready launch checklist for migrations, env vars, health checks, and workshop handover.",
+    filePath: path.join(ROOT, "docs", "WORKSHOP_GO_LIVE.md"),
+    group: "operations",
+  },
+  {
+    slug: "admin-login-smoke",
+    title: "Admin Login Smoke Test",
+    description:
+      "Fast 5-minute verification for admin login, session cookies, and secure auth setup.",
+    filePath: path.join(ROOT, "docs", "ADMIN_LOGIN_SMOKE.md"),
+    group: "operations",
+  },
+  {
     slug: "workshop-ecosystem",
     title: "Workshop Ecosystem",
     description: "Core workshop operating model and build priorities.",
@@ -37,6 +53,34 @@ export const ADMIN_DOCS: AdminDocEntry[] = [
     title: "Decisions Log",
     description: "Architectural and product decisions with rationale.",
     filePath: path.join(ROOT, "project-brain", "DECISIONS_LOG.md"),
+    group: "product-brain",
+  },
+  {
+    slug: "data-model",
+    title: "Data Model",
+    description: "Workshop entities, relationships, and persistence model across jobs, bookings, and leads.",
+    filePath: path.join(ROOT, "project-brain", "DATA_MODEL.md"),
+    group: "product-brain",
+  },
+  {
+    slug: "product-doctrine",
+    title: "Product Doctrine",
+    description: "Core product principles and UX decision framework for workshop operations.",
+    filePath: path.join(ROOT, "project-brain", "PRODUCT_DOCTRINE.md"),
+    group: "product-brain",
+  },
+  {
+    slug: "inspiration-board",
+    title: "Inspiration Board",
+    description: "Design and product references that guide visual direction and user-flow quality.",
+    filePath: path.join(ROOT, "project-brain", "INSPIRATION_BOARD.md"),
+    group: "product-brain",
+  },
+  {
+    slug: "hero-architecture",
+    title: "Hero Architecture",
+    description: "Technical breakdown of Hero layout, layering, overflow, and responsive interaction behavior.",
+    filePath: path.join(ROOT, "docs", "HERO_ARCHITECTURE.md"),
     group: "product-brain",
   },
   {

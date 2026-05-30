@@ -24,6 +24,7 @@ export function HeroFeaturesRibbon({ badges }: Props) {
         <HeroDragScroll
           aria-label="Workshop credentials"
           trackClassName="hero-ribbon-features-track items-stretch"
+          autoMotion="forward"
         >
           <div className="hero-ribbon-features-row flex min-w-max flex-1 divide-x divide-white/[0.06]">
             {badges.map((badge) => (

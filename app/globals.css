@@ -979,8 +979,8 @@ body {
 }
 
 .below-fold-content {
-  content-visibility: auto;
-  contain-intrinsic-size: 2200px;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 /* Layered edge fades — sits above image, below hero copy/windows */
@@ -1354,7 +1354,15 @@ main > div#members {
 }
 
 .hero-ribbon-membership-track {
-  height: var(--hero-ribbon-bottom);
+  min-height: var(--hero-ribbon-bottom);
+  height: auto;
+  align-items: center;
+  overflow-y: visible;
+  padding-block: 0.4rem;
+}
+
+.hero-ribbon-membership-track .hero-ribbon-privacy {
+  flex: 0 0 auto;
 }
 
 @media (min-width: 1024px) {
@@ -2206,6 +2214,15 @@ main > div#members {
 
 .hero-drag-scroll--dragging * {
   pointer-events: none;
+}
+
+.hero-drag-scroll--dragging .hero-ribbon-interactive {
+  pointer-events: auto;
+}
+
+.hero-drag-scroll--auto-motion {
+  scroll-behavior: auto;
+  scroll-snap-type: none;
 }
 
 .hero-trust-scroll {
@@ -4564,6 +4581,39 @@ main > div#members {
 .chat-timeline::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(212, 166, 60, 0.28);
+}
+
+/* Thin gold scrollbar for premium panels and modals */
+.premium-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 166, 60, 0.32) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.premium-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.premium-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.premium-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(212, 166, 60, 0.32);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.premium-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 166, 60, 0.48);
+  background-clip: padding-box;
+}
+
+.premium-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
 }
 
 /* Single-row horizontal quick replies (chips) */

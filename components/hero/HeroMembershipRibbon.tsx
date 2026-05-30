@@ -3,6 +3,7 @@
 import { User } from "lucide-react";
 import { HeroBrandLogo } from "@/components/hero/HeroBrandLogos";
 import { HeroDragScroll } from "@/components/hero/HeroDragScroll";
+import { HeroPrivacyTrustBlock } from "@/components/hero/HeroPrivacyTrustBlock";
 import { HERO_RIBBON_BRANDS } from "@/lib/hero-content";
 
 type Props = {
@@ -19,6 +20,7 @@ export function HeroMembershipRibbon({ onCreateAccount }: Props) {
         <HeroDragScroll
           aria-label="Supported brands and membership"
           trackClassName="hero-ribbon-membership-track items-center"
+          autoMotion="reverse"
         >
           <div className="flex min-w-max items-center gap-8 px-1">
             <div className="flex shrink-0 items-center gap-7">
@@ -45,7 +47,7 @@ export function HeroMembershipRibbon({ onCreateAccount }: Props) {
               <span className="text-sm font-medium leading-tight text-white">
                 Join our members
               </span>
-              <span className="max-w-[16rem] whitespace-nowrap text-xs leading-snug text-white/[0.68] md:max-w-none">
+              <span className="max-w-[16rem] text-xs leading-snug text-white/[0.68] md:max-w-none md:whitespace-nowrap">
                 Get exclusive benefits, priority booking &amp; rewards
               </span>
             </div>
@@ -58,6 +60,8 @@ export function HeroMembershipRibbon({ onCreateAccount }: Props) {
               <User className="h-4 w-4 stroke-[1.75]" aria-hidden="true" />
               Create account
             </button>
+
+            <HeroPrivacyTrustBlock />
           </div>
         </HeroDragScroll>
       </div>
