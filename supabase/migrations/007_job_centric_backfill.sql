@@ -131,6 +131,15 @@ WHERE c.id = 'cus_' || md5(
   AND (j.customer_id IS NULL OR j.customer_id <> c.id);
 
 -- ---------------------------------------------------------------------------
+-- Align job_status_events with migration 004 contract.
+-- Production may have the table from an earlier CREATE TABLE IF NOT EXISTS
+-- no-op (table pre-dated 004 or was created without created_at). 007 and app
+-- code assume the column exists per 004_workshop_jobs.sql.
+-- ---------------------------------------------------------------------------
+ALTER TABLE job_status_events
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- ---------------------------------------------------------------------------
 -- Seed timeline with historical status events (idempotent)
 -- ---------------------------------------------------------------------------
 INSERT INTO job_timeline_events (
