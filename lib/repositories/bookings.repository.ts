@@ -81,4 +81,15 @@ export const bookingsRepository = {
     booking.updatedAt = new Date().toISOString();
     return booking;
   },
+
+  async delete(id: string): Promise<boolean> {
+    if (getStorageBackend() === "supabase") {
+      return supabaseBookingsRepository.delete(id);
+    }
+
+    const index = mockStore.bookings.findIndex((b) => b.id === id);
+    if (index === -1) return false;
+    mockStore.bookings.splice(index, 1);
+    return true;
+  },
 };

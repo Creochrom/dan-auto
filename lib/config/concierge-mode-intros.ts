@@ -1,6 +1,9 @@
 import type { HeroConciergeMode } from "@/lib/types/hero-concierge";
 import type { SuggestionChip } from "@/lib/types/intake";
 import type { VehicleResult } from "@/lib/types/vehicle";
+import {
+  getBookingConversationStart,
+} from "@/lib/booking/booking-journey";
 import { DIAGNOSTIC_TOPIC_ACTIONS } from "@/lib/config/hero-concierge-copy";
 
 export type ModeIntroCopy = {
@@ -16,11 +19,11 @@ export function formatModeIntroMessage(copy: ModeIntroCopy): string {
 const MODE_INTROS: Record<Exclude<HeroConciergeMode, "hub">, ModeIntroCopy> = {
   diagnostic: {
     title: "Vehicle issue",
-    body: "Describe what the vehicle is doing — warning lights, noises, smoke, or how it is running. I will ask a few focused questions to understand the issue.",
+    body: "Tell me what's happening — a warning light, a noise, smoke, or how the car is driving. I'll ask one focused question at a time.",
   },
   pricing: {
     title: "Repair cost guidance",
-    body: "Describe the repair or symptom and I will give a rough Southampton estimate. A confirmed quote always needs inspection first.",
+    body: "Tell me the repair or symptom and I'll give you a ballpark figure — like we would on the workshop phone.",
   },
   callback: {
     title: "Mechanic callback",
@@ -28,7 +31,7 @@ const MODE_INTROS: Record<Exclude<HeroConciergeMode, "hub">, ModeIntroCopy> = {
   },
   booking: {
     title: "Book MOT or service",
-    body: "Tell me whether you need an MOT, interim service, or major service and I will guide you to the right next step.",
+    body: "I'll help you choose the right service, then pick a preferred day and time window before we send your request.",
   },
   quick_question: {
     title: "Quick question",
@@ -64,27 +67,15 @@ export function getModeOpeningChips(
 
     case "pricing": {
       const chips: SuggestionChip[] = [
-        chip("price-brakes", "Brake issue", "I need rough pricing for a brake-related repair."),
-        chip("price-suspension", "Suspension noise", "I need a rough price range for a suspension noise concern."),
-        chip("price-engine", "Engine issue", "I need an approximate repair range for an engine-related issue."),
-        chip("price-electrical", "Electrical issue", "I need rough pricing guidance for an electrical concern."),
+        chip("price-brake-squeak", "Brake squeak", "My brakes squeak when I slow down."),
+        chip("price-brake-pads", "Brake pads", "How much are brake pads on one axle?"),
+        chip("price-mot-fail", "MOT fail item", "I need a price for an MOT failure repair."),
+        chip("price-service", "Service cost", "How much is an interim service?"),
+        chip("price-suspension", "Suspension knock", "There is a knock over bumps — rough cost?"),
+        chip("price-clutch", "Clutch slip", "The clutch is slipping — what might it cost?"),
+        chip("price-diagnostics", "Diagnostic check", "How much is a diagnostic check?"),
+        chip("price-other", "Something else", "I need a rough price for another repair."),
       ];
-      if (/dpf|egr|emission/.test(ctx)) {
-        chips.push(
-          chip("price-dpf", "DPF / emissions", "Can you estimate typical Southampton pricing for a DPF or emissions issue?")
-        );
-      }
-      if (/turbo/.test(ctx)) {
-        chips.push(
-          chip("price-turbo", "Turbo issue", "What is a typical local price range for turbo-related repairs?")
-        );
-      }
-      chips.push(
-        chip("price-mot", "MOT repair", "I need a rough estimate for MOT-related repair work.")
-      );
-      chips.push(
-        chip("price-diagnostics", "Diagnostics first", "I would like a rough cost for diagnostics before repair work.")
-      );
       return chips.slice(0, 8);
     }
 
@@ -97,12 +88,7 @@ export function getModeOpeningChips(
       ];
 
     case "booking":
-      return [
-        chip("book-mot", "Book MOT", "I need to book an MOT for this vehicle."),
-        chip("book-interim", "Interim service", "I would like to book an interim service."),
-        chip("book-major", "Major service", "I would like to book a major service."),
-        chip("book-unsure", "Not sure yet", "I am not sure whether I need an MOT or a service yet."),
-      ];
+      return getBookingConversationStart().chips;
 
     case "quick_question":
     default:
@@ -130,6 +116,10 @@ export function getModeConversationStart(
   vehicle: VehicleResult
 ): { message: string; chips: SuggestionChip[] } {
   const intro = getModeIntro(mode);
+  if (mode === "booking") {
+    const start = getBookingConversationStart();
+    return { message: start.message, chips: start.chips };
+  }
   return {
     message: formatModeIntroMessage(intro),
     chips: getModeOpeningChips(mode, vehicle),
@@ -143,7 +133,7 @@ export function getSafeToDriveConversationStart(vehicle: VehicleResult): {
 } {
   const intro: ModeIntroCopy = {
     title: "Safe to drive check",
-    body: "Describe what the vehicle is doing and I will help assess whether it may need urgent inspection, or whether short journeys may be okay until checked.",
+    body: "Tell me what's happening and whether you're driving it now. I'll say plainly if it likely needs urgent inspection or can wait a short trip.",
   };
   return {
     message: formatModeIntroMessage(intro),

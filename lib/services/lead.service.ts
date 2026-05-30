@@ -4,6 +4,10 @@ import { getEmailProvider } from "@/lib/email/config";
 import { logLeadEvent } from "@/lib/logging/lead-events";
 import type { IntakeIntent } from "@/lib/types/ai-intake";
 import type { CreateLeadInput, Lead, LeadStatus } from "@/lib/types/lead";
+import {
+  validateCustomerName,
+  validateCustomerPhone,
+} from "@/lib/validation/advisor-contact";
 
 export type LeadCreateOptions = {
   /** Skip when caller already sent a richer workshop intake email (e.g. AI intake submit). */
@@ -23,7 +27,17 @@ export const leadService = {
    * Email failures never roll back persistence.
    */
   async create(input: CreateLeadInput, opts?: LeadCreateOptions): Promise<Lead> {
-    const lead = await leadsRepository.create(input);
+    const nameCheck = validateCustomerName(input.name);
+    const phoneCheck = validateCustomerPhone(input.phone);
+    if (!nameCheck.valid || !phoneCheck.valid) {
+      throw new Error("Valid name and UK phone number are required before saving a lead");
+    }
+
+    const lead = await leadsRepository.create({
+      ...input,
+      name: nameCheck.normalized,
+      phone: phoneCheck.normalized,
+    });
 
     logLeadEvent("lead.created", {
       leadId: lead.id,

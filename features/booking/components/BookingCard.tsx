@@ -3,13 +3,15 @@
 import { BookingStatusBadge } from "@/features/booking/components/BookingStatusBadge";
 import { WorkshopCustomerPhone } from "@/features/booking/components/WorkshopCustomerPhone";
 import type { Booking } from "@/lib/types/booking";
+import { resolveWorkshopCaseFromBooking } from "@/lib/types/workshop-case-summary";
+import { WorkshopCaseBrief } from "@/components/workshop/WorkshopCaseBrief";
 
 type Props = {
   booking: Booking;
 };
 
 export function BookingCard({ booking }: Props) {
-  const intake = booking.intakeSummary;
+  const caseSummary = resolveWorkshopCaseFromBooking(booking);
   const dateTime =
     booking.status === "rescheduled"
       ? `Rescheduled to ${booking.preferredDate} · ${booking.preferredTime}`
@@ -27,22 +29,9 @@ export function BookingCard({ booking }: Props) {
       <p className="mt-3 text-xs text-zinc-500">{dateTime}</p>
       <p className="mt-2 text-sm text-zinc-300">{booking.customerName}</p>
       <WorkshopCustomerPhone phone={booking.customerPhone} variant="inline" className="mt-1" />
-      {intake && (
-        <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-400">
-          <p className="line-clamp-2">{intake.symptoms}</p>
-          {intake.possibleCauses.length > 0 && (
-            <p className="mt-1 text-zinc-500">
-              {intake.possibleCauses.slice(0, 2).join(", ")}
-            </p>
-          )}
-          <p className="mt-1">
-            {intake.estimatedRange ?? "—"} · Urgency: {intake.urgency}
-            {intake.uploadedFiles.length
-              ? ` · ${intake.uploadedFiles.length} file(s)`
-              : ""}
-          </p>
-        </div>
-      )}
+      <div className="mt-4">
+        <WorkshopCaseBrief caseSummary={caseSummary} compact />
+      </div>
     </article>
   );
 }

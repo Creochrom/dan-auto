@@ -6,8 +6,6 @@ import {
   formatWorkshopField,
   formatWorkshopSourceLabel,
   NOT_PROVIDED,
-  renderWorkshopBookingHtml,
-  renderWorkshopBookingText,
   renderWorkshopContactHtml,
   renderWorkshopContactText,
   renderWorkshopIdsHtml,
@@ -15,6 +13,10 @@ import {
   renderWorkshopPhoneBannerHtml,
   renderWorkshopPhoneBannerText,
 } from "@/lib/email/templates/workshop-shared";
+import {
+  renderWorkshopCaseBriefHtml,
+  renderWorkshopCaseBriefText,
+} from "@/lib/email/templates/workshop-case-brief";
 import { escapeHtml, sanitizePlainText } from "@/lib/utils/sanitize";
 
 function formatTranscriptText(messages: ChatMessage[]): string {
@@ -36,22 +38,6 @@ function formatTranscriptHtml(messages: ChatMessage[]): string {
     .join("");
 }
 
-function buildIntakeNotes(summary: ServiceIntakeSummary): string {
-  const parts = [
-    summary.symptoms?.trim() ? `Symptoms: ${summary.symptoms.trim()}` : null,
-    summary.possibleCauses.length
-      ? `Possible causes: ${summary.possibleCauses.join(", ")}`
-      : null,
-    summary.estimatedRange ? `Indicative range: ${summary.estimatedRange}` : null,
-    summary.callbackAvailability
-      ? `Callback availability: ${summary.callbackAvailability}`
-      : null,
-    summary.severityNote?.trim() ? summary.severityNote.trim() : null,
-  ].filter(Boolean);
-
-  return parts.length ? parts.join("\n") : NOT_PROVIDED;
-}
-
 export function renderBookingIntakeEmailText(
   summary: ServiceIntakeSummary,
   opts?: { transcript?: ChatMessage[]; bookingId?: string; customerEmail?: string }
@@ -64,13 +50,6 @@ export function renderBookingIntakeEmailText(
     bookingId: opts?.bookingId,
     referenceId: summary.chatSessionId,
   };
-  const bookingDetails = {
-    service: summary.bookingSlot.service,
-    preferredDate: summary.bookingSlot.preferredDate,
-    preferredTime: summary.bookingSlot.preferredTime,
-    notes: buildIntakeNotes(summary),
-    sourceLabel: formatWorkshopSourceLabel("ai_advisor"),
-  };
 
   const files =
     summary.uploadedFiles.length > 0
@@ -80,18 +59,20 @@ export function renderBookingIntakeEmailText(
   return [
     `${BRAND.shortName} — New AI Service Intake`,
     "",
-    ...renderWorkshopPhoneBannerText(contact.customerName, contact.customerPhone),
+    ...renderWorkshopPhoneBannerText(
+      contact.customerName,
+      contact.customerPhone,
+      contact.customerEmail
+    ),
     ...renderWorkshopIdsText(contact),
-    ...renderWorkshopContactText(contact),
-    ...renderWorkshopBookingText(bookingDetails),
-    `Vehicle:       ${formatWorkshopField(summary.vehicle)}`,
-    `Urgency:       ${formatWorkshopField(summary.urgency)}`,
+    ...renderWorkshopCaseBriefText(summary.caseSummary),
+    `Source: ${formatWorkshopSourceLabel("ai_advisor")}`,
     "",
     "UPLOADS",
     files,
     "",
     "-----------------------------------",
-    "Conversation Transcript",
+    "Conversation transcript (reference only)",
     "-----------------------------------",
     opts?.transcript?.length ? formatTranscriptText(opts.transcript) : NOT_PROVIDED,
     "",
@@ -111,16 +92,12 @@ export function renderBookingIntakeEmailHtml(
     bookingId: opts?.bookingId,
     referenceId: summary.chatSessionId,
   };
-  const bookingDetails = {
-    service: summary.bookingSlot.service,
-    preferredDate: summary.bookingSlot.preferredDate,
-    preferredTime: summary.bookingSlot.preferredTime,
-    notes: buildIntakeNotes(summary),
-    sourceLabel: formatWorkshopSourceLabel("ai_advisor"),
-  };
 
   const uploads = summary.uploadedFiles
-    .map((f) => `<li>${escapeHtml(f.fileName)} <span style="color:#888">(${escapeHtml(f.category)})</span></li>`)
+    .map(
+      (f) =>
+        `<li>${escapeHtml(f.fileName)} <span style="color:#888">(${escapeHtml(f.category)})</span></li>`
+    )
     .join("");
 
   return `<!DOCTYPE html>
@@ -128,21 +105,20 @@ export function renderBookingIntakeEmailHtml(
 <body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:24px;max-width:600px">
   <h1 style="color:#d4a63c;font-size:18px;margin:0 0 16px">New AI Service Intake</h1>
 
-  ${renderWorkshopPhoneBannerHtml(contact.customerName, contact.customerPhone)}
+  ${renderWorkshopPhoneBannerHtml(contact.customerName, contact.customerPhone, contact.customerEmail)}
   ${renderWorkshopIdsHtml(contact)}
   ${renderWorkshopContactHtml(contact)}
-  ${renderWorkshopBookingHtml(bookingDetails)}
+  ${renderWorkshopCaseBriefHtml(summary.caseSummary)}
 
   <p style="margin:0 0 20px;font-size:12px;color:#71717a">
-    Vehicle: ${escapeHtml(formatWorkshopField(summary.vehicle))}
-    · Urgency: ${escapeHtml(formatWorkshopField(summary.urgency))}
+    Source: ${escapeHtml(formatWorkshopSourceLabel("ai_advisor"))}
   </p>
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px">Uploads</h2>
   <ul style="margin:0 0 20px">${uploads || `<li>${NOT_PROVIDED}</li>`}</ul>
 
-  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px">Conversation transcript</h2>
-  <div style="background:#111;padding:12px;border-radius:8px;font-size:13px;max-height:400px;overflow:auto">
+  <h2 style="font-size:13px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px">Conversation transcript (reference only)</h2>
+  <div style="background:#111;padding:12px;border-radius:8px;font-size:13px;max-height:360px;overflow:auto">
     ${opts?.transcript?.length ? formatTranscriptHtml(opts.transcript) : `<p>${NOT_PROVIDED}</p>`}
   </div>
 </body>

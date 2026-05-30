@@ -119,7 +119,7 @@ export default function AdminHealthPage() {
   }, [loadAll]);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap max-w-4xl">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-white">System health</h1>

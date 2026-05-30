@@ -198,6 +198,39 @@ export default function AdminBookingDetailPage() {
     setNotice("Booking rejected.");
   }, [booking?.notes, patchBooking, rejectionNote]);
 
+  const handleDelete = useCallback(async () => {
+    if (!bookingId || !booking) return;
+    const label = booking.registration.trim() || "this booking";
+    if (
+      !window.confirm(
+        `Delete ${label}? This cannot be undone. Any linked job will stay but lose its booking link.`
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await adminFetch(`/api/bookings/${bookingId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.status === 401) {
+        router.replace(`/admin/login?from=/admin/bookings/${bookingId}`);
+        return;
+      }
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? "Could not delete booking.");
+      }
+      router.push("/admin/bookings");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete booking.");
+      setSaving(false);
+    }
+  }, [booking, bookingId, router]);
+
   const handleGenerateAssist = useCallback(async () => {
     if (!bookingId) return;
     setAssistLoading(true);
@@ -329,7 +362,7 @@ export default function AdminBookingDetailPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="admin-content-wrap max-w-5xl">
         <p className="text-sm text-zinc-500">Loading booking...</p>
       </main>
     );
@@ -337,7 +370,7 @@ export default function AdminBookingDetailPage() {
 
   if (!booking) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="admin-content-wrap max-w-5xl">
         <div className="premium-card rounded-2xl p-6">
           <p className="text-sm text-zinc-300">Booking not found.</p>
           <Link href="/admin/bookings" className="mt-3 inline-block text-sm text-[#d4a63c] hover:underline">
@@ -349,7 +382,7 @@ export default function AdminBookingDetailPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap max-w-5xl">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-white">Booking detail</h1>
@@ -383,12 +416,20 @@ export default function AdminBookingDetailPage() {
               >
                 Reject
               </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void handleDelete()}
+                className="rounded-full border border-rose-400/20 px-4 py-2 text-xs font-semibold text-rose-300/80 transition hover:border-rose-400/40 hover:text-rose-200 disabled:opacity-50"
+              >
+                Delete
+              </button>
             </div>
             <p className="mt-2 text-xs text-zinc-500">
               Human confirmation required. No automatic status changes are performed.
             </p>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div id="reschedule" className="mt-4 grid gap-2 sm:grid-cols-2 scroll-mt-24">
               <label className="text-xs text-zinc-400">
                 Reschedule date
                 <input

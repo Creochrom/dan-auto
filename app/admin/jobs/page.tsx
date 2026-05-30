@@ -8,7 +8,10 @@ import { AdminQuickLinks } from "@/components/enterprise/AdminQuickLinks";
 import { AdminStatusBadge } from "@/components/enterprise/AdminStatusBadge";
 import { JobAttachmentsPanel } from "@/components/workshop/JobAttachmentsPanel";
 import { JobInvoiceDraftPanel } from "@/components/workshop/JobInvoiceDraftPanel";
+import { JobRevenuePanel } from "@/components/workshop/JobRevenuePanel";
+import { JobRevenueSummary } from "@/components/workshop/JobRevenueSummary";
 import { JobContextPanel } from "@/components/workshop/JobContextPanel";
+import { WorkshopDisclosureSection } from "@/components/workshop/WorkshopDisclosureSection";
 import { WalkInJobDialog } from "@/components/workshop/WalkInJobDialog";
 import { displayRegistration } from "@/lib/workshop/command-palette";
 import { setActiveJobContext } from "@/lib/workshop/active-job-context";
@@ -31,7 +34,6 @@ import {
 import {
   TODAY_COLUMNS,
   groupJobsByTodayColumn,
-  isActiveFloorJob,
 } from "@/lib/workshop/today-queue";
 
 type JobsResponse =
@@ -82,11 +84,7 @@ function compactDate(value: string) {
   });
 }
 
-function resolveJobsFromResponse(json: JobsResponse | null): Job[] {
-  if (!json?.ok || !json.data) return [];
-  if (Array.isArray(json.data)) return json.data;
-  return Array.isArray(json.data.jobs) ? json.data.jobs : [];
-}
+import { resolveJobsFromResponse } from "@/lib/workshop/resolve-jobs-response";
 
 function nextStatus(current: JobStatus): JobStatus | null {
   const index = JOB_STATUSES.indexOf(current);
@@ -285,19 +283,15 @@ function AdminJobsCockpitContent() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const activeJobs = useMemo(
-    () => jobs.filter((job) => isActiveFloorJob(job.status)),
-    [jobs]
-  );
   const filteredJobs = useMemo(() => {
     const q = regSearch.trim().toLowerCase();
-    if (!q) return activeJobs;
-    return activeJobs.filter((job) =>
+    if (!q) return jobs;
+    return jobs.filter((job) =>
       `${job.registration} ${job.customerName} ${job.service}`
         .toLowerCase()
         .includes(q)
     );
-  }, [activeJobs, regSearch]);
+  }, [jobs, regSearch]);
   const queueColumns = useMemo(
     () => groupJobsByTodayColumn(filteredJobs),
     [filteredJobs]
@@ -485,7 +479,7 @@ function AdminJobsCockpitContent() {
   }, [customerDraft, selectedJob]);
 
   return (
-    <main className="mx-auto max-w-[1700px] px-3 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:px-5">
+    <main className="admin-content-wrap max-w-[1700px] pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))]">
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-white sm:text-2xl">Jobs Cockpit</h1>
@@ -565,6 +559,7 @@ function AdminJobsCockpitContent() {
                   ) : (
                     queueColumns[col.id].map((job) => {
                       const active = selectedJobId === job.id;
+                      const cardNext = nextStatus(job.status);
                       return (
                         <li key={job.id}>
                           <button
@@ -576,12 +571,32 @@ function AdminJobsCockpitContent() {
                                 : "border-white/[0.08] bg-black/35 hover:border-white/20"
                             }`}
                           >
+                            <p className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                              Vehicle
+                            </p>
                             <p className="font-mono text-sm font-semibold text-[#e8d5a3]">
                               {job.registration}
                             </p>
-                            <p className="truncate text-xs text-zinc-400">{job.service}</p>
-                            <div className="mt-1">
+                            <p className="truncate text-[11px] text-zinc-500">
+                              {job.customerName}
+                            </p>
+                            <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                              Work
+                            </p>
+                            <p className="truncate text-xs text-zinc-300">{job.service}</p>
+                            <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+                              Status
+                            </p>
+                            <div className="mt-1 flex items-center justify-between gap-2">
                               <AdminStatusBadge kind="job" status={job.status} />
+                              {cardNext ? (
+                                <span className="text-[10px] text-zinc-500">
+                                  Next: {JOB_STATUS_LABELS[cardNext]}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mt-2 border-t border-white/[0.06] pt-2">
+                              <JobRevenueSummary job={job} compact />
                             </div>
                           </button>
                         </li>
@@ -704,68 +719,92 @@ function AdminJobsCockpitContent() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-white/[0.08] bg-black/25 p-3">
-                        <JobInvoiceDraftPanel
-                          jobId={selectedJob.id}
-                          disabled={saving}
-                          compact
-                          onSaved={() => void loadSelectedJob(selectedJob.id)}
-                        />
-                      </div>
+                      <WorkshopDisclosureSection
+                        title="Revenue and invoice"
+                        subtitle="Quote, approved value, final invoice"
+                      >
+                        <div className="space-y-3">
+                          <div className="rounded-xl border border-white/[0.08] bg-black/25 p-3">
+                            <p className="mb-3 text-[10px] uppercase tracking-wider text-zinc-500">
+                              Revenue tracking
+                            </p>
+                            <JobRevenuePanel
+                              job={selectedJob}
+                              disabled={saving}
+                              onSave={async (patch) => {
+                                await patchJob(patch);
+                              }}
+                            />
+                          </div>
+                          <div className="rounded-xl border border-white/[0.08] bg-black/25 p-3">
+                            <JobInvoiceDraftPanel
+                              jobId={selectedJob.id}
+                              disabled={saving}
+                              compact
+                              onSaved={() => void loadSelectedJob(selectedJob.id)}
+                            />
+                          </div>
+                        </div>
+                      </WorkshopDisclosureSection>
 
-                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-amber-100">
-                            Customer draft <span className="text-amber-300/90">Draft only</span>
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => void handleCustomerDraft()}
-                            disabled={draftingCustomer}
-                            className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-amber-300/30 px-3 text-xs text-amber-100 hover:border-amber-300/60 disabled:opacity-50"
-                          >
-                            {draftingCustomer ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Sparkles className="h-3.5 w-3.5" />
-                            )}
-                            Draft message
-                          </button>
+                      <WorkshopDisclosureSection
+                        title="Customer update draft"
+                        subtitle="AI-assisted message for call, SMS, or email"
+                      >
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-amber-100">
+                              Customer draft <span className="text-amber-300/90">Draft only</span>
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void handleCustomerDraft()}
+                              disabled={draftingCustomer}
+                              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-amber-300/30 px-3 text-xs text-amber-100 hover:border-amber-300/60 disabled:opacity-50"
+                            >
+                              {draftingCustomer ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5" />
+                              )}
+                              Draft message
+                            </button>
+                          </div>
+                          <textarea
+                            value={customerDraft}
+                            onChange={(event) => setCustomerDraft(event.target.value)}
+                            rows={6}
+                            placeholder="Generate draft, edit, then copy or send from your phone/email app."
+                            className="input-premium mt-2 w-full rounded-xl px-3 py-2 text-sm text-white"
+                          />
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void copyText(customerDraft, "Could not copy draft.")
+                              }
+                              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-xs text-zinc-200 hover:border-white/30"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              Copy
+                            </button>
+                            <a
+                              href={`tel:${selectedJob.customerPhone.replace(/\s+/g, "")}`}
+                              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-xs text-zinc-200 hover:border-white/30"
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                              Call
+                            </a>
+                            <a
+                              href={mailtoHref}
+                              className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-xs text-zinc-200 hover:border-white/30"
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                              Email
+                            </a>
+                          </div>
                         </div>
-                        <textarea
-                          value={customerDraft}
-                          onChange={(event) => setCustomerDraft(event.target.value)}
-                          rows={6}
-                          placeholder="Generate draft, edit, then copy or send from your phone/email app."
-                          className="input-premium mt-2 w-full rounded-xl px-3 py-2 text-sm text-white"
-                        />
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void copyText(customerDraft, "Could not copy draft.")
-                            }
-                            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-xs text-zinc-200 hover:border-white/30"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            Copy
-                          </button>
-                          <a
-                            href={`tel:${selectedJob.customerPhone.replace(/\s+/g, "")}`}
-                            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-xs text-zinc-200 hover:border-white/30"
-                          >
-                            <Phone className="h-3.5 w-3.5" />
-                            Call
-                          </a>
-                          <a
-                            href={mailtoHref}
-                            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-xs text-zinc-200 hover:border-white/30"
-                          >
-                            <Mail className="h-3.5 w-3.5" />
-                            Email
-                          </a>
-                        </div>
-                      </div>
+                      </WorkshopDisclosureSection>
                     </div>
                   )}
 

@@ -36,6 +36,8 @@ function milestoneIcon(id: WorkshopMilestoneId) {
       return Phone;
     case "job_completed":
       return CheckCircle2;
+    case "vehicle_collected":
+      return CheckCircle2;
     default:
       return RefreshCw;
   }

@@ -4,6 +4,10 @@ import { formatPlate } from "@/lib/format-plate";
 import type { NormalizedDvlaVehicle } from "@/lib/services/dvla/dvla.types";
 import type { MotHistoryVehicle, MotTestRecord } from "@/lib/services/dvla/mot-history.service";
 import { issuesFor, servicesFor } from "@/lib/vehicle-report-builder";
+import {
+  engineLabelFromCapacity,
+  extractEngineDisplacement,
+} from "@/lib/vehicle-engine-display";
 import { resolveVehicleImage } from "@/lib/vehicle-images";
 
 function titleCaseMake(make: string): string {
@@ -51,8 +55,7 @@ function motFromDvla(
 
 function engineLabel(dvla: NormalizedDvlaVehicle): string {
   if (dvla.engineCapacity && dvla.engineCapacity > 0) {
-    const litres = (dvla.engineCapacity / 1000).toFixed(1);
-    return `${litres}L ${dvla.fuelType !== "Unknown" ? dvla.fuelType : "Engine"}`;
+    return engineLabelFromCapacity(dvla.engineCapacity, dvla.fuelType);
   }
   return dvla.fuelType !== "Unknown" ? dvla.fuelType : "Engine details unavailable";
 }
@@ -129,10 +132,15 @@ export function buildVehicleReportFromDvla(
       ? (latestTest.rfrAndComments ?? []).filter((c) => c.type === "ADVISORY").length
       : 0;
 
+  const engine = engineLabel(dvla);
+  const engineShort = extractEngineDisplacement(engine);
+  const metaParts = [String(dvla.yearOfManufacture), fuel];
+  if (engineShort) metaParts.push(engineShort);
+
   const legacy: VehicleResult = {
     reg: displayReg,
     makeModel,
-    meta: `${dvla.yearOfManufacture} • ${fuel}`,
+    meta: metaParts.join(" • "),
     motLine: mot.motLine,
     motDays: mot.motDays,
     motStatus: mot.motStatus,
@@ -158,7 +166,7 @@ export function buildVehicleReportFromDvla(
       makeModel,
       year: dvla.yearOfManufacture,
       fuel,
-      engine: engineLabel(dvla),
+      engine,
       motStatus: mot.motLine,
       taxStatus: taxLine(dvla.taxStatus),
       motExpiryDate: dvla.motExpiryDate,

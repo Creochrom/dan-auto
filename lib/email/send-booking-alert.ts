@@ -15,8 +15,17 @@ import {
   renderWorkshopAlertSubject,
   renderWorkshopAlertText,
 } from "@/lib/email/templates/booking-alert";
+import {
+  renderWorkshopCancelledHtml,
+  renderWorkshopCancelledSubject,
+  renderWorkshopCancelledText,
+  renderWorkshopUpdatedHtml,
+  renderWorkshopUpdatedSubject,
+  renderWorkshopUpdatedText,
+} from "@/lib/email/templates/booking-updated";
 import { logBookingEvent } from "@/lib/logging/booking-events";
 import type { Booking } from "@/lib/types/booking";
+import type { BookingFieldChange } from "@/lib/types/booking-events";
 
 export type NotificationSendResult = {
   sent: boolean;
@@ -105,12 +114,85 @@ export async function sendCustomerBookingConfirmation(
     return { sent: true, provider: result.provider, messageId: result.id };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
+    return { sent: false, error };
+  }
+}
+
+async function sendWorkshopBookingNotification({
+  booking,
+  kind,
+  subject,
+  text,
+  html,
+}: {
+  booking: Booking;
+  kind: "workshop_updated" | "workshop_cancelled";
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<NotificationSendResult> {
+  const recipients = getIntakeEmailRecipients();
+  if (recipients.length === 0) {
     logBookingEvent("notification.failed", {
-      kind: "customer",
+      kind,
       bookingId: booking.id,
+      provider: getEmailProvider(),
+      error: "BOOKING_EMAIL_TO is not configured",
+    });
+    return { sent: false, error: "BOOKING_EMAIL_TO is not configured" };
+  }
+
+  try {
+    const result = await sendTransactionalEmail({
+      to: recipients,
+      subject,
+      text,
+      html,
+      replyTo: booking.customerEmail,
+    });
+    logBookingEvent("notification.sent", {
+      kind,
+      bookingId: booking.id,
+      provider: result.provider,
+      messageId: result.id,
+      recipientDomain: recipients.map((r) => r.split("@")[1] ?? "unknown").join(","),
+    });
+    return { sent: true, provider: result.provider, messageId: result.id };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    logBookingEvent("notification.failed", {
+      kind,
+      bookingId: booking.id,
+      registration: booking.registration,
       provider: getEmailProvider(),
       error,
     });
     return { sent: false, error };
   }
+}
+
+export async function sendWorkshopBookingUpdated(
+  booking: Booking,
+  changes: readonly BookingFieldChange[]
+): Promise<NotificationSendResult> {
+  return sendWorkshopBookingNotification({
+    booking,
+    kind: "workshop_updated",
+    subject: renderWorkshopUpdatedSubject(booking),
+    text: renderWorkshopUpdatedText(booking, changes),
+    html: renderWorkshopUpdatedHtml(booking, changes),
+  });
+}
+
+export async function sendWorkshopBookingCancelled(
+  booking: Booking,
+  changes: readonly BookingFieldChange[]
+): Promise<NotificationSendResult> {
+  return sendWorkshopBookingNotification({
+    booking,
+    kind: "workshop_cancelled",
+    subject: renderWorkshopCancelledSubject(booking),
+    text: renderWorkshopCancelledText(booking, changes),
+    html: renderWorkshopCancelledHtml(booking, changes),
+  });
 }

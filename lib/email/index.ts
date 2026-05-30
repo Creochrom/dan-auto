@@ -12,6 +12,8 @@ export { sendWorkshopIntakeEmail } from "@/lib/email/send-workshop-intake";
 export {
   sendWorkshopBookingAlert,
   sendCustomerBookingConfirmation,
+  sendWorkshopBookingUpdated,
+  sendWorkshopBookingCancelled,
 } from "@/lib/email/send-booking-alert";
 export { sendWorkshopLeadAlert } from "@/lib/email/send-lead-alert";
 export {
@@ -30,6 +32,14 @@ export {
   renderCustomerConfirmationHtml,
   renderCustomerConfirmationSubject,
 } from "@/lib/email/templates/booking-alert";
+export {
+  renderWorkshopUpdatedText,
+  renderWorkshopUpdatedHtml,
+  renderWorkshopUpdatedSubject,
+  renderWorkshopCancelledText,
+  renderWorkshopCancelledHtml,
+  renderWorkshopCancelledSubject,
+} from "@/lib/email/templates/booking-updated";
 export {
   buildAiIntakeSubject,
   renderAiIntakeEmailHtml,

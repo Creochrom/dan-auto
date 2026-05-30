@@ -6,6 +6,7 @@
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { CreateLeadInput, Lead, LeadStatus } from "@/lib/types/lead";
+import { parseWorkshopCaseFromLead, serializeWorkshopCaseForLead } from "@/lib/types/workshop-case-summary";
 
 /** DB row shape — snake_case as returned by PostgREST */
 type LeadRow = {
@@ -25,6 +26,7 @@ type LeadRow = {
 };
 
 function toLead(row: LeadRow): Lead {
+  const aiSummary = row.ai_summary ?? undefined;
   return {
     id: row.id,
     status: row.status,
@@ -36,7 +38,8 @@ function toLead(row: LeadRow): Lead {
     problemDescription: row.problem_description ?? undefined,
     preferredDate: row.preferred_date ?? undefined,
     source: row.source,
-    aiSummary: row.ai_summary ?? undefined,
+    aiSummary,
+    caseSummary: parseWorkshopCaseFromLead(aiSummary),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -83,6 +86,10 @@ export const supabaseLeadsRepository = {
     const now = new Date().toISOString();
     const id = newId();
 
+    const aiSummary = input.caseSummary
+      ? serializeWorkshopCaseForLead(input.caseSummary)
+      : input.aiSummary ?? null;
+
     const row: LeadRow = {
       id,
       status: "new",
@@ -94,7 +101,7 @@ export const supabaseLeadsRepository = {
       problem_description: input.problemDescription ?? null,
       preferred_date: input.preferredDate ?? null,
       source: input.source ?? "website",
-      ai_summary: input.aiSummary ?? null,
+      ai_summary: aiSummary,
       created_at: now,
       updated_at: now,
     };

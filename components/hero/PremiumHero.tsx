@@ -222,6 +222,7 @@ function PremiumHeroWindowStack({
         {vehicleData && chatOpen && (
           <HeroAIChatModal
             vehicle={vehicleData}
+            vehicleReport={vehicleReport}
             open={chatOpen}
             launchId={heroLaunchId}
             initialMode={heroConciergeMode}

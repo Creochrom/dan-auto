@@ -86,6 +86,8 @@ export type SendChatOptions = {
   displayContent?: string;
   source?: ChatMessageSource;
   registration?: string;
+  /** When set, used for this turn instead of the hook's current advisorRoute (mode-switch fix). */
+  advisorRouteOverride?: AdvisorRouteContext;
 };
 
 export type ChatRequest = {

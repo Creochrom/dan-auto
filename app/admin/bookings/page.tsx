@@ -24,6 +24,7 @@ function AdminBookingsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<BookingStatus | "all">("all");
 
   const loadBookings = useCallback(async () => {
@@ -100,8 +101,46 @@ function AdminBookingsContent() {
     }
   }
 
+  async function onDeleteBooking(id: string, registration: string) {
+    const label = registration.trim() || "this booking";
+    if (
+      !window.confirm(
+        `Delete ${label}? This cannot be undone. Any linked job will stay but lose its booking link.`
+      )
+    ) {
+      return;
+    }
+
+    setPendingDeleteId(id);
+    setError(null);
+    try {
+      const res = await adminFetch(`/api/bookings/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (res.status === 401) {
+        router.replace("/admin/login");
+        return;
+      }
+
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? "Could not delete booking.");
+      }
+
+      setBookings((prev) => prev.filter((booking) => booking.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete booking.");
+    } finally {
+      setPendingDeleteId(null);
+    }
+  }
+
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-white">Bookings</h1>
@@ -194,14 +233,16 @@ function AdminBookingsContent() {
           ) : null}
         </div>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibleBookings.map((b) => (
             <li key={b.id}>
               <WorkshopBookingCard
                 booking={b}
                 statusChanging={pendingStatusId === b.id}
+                deleting={pendingDeleteId === b.id}
                 onStatusChange={(status) => void onChangeStatus(b.id, status)}
                 onConfirm={() => void onChangeStatus(b.id, "confirmed")}
+                onDelete={() => void onDeleteBooking(b.id, b.registration)}
               />
             </li>
           ))}

@@ -31,7 +31,7 @@ function toVehicle(row: VehicleRow): Vehicle {
 }
 
 function vehicleId(registration: string) {
-  return `veh_${stripPlate(registration).toLowerCase()}`;
+  return `veh_${stripPlate(registration)}`;
 }
 
 export const supabaseVehiclesRepository = {

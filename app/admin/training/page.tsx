@@ -75,14 +75,14 @@ export default function AdminTrainingPage() {
 
   if (!ready) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      <main className="admin-content-wrap max-w-3xl py-12">
         <p className="text-sm text-zinc-500">Loading training room…</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap max-w-3xl">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-white">AI training</h1>

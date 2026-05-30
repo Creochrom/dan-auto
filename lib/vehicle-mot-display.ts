@@ -1,4 +1,5 @@
 import type { VehicleReport } from "@/lib/types/vehicle-report";
+import { extractEngineDisplacement } from "@/lib/vehicle-engine-display";
 
 export const MOT_HISTORY_URL = "https://www.gov.uk/check-mot-history";
 
@@ -11,8 +12,7 @@ export function vehicleIdentity(report: VehicleReport): {
 
   const engine = profile.engine.trim();
   if (engine.length > 0 && !engine.toLowerCase().includes("unavailable")) {
-    const litres = engine.match(/[\d.]+L/i)?.[0];
-    metaParts.push(litres ?? engine);
+    metaParts.push(extractEngineDisplacement(engine) ?? engine);
   }
 
   return {

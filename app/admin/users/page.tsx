@@ -102,7 +102,7 @@ export default function AdminUsersPage() {
   );
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap max-w-5xl">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-white">Users & Permissions</h1>

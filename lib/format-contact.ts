@@ -21,7 +21,7 @@ export function formatPhoneDisplay(phone: string): string {
   if (e164.startsWith("44") && e164.length >= 11) {
     const national = e164.slice(2);
     if (national.length === 10) {
-      return `+44 ${national.slice(0, 4)} ${national.slice(4)}`;
+      return `+44 ${national.slice(0, 4)} ${national.slice(4, 7)} ${national.slice(7)}`;
     }
     if (national.length <= 4) return `+44 ${national}`;
     return `+44 ${national.slice(0, 4)} ${national.slice(4)}`;

@@ -1,3 +1,5 @@
+import type { SuggestionChip } from "@/lib/types/intake";
+
 /** First turn when user chooses mechanic callback — shown locally before API session. */
 export const CALLBACK_OPENING_QUESTION =
   "What would you like to speak with the mechanic about?";
@@ -30,3 +32,9 @@ export const CALLBACK_TIME_CHIP_IDS = [
 ] as const;
 
 export const CALLBACK_CONFIRM_CHIP_ID = "callback-confirm-send";
+
+export const CALLBACK_CONFIRM_CHIP: SuggestionChip = {
+  id: CALLBACK_CONFIRM_CHIP_ID,
+  label: "Send request",
+  message: "Yes, please send my callback request",
+};

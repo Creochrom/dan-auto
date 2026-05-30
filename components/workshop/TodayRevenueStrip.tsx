@@ -30,7 +30,7 @@ export function TodayRevenueStrip({ pipeline, loading }: Props) {
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
           Indicative pipeline
         </p>
-        <p className="text-[10px] text-zinc-600">Not accounting data · estimates &amp; drafts</p>
+        <p className="text-[10px] text-zinc-600">Job-tracked values · not accounting data</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map(({ label, value, sub }) => (

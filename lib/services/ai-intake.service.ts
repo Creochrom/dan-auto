@@ -1,7 +1,7 @@
 import { CALLBACK_SUBMIT_SUCCESS } from "@/lib/config/callback-flow-copy";
 import { WORKSHOP_SUBMIT_SUCCESS } from "@/lib/config/hero-concierge-copy";
 import { buildAiIntakeWorkshopSummary } from "@/lib/email/build-ai-intake-summary";
-import { getIntakeEmailRecipients } from "@/lib/email/config";
+import { getIntakeEmailRecipients, assertProductionEmailDelivery } from "@/lib/email/config";
 import { sendTransactionalEmail } from "@/lib/email/send-transactional";
 import {
   buildAiIntakeSubject,
@@ -9,11 +9,25 @@ import {
   renderAiIntakeEmailText,
 } from "@/lib/email/templates/ai-intake";
 import { resolveAiIntakeSession } from "@/lib/services/ai-intake-session";
+import {
+  validateCustomerName,
+  validateCustomerPhone,
+  validateLeadContact,
+} from "@/lib/validation/advisor-contact";
 import { chatRepository } from "@/lib/repositories/chat.repository";
 import { leadService } from "@/lib/services/lead.service";
 import { vehicleMemoryService } from "@/lib/services/vehicle-memory.service";
 import type { AiIntakeSubmitInput, AiIntakeSubmitResult } from "@/lib/types/ai-intake";
 import { isValidEmail, sanitizePlainText } from "@/lib/utils/sanitize";
+
+function rejectPlaceholderContact(name: string, phone: string): void {
+  const contact = validateLeadContact(name, phone);
+  if (!contact.canSubmit) {
+    throw new Error(
+      "Valid name and UK phone number are required before sending to the workshop"
+    );
+  }
+}
 
 export const aiIntakeService = {
   async submit(input: AiIntakeSubmitInput): Promise<AiIntakeSubmitResult> {
@@ -74,21 +88,29 @@ export const aiIntakeService = {
       customerEmail: input.customerEmail?.trim(),
     });
 
-    // Graceful partial-data policy: send the lead even if some fields are
-    // missing — the workshop would rather have an incomplete lead than no
-    // lead at all. We only refuse if there is truly nothing actionable
-    // (no contact at all AND no symptoms AND no transcript content).
-    const hasAnyContact =
-      summary.customerName !== "Not provided" ||
-      summary.customerPhone !== "Not provided" ||
-      Boolean(summary.customerEmail);
+    const resolvedName =
+      name || (summary.customerName !== "Not provided" ? summary.customerName : undefined);
+    const resolvedPhone =
+      phone || (summary.customerPhone !== "Not provided" ? summary.customerPhone : undefined);
+
+    rejectPlaceholderContact(resolvedName ?? "", resolvedPhone ?? "");
+
+    const nameCheck = validateCustomerName(resolvedName);
+    const phoneCheck = validateCustomerPhone(resolvedPhone);
+    if (!nameCheck.valid || !phoneCheck.valid) {
+      throw new Error(
+        "Valid name and UK phone number are required before sending to the workshop"
+      );
+    }
+
+    // Graceful partial-data policy for issue context — contact is mandatory.
     const hasAnyIssueContext =
-      Boolean(summary.symptoms && summary.symptoms !== "Not specified — see transcript") ||
+      Boolean(summary.caseSummary.symptoms?.trim()) ||
       summary.warningLights.length > 0 ||
       summary.possibleCauses.length > 0 ||
       summary.transcript.some((m) => m.role === "user");
 
-    if (!hasAnyContact && !hasAnyIssueContext) {
+    if (!hasAnyIssueContext) {
       throw new Error("Nothing collected yet — finish the advisor conversation");
     }
 
@@ -101,6 +123,20 @@ export const aiIntakeService = {
       throw new Error("Workshop email is not configured (BOOKING_EMAIL_TO)");
     }
 
+    assertProductionEmailDelivery();
+
+    console.info("[ai-intake] submission payload", {
+      chatSessionId: sessionId,
+      intent: summary.intent,
+      customerName: nameCheck.normalized,
+      customerPhone: phoneCheck.normalized,
+      registration: summary.registration,
+      callbackAvailability: summary.callbackAvailability,
+      preferredBookingTime: summary.preferredBookingTime,
+      uploadCount: summary.uploadedFiles.length,
+      recipientCount: recipients.length,
+    });
+
     const sent = await sendTransactionalEmail({
       to: recipients,
       subject,
@@ -109,8 +145,65 @@ export const aiIntakeService = {
       replyTo: summary.customerEmail,
     });
 
+    const emailSent = sent.provider === "resend";
+
+    console.info("[ai-intake] email send result", {
+      chatSessionId: sessionId,
+      emailSent,
+      emailId: sent.id,
+      provider: sent.provider,
+      intent: summary.intent,
+    });
+
+    if (
+      process.env.NODE_ENV === "production" &&
+      (!emailSent || sent.provider === "log")
+    ) {
+      throw new Error(
+        "Workshop email could not be sent — callback request was not completed."
+      );
+    }
+
     if (fromMemory) {
       await chatRepository.markIntakeEmailed(sessionId, sent.id);
+    }
+
+    let leadId: string;
+    if (!fromMemory?.leadCaptured) {
+      const lead = await leadService.create(
+        {
+          name: nameCheck.normalized,
+          phone: phoneCheck.normalized,
+          email: summary.customerEmail,
+          registration: summary.registration,
+          vehicleModel: summary.vehicle,
+          problemDescription: summary.symptoms || undefined,
+          preferredDate:
+            summary.callbackPreferredDate ??
+            summary.preferredBookingTime ??
+            summary.callbackAvailability,
+          source: summary.intent === "callback" ? "callback" : "assistant",
+          caseSummary: summary.caseSummary,
+        },
+        { suppressWorkshopEmail: true, sourceIntent: summary.intent }
+      );
+      leadId = lead.id;
+      if (fromMemory) {
+        await chatRepository.markLeadCaptured(sessionId);
+      }
+    } else {
+      const leads = await leadService.list();
+      const match = leads.find(
+        (l) =>
+          l.phone === phoneCheck.normalized &&
+          l.name.toLowerCase() === nameCheck.normalized.toLowerCase()
+      );
+      if (!match) {
+        throw new Error(
+          "Could not locate the callback record — please try sending again"
+        );
+      }
+      leadId = match.id;
     }
 
     // Persist into vehicle memory so the next visit greets this customer
@@ -122,47 +215,26 @@ export const aiIntakeService = {
       console.warn("[ai-intake] vehicle memory persistence failed", err);
     }
 
-    if (!fromMemory?.leadCaptured) {
-      await leadService.create(
-        {
-          name: summary.customerName,
-          phone: summary.customerPhone,
-          email: summary.customerEmail,
-          registration: summary.registration,
-          vehicleModel: summary.vehicle,
-          problemDescription: summary.symptoms,
-          preferredDate: summary.preferredBookingTime ?? summary.callbackAvailability,
-          source: summary.intent === "callback" ? "callback" : "assistant",
-          aiSummary: [
-            summary.aiSummary ? `Summary: ${summary.aiSummary}` : null,
-            `Service: ${summary.serviceRequested}`,
-            summary.warningLights.length
-              ? `Warning lights: ${summary.warningLights.join(", ")}`
-              : null,
-            `Drivability: ${summary.drivability}`,
-            `Intent: ${summary.intent}`,
-            summary.possibleCauses.length
-              ? `Causes: ${summary.possibleCauses.join("; ")}`
-              : null,
-            `Range: ${summary.estimatedRange ?? "—"}`,
-            `Urgency: ${summary.urgency}`,
-            summary.partial ? `Partial — missing: ${summary.missingFields.join(", ")}` : null,
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        },
-        { suppressWorkshopEmail: true, sourceIntent: summary.intent }
-      );
-      if (fromMemory) {
-        await chatRepository.markLeadCaptured(sessionId);
-      }
-    }
-
+    const submittedAt = new Date().toISOString();
     const confirmationMessage =
       summary.intent === "callback" ? CALLBACK_SUBMIT_SUCCESS : WORKSHOP_SUBMIT_SUCCESS;
 
-    return {
+    console.info("[ai-intake] completed", {
+      chatSessionId: sessionId,
+      leadId,
+      submittedAt,
+      intent: summary.intent,
+      emailSent,
       emailId: sent.id,
+      responseStatus: "created",
+    });
+
+    return {
+      leadId,
+      submittedAt,
+      emailSent,
+      emailId: sent.id,
+      emailProvider: sent.provider,
       confirmationMessage,
       summary,
     };

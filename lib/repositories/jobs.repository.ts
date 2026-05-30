@@ -40,7 +40,7 @@ function todayIso() {
 function vehicleRef(registration: string) {
   const canonical = stripPlate(registration);
   return {
-    id: `veh_${canonical.toLowerCase()}`,
+    id: `veh_${canonical}`,
     registration: registration.trim().toUpperCase(),
     registrationCanonical: canonical,
   };
@@ -153,6 +153,9 @@ export const jobsRepository = {
       service: input.service,
       symptomsText: input.symptomsText,
       assignedTo: input.assignedTo,
+      estimatedValuePence: input.estimatedValuePence ?? null,
+      approvedQuotePence: null,
+      finalInvoicePence: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -175,6 +178,15 @@ export const jobsRepository = {
       ...(patch.notesText !== undefined ? { notesText: patch.notesText } : {}),
       ...(patch.symptomsText !== undefined ? { symptomsText: patch.symptomsText } : {}),
       ...(patch.assignedTo !== undefined ? { assignedTo: patch.assignedTo } : {}),
+      ...(patch.estimatedValuePence !== undefined
+        ? { estimatedValuePence: patch.estimatedValuePence }
+        : {}),
+      ...(patch.approvedQuotePence !== undefined
+        ? { approvedQuotePence: patch.approvedQuotePence }
+        : {}),
+      ...(patch.finalInvoicePence !== undefined
+        ? { finalInvoicePence: patch.finalInvoicePence }
+        : {}),
       updatedAt: new Date().toISOString(),
     };
 

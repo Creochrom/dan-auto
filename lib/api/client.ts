@@ -10,6 +10,7 @@ import type {
   CompleteBookingIntakeInput,
   CompleteBookingIntakeResult,
 } from "@/lib/types/service-intake";
+import { bookingTraceStage } from "@/lib/logging/booking-trace";
 
 type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -69,12 +70,30 @@ export async function uploadMediaFile(
 export async function completeBookingIntake(
   input: CompleteBookingIntakeInput
 ): Promise<CompleteBookingIntakeResult> {
+  const traceId = input.traceId;
+  if (traceId) {
+    bookingTraceStage("4_post_booking_intake", traceId, {
+      transport: "fetch",
+      url: "/api/booking-intake",
+    });
+  }
+
   const res = await fetch("/api/booking-intake", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
   const json = await parse<CompleteBookingIntakeResult>(res);
+
+  if (traceId) {
+    bookingTraceStage("9_api_response", traceId, {
+      httpStatus: res.status,
+      ok: json.ok,
+      error: json.ok ? null : json.error,
+      bookingId: json.ok ? json.data.bookingId : null,
+    });
+  }
+
   if (!json.ok) throw new Error(json.error);
   return json.data;
 }

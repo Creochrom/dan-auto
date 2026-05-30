@@ -7,7 +7,7 @@ export default function AdminDocsPage() {
   const productBrain = ADMIN_DOCS.filter((doc) => doc.group === "product-brain");
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap max-w-6xl">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-white">Docs Center</h1>

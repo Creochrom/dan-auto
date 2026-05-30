@@ -6,12 +6,42 @@ import { formatAdvisorRouteForPrompt } from "@/lib/services/advisor-routing-prom
 import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import {
   bookingContextLine,
-  isStructuredIntakeReadyForHandoff,
   mergeStructuredIntake,
+  resolveDvlaVehicleFacts,
   structuredIntakeToIntakeState,
   structuredIntakeToLeadDraft,
   structuredIntakeToMechanicSummary,
 } from "@/lib/services/intake-mapper";
+import {
+  applyPricingTerminalIntent,
+  enforceCallbackModeTurn,
+  enforceHandoffWorkflowChips,
+  enforcePricingModeTurn,
+  isHandoffClaimAllowed,
+  isHandoffIntakeComplete,
+  pricingEstimateReady,
+  resolveWorkflowMode,
+  sanitizeAssistantContactPlaceholders,
+  sanitizeLeadDraftContact,
+  sanitizeStructuredIntakeContact,
+  shouldBlockPrematureCompletionMessage,
+  softenPrematureCompletionMessage,
+  validateLeadCompletion,
+  workflowValidationBlock,
+} from "@/lib/services/advisor-workflow";
+import {
+  applyUnifiedIntakeQuality,
+  enforceDiagnosticModeTurn,
+} from "@/lib/intake/unified-intake";
+import { emitBookingValidationTrace } from "@/lib/logging/booking-validation-trace";
+import { finalizeAssistantContent } from "@/lib/chat/assistant-output";
+import { capPricingBubbles, stripPricingFiller } from "@/lib/chat/pricing-output";
+import { CALLBACK_CONFIRM_CHIP } from "@/lib/config/callback-flow-copy";
+import { BOOKING_CONFIRM_CHIP } from "@/lib/services/booking-handoff";
+import {
+  parseGeminiResponse,
+  type GeminiParseFailure,
+} from "@/lib/services/gemini-json-parse";
 import type { AdvisorTurnResult } from "@/lib/services/service-advisor.engine";
 import type { BookingChatContext, ChatMessage, LeadDraft } from "@/lib/types/chat";
 import type { SuggestionChip } from "@/lib/types/intake";
@@ -41,15 +71,6 @@ function getModelName(): string {
   return process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
 }
 
-type GeminiTurnPayload = {
-  assistantMessage: string;
-  suggestionChips?: unknown;
-  quickReplies?: unknown;
-  structuredIntake?: Partial<StructuredIntake>;
-  intakeComplete?: boolean;
-  typingLabel?: string;
-};
-
 const JSON_INSTRUCTION = `
 You must respond with a single JSON object (no markdown fences) matching this shape:
 {
@@ -59,7 +80,9 @@ You must respond with a single JSON object (no markdown fences) matching this sh
     "customer": { "name": "", "contact": "" },
     "vehicle": { "make": "", "model": "", "year": "", "engine": "", "mileage": "" },
     "issue": {
+      "primarySymptom": "Warning light|Noise|Overheating|…",
       "symptoms": [],
+      "drivingSymptoms": [],
       "warningLights": [],
       "startedWhen": "",
       "drivable": null,
@@ -71,6 +94,7 @@ You must respond with a single JSON object (no markdown fences) matching this sh
       "estimatedPriceRange": "",
       "urgencyLevel": "low|medium|high",
       "recommendedNextStep": "",
+      "diagnosticConfidence": "low|medium|high|",
       "summary": ""
     },
     "intent": "book|callback|quote|info_only|",
@@ -82,11 +106,12 @@ You must respond with a single JSON object (no markdown fences) matching this sh
 
 Rules for structuredIntake (this is the workshop's handoff record — populate diligently, never invent data):
 - Merge with CURRENT_INTAKE provided in the user turn — never clear fields that are already filled unless the customer corrects them.
-- Extract every detail the customer gives — symptoms, dashboard warning lights (e.g. "Engine", "ABS", "Battery", "Oil pressure"), when it started, whether the car is drivable, vehicle make/model/year/engine/mileage, name, phone/email.
+- Extract every detail the customer gives — primary symptom category, symptoms, driving symptoms (power loss, pulling, vibration), dashboard warning lights (e.g. "Engine", "ABS", "Battery", "Oil pressure"), when it started, whether the car is drivable, vehicle make/model/year/engine/mileage, name, phone/email.
 - "issue.drivable": true if customer confirms it drives safely, false if they say they're avoiding driving / it's unsafe / won't start, null if unknown.
 - "issue.severity": "low" | "medium" | "high" based on safety risk (flashing engine light, brake failure, overheating = high).
 - "aiEstimate.estimatedPriceRange": a rough non-binding UK GBP range ("£80–£350 indicative") when you have enough context, else empty.
 - "aiEstimate.possibleCauses": cautious language only ("may indicate", "could point to"), never definitive diagnosis.
+- "aiEstimate.diagnosticConfidence": "low" | "medium" | "high" — how much context supports the likely causes (diagnostic mode only).
 - "aiEstimate.recommendedNextStep": short action ("Bring in for diagnostic scan", "Avoid driving — request recovery", "Routine service check").
 - "aiEstimate.summary": concise mechanic-friendly handoff (max ~4 short lines worth): customer concern, symptoms, urgency, warning lights, likely area, media noted, estimate discussed, intent. NOT a transcript.
 - "media": array of short notes when customer attached or described uploads (e.g. "Photo of engine warning light", "Short video of suspension knock"). Empty if none.
@@ -96,21 +121,30 @@ Rules for structuredIntake (this is the workshop's handoff record — populate d
     "quote"      — wants an indicative price before deciding
     "info_only"  — general question, not committing to a visit yet
     ""           — not yet clear
-- "preferredBookingTime": free-text the customer named ("Tomorrow afternoon", "Sat morning", "ASAP", "Anytime this week"). Empty if not stated.
+- "preferredBookingTime": free-text day + window ("Tomorrow morning", "Monday afternoon", "ASAP"). Use windows only — never exact clock times like "10:30".
 
 Conversation rules:
 - Never introduce yourself as AI/Gemini or explain technology. Workshop static intro already set context.
-- Ask at most one main question per turn. Use INFO: for context; MAIN QUESTION: or QUESTION: for the follow-up.
-- For safety guidance use WARNING:; indicative ranges use ESTIMATE:; clear actions use NEXT STEP:
+- Ask at most one main question per turn. Write natural conversational prose — no internal labels.
+- For safety guidance or indicative ranges, state them plainly in full sentences.
 - Request photo/video/audio uploads only when helpful (warning light, leak, smoke, noise clip) — not every turn.
-- Keep assistantMessage short: prefer 1 short sentence. If suggestionChips are present, keep it <= 80 characters when possible.
-- Do not use markdown ** in assistantMessage — use these prefixes for emphasis instead.
-- Set "intakeComplete": true ONLY when HANDOFF_POLICY allows it AND the customer has explicitly agreed to workshop handoff with name + phone on file. For HANDOFF_POLICY explicit_only, keep intakeComplete false until the UI callback form is submitted — never mark complete from chat text alone.
+- Keep assistantMessage short: prefer 1–2 short sentences. In pricing mode you may use two sentences (estimate + one question) separated by a blank line.
+- Do not use markdown ** in assistantMessage.
+- NEVER use customer-visible labels such as INFO:, ESTIMATE:, QUESTION:, MAIN QUESTION:, NEXT STEP:, or WARNING:.
+- Set intakeComplete true ONLY when WORKFLOW_VALIDATION.canSubmit is true for the active CONCIERGE_MODE AND the customer explicitly confirmed handoff. Never set intakeComplete in pricing or diagnostic modes.
+- Booking mode: when all required fields are valid, set intakeComplete true. Do NOT offer booking-confirm-send chip — the app shows a review summary and send button. Do NOT ask for exact clock times (10:00, 11:00) — Morning/Afternoon/Evening windows are enough.
+- NEVER store placeholder contact text in structuredIntake (e.g. "My name and number", "Call me", "WhatsApp is best") — leave customer.name and customer.contact empty until a real name and UK phone number are given.
+- NEVER use bracket placeholders in assistantMessage (e.g. [Your Name], [Your Mobile Number]) unless WORKFLOW_VALIDATION.canSubmit is true AND you substitute real validated values.
+- NEVER offer callback-confirm-send or booking-confirm-send chips unless WORKFLOW_VALIDATION.canSubmit is true.
+- NEVER claim booking confirmed, appointment booked, scheduled, reserved, availability confirmed, request submitted, or that the workshop was notified unless intakeComplete is true AND WORKFLOW_VALIDATION.canSubmit is true.
+- Modes must stay separated: do NOT switch from pricing/diagnostic into booking or callback collection unless the customer explicitly chooses that next action.
 - If safety may be affected (brakes, overheating, flashing EML), tell the customer to avoid driving in assistantMessage and set urgencyLevel="high".
 
 VEHICLE_PROFILE & RETURNING_CUSTOMER (when present in the user turn):
 - The system performs a DVLA + internal-memory lookup whenever a registration is known. Treat these blocks as authoritative ground truth.
 - NEVER ask for any fact already populated in VEHICLE_PROFILE (make, model, year, fuel, engine). Reference it naturally instead, e.g. "I can see your 2017 BMW 320d — what's it doing?".
+- When quoting engine size in assistantMessage, copy VEHICLE_PROFILE.engine EXACTLY (e.g. "1.4L Petrol"). NEVER reformat, round, infer, or drop digits — NEVER write "4L" for "1.4L Petrol".
+- When VEHICLE_PROFILE is present, leave structuredIntake.vehicle.make/model/year/engine empty — the system stores DVLA facts; Gemini must not rewrite them.
 - NEVER ask the customer to re-provide name/phone/email if RETURNING_CUSTOMER lists them. Greet by first name ("Welcome back, James!") and ask only what's needed for THIS visit (issue, urgency, drivability, preferred slot).
 - If RECENT_INTAKES are present, you may reference the most recent one briefly when relevant ("Last time it was a brake job — what's happening now?"). Don't read them out as a list.
 - If VEHICLE_PROFILE arrives mid-conversation, acknowledge once and continue. Don't restart the intake.
@@ -164,6 +198,120 @@ BAD chips (do NOT produce):
   - "Hmm", "OK", "Sure"       (filler)
 `.trim();
 
+function buildRecoveryTurn(params: {
+  structuredIntake: StructuredIntake;
+  leadDraft: LeadDraft;
+  registrationHint?: string;
+  advisorRoute?: AdvisorRouteContext;
+  intakeStateFallback: ReturnType<typeof structuredIntakeToIntakeState>;
+  contentOverride?: string;
+  modelMarkedComplete?: boolean;
+}): AdvisorTurnResult {
+  const workflowMode = resolveWorkflowMode(params.advisorRoute);
+  const leadDraft = sanitizeLeadDraftContact(params.leadDraft);
+  const structuredIntake = sanitizeStructuredIntakeContact(params.structuredIntake);
+  const validation = validateLeadCompletion(
+    workflowMode,
+    structuredIntake,
+    leadDraft,
+    params.registrationHint
+  );
+  const intakeComplete = isHandoffIntakeComplete(workflowMode, validation);
+  const handoffAllowed = isHandoffClaimAllowed(validation);
+  const mechanicSummary = structuredIntakeToMechanicSummary(
+    structuredIntake,
+    params.registrationHint ?? leadDraft.registration
+  );
+  const intakeState = structuredIntakeToIntakeState(structuredIntake, intakeComplete);
+
+  if (workflowMode === "booking" && validation.canSubmit) {
+    return {
+      content:
+        params.contentOverride?.trim() ||
+        "Your booking details look complete. I'll show a quick summary next — check the day, window, and contact number, then tap Send booking request.",
+      intakeState,
+      structuredIntake,
+      leadDraft,
+      mechanicSummary,
+      suggestionChips: undefined,
+      intakeComplete: true,
+      callbackReady: false,
+      shouldCaptureLead: false,
+    };
+  }
+
+  if (workflowMode === "callback" && validation.canSubmit) {
+    return {
+      content:
+        params.contentOverride?.trim() ||
+        "Your callback details are saved. Tap Send request below — you don't need to wait for me to reconnect.",
+      intakeState,
+      structuredIntake,
+      leadDraft,
+      mechanicSummary,
+      suggestionChips: [CALLBACK_CONFIRM_CHIP],
+      intakeComplete: true,
+      callbackReady: validation.canSubmit,
+      shouldCaptureLead: false,
+    };
+  }
+
+  const content =
+    params.contentOverride?.trim() ||
+    "I had a brief hiccup reading that reply, but your details are still saved. Please continue — or tap a quick reply if one is shown.";
+
+  return {
+    content,
+    intakeState: params.intakeStateFallback,
+    structuredIntake,
+    leadDraft,
+    mechanicSummary,
+    suggestionChips: enforceHandoffWorkflowChips({
+      mode: workflowMode,
+      chips: undefined,
+      validation,
+      handoffAllowed,
+    }),
+    intakeComplete,
+    callbackReady: false,
+    shouldCaptureLead: false,
+  };
+}
+
+function buildParseFailureTurn(
+  params: {
+    structuredIntake?: StructuredIntake;
+    leadDraft?: LeadDraft;
+    registrationHint?: string;
+    advisorRoute?: AdvisorRouteContext;
+  },
+  failure: GeminiParseFailure
+): AdvisorTurnResult {
+  console.warn("[gemini] parse failure — preserving workflow state", {
+    error: failure.error,
+    hasPartialMessage: Boolean(failure.partial?.assistantMessage),
+  });
+
+  const currentIntake = params.structuredIntake ?? createEmptyStructuredIntake();
+  const leadDraft = sanitizeLeadDraftContact(
+    structuredIntakeToLeadDraft(currentIntake, {
+      ...params.leadDraft,
+      registration: params.registrationHint ?? params.leadDraft?.registration,
+    })
+  );
+  const intakeStateFallback = structuredIntakeToIntakeState(currentIntake, false);
+
+  return buildRecoveryTurn({
+    structuredIntake: currentIntake,
+    leadDraft,
+    registrationHint: params.registrationHint,
+    advisorRoute: params.advisorRoute,
+    intakeStateFallback,
+    contentOverride: failure.partial?.assistantMessage,
+    modelMarkedComplete: failure.partial?.intakeComplete,
+  });
+}
+
 function toGeminiHistory(messages: ChatMessage[]) {
   const mapped = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
@@ -178,19 +326,6 @@ function toGeminiHistory(messages: ChatMessage[]) {
   // reply, so trim any leading model turns to keep the history valid.
   const firstUserIdx = mapped.findIndex((m) => m.role === "user");
   return firstUserIdx === -1 ? [] : mapped.slice(firstUserIdx);
-}
-
-function parseGeminiJson(raw: string): GeminiTurnPayload {
-  const trimmed = raw.trim();
-  const jsonStr = trimmed.startsWith("```")
-    ? trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")
-    : trimmed;
-
-  const parsed = JSON.parse(jsonStr) as GeminiTurnPayload;
-  if (!parsed.assistantMessage?.trim()) {
-    throw new Error("Gemini response missing assistantMessage");
-  }
-  return parsed;
 }
 
 // Keep chip labels tight so the premium pill UI doesn't wrap on mobile.
@@ -319,8 +454,17 @@ function buildTurnContext(
     isInit: params.isInit,
   });
 
+  const workflowMode = resolveWorkflowMode(params.advisorRoute);
+  const validation = validateLeadCompletion(
+    workflowMode,
+    currentIntake,
+    params.leadDraft ?? {},
+    params.registrationHint
+  );
+
   const lines = [
     `CURRENT_INTAKE: ${JSON.stringify(currentIntake)}`,
+    workflowValidationBlock(workflowMode, validation, currentIntake, params.leadDraft ?? {}),
     bookingContextLine(params.bookingContext),
     routeBlock,
     ...memoryLines,
@@ -408,21 +552,63 @@ export async function runGeminiAdvisorTurn(params: {
 
   const chat = model.startChat({ history });
   const result = await chat.sendMessage(userText);
-  const payload = parseGeminiJson(result.response.text());
-  const structuredIntake = mergeStructuredIntake(currentIntake, payload.structuredIntake);
+  const rawText = result.response.text();
+  const parseResult = parseGeminiResponse(rawText);
+  if (!parseResult.ok) {
+    return buildParseFailureTurn(params, parseResult);
+  }
+  const payload = parseResult.payload;
+  const lockedVehicle = resolveDvlaVehicleFacts({
+    vehicleMemory: params.vehicleMemory,
+    advisorRoute: params.advisorRoute,
+  });
+  const mergedIntake = mergeStructuredIntake(
+    currentIntake,
+    payload.structuredIntake,
+    lockedVehicle
+  );
+  let structuredIntake = sanitizeStructuredIntakeContact(mergedIntake);
 
+  const workflowMode = resolveWorkflowMode(params.advisorRoute);
   const explicitHandoffOnly =
     params.advisorRoute?.handoff_policy === "explicit_only";
 
-  const intakeComplete = explicitHandoffOnly
-    ? payload.intakeComplete === true
-    : payload.intakeComplete === true ||
-      isStructuredIntakeReadyForHandoff(structuredIntake);
+  let leadDraft = sanitizeLeadDraftContact(
+    structuredIntakeToLeadDraft(structuredIntake, {
+      ...params.leadDraft,
+      registration: params.registrationHint ?? params.leadDraft?.registration,
+    })
+  );
 
-  const leadDraft = structuredIntakeToLeadDraft(structuredIntake, {
-    ...params.leadDraft,
-    registration: params.registrationHint ?? params.leadDraft?.registration,
+  const quality = applyUnifiedIntakeQuality({
+    mode: workflowMode,
+    intake: structuredIntake,
+    leadDraft,
+    messages: params.messages,
+    userMessage: params.isInit ? "" : params.userMessage,
   });
+  structuredIntake = quality.intake;
+  leadDraft = sanitizeLeadDraftContact(quality.leadDraft);
+
+  const validation = validateLeadCompletion(
+    workflowMode,
+    structuredIntake,
+    leadDraft,
+    params.registrationHint
+  );
+
+  if (workflowMode === "booking") {
+    emitBookingValidationTrace({
+      mode: "booking",
+      structuredIntake,
+      leadDraft,
+      registrationHint: params.registrationHint,
+      modelMarkedComplete: payload.intakeComplete === true,
+      geminiIntakeComplete: payload.intakeComplete,
+    });
+  }
+
+  const intakeComplete = isHandoffIntakeComplete(workflowMode, validation);
 
   const mechanicSummary = structuredIntakeToMechanicSummary(
     structuredIntake,
@@ -431,32 +617,84 @@ export async function runGeminiAdvisorTurn(params: {
 
   const intakeState = structuredIntakeToIntakeState(structuredIntake, intakeComplete);
 
-  const callbackMode = params.advisorRoute?.concierge_mode === "callback";
-  const hasCallbackIssue =
-    structuredIntake.issue.symptoms.length > 0 ||
-    Boolean(structuredIntake.aiEstimate.summary?.trim()) ||
-    Boolean(leadDraft.problemDescription?.trim());
-  const callbackReady =
-    callbackMode &&
-    (structuredIntake.intent === "callback" || payload.intakeComplete === true) &&
-    Boolean(leadDraft.name?.trim()) &&
-    Boolean(leadDraft.phone?.trim()) &&
-    hasCallbackIssue &&
-    (payload.intakeComplete === true || Boolean(structuredIntake.preferredBookingTime?.trim()));
+  if (workflowMode === "pricing" && pricingEstimateReady(structuredIntake)) {
+    structuredIntake = applyPricingTerminalIntent(structuredIntake);
+  }
+
+  const handoffAllowed = isHandoffClaimAllowed(validation);
+
+  const callbackMode = workflowMode === "callback";
+  const callbackReady = callbackMode && validation.canSubmit;
+
+  const pricingTurn = enforcePricingModeTurn({
+    mode: workflowMode,
+    intake: structuredIntake,
+    content: payload.assistantMessage.trim(),
+    chips: normalizeChips(payload.suggestionChips, payload.quickReplies),
+    handoffAllowed,
+  });
+
+  const canonicalEngine =
+    lockedVehicle?.engine?.trim() || structuredIntake.vehicle.engine?.trim() || undefined;
+
+  let rawContent = pricingTurn.content;
+  if (workflowMode === "pricing") {
+    rawContent = stripPricingFiller(rawContent);
+    rawContent = capPricingBubbles(rawContent);
+  }
+
+  const gatedChips = enforceHandoffWorkflowChips({
+    mode: workflowMode,
+    chips: pricingTurn.chips,
+    validation,
+    handoffAllowed,
+    intake: structuredIntake,
+  });
+
+  const diagnosticTurn = enforceDiagnosticModeTurn({
+    mode: workflowMode,
+    intake: structuredIntake,
+    content: rawContent,
+    chips: gatedChips,
+  });
+
+  rawContent = diagnosticTurn.content;
+
+  const callbackTurn = enforceCallbackModeTurn({
+    mode: workflowMode,
+    intake: structuredIntake,
+    leadDraft,
+    content: rawContent,
+    chips: diagnosticTurn.chips ?? gatedChips,
+    validation,
+    handoffAllowed,
+    messages: params.messages,
+  });
+
+  rawContent = callbackTurn.content;
+
+  let content = sanitizeAssistantContactPlaceholders(rawContent, validation, {
+    name: leadDraft.name ?? structuredIntake.customer.name,
+    phone: leadDraft.phone ?? structuredIntake.customer.contact,
+  });
+  if (shouldBlockPrematureCompletionMessage(content, handoffAllowed)) {
+    content = softenPrematureCompletionMessage(content);
+  }
+  content = finalizeAssistantContent(content, {
+    canonicalEngine,
+    pricingMode: workflowMode === "pricing",
+  });
 
   return {
-    content: payload.assistantMessage.trim(),
-    suggestionChips: normalizeChips(payload.suggestionChips, payload.quickReplies),
+    content,
+    suggestionChips: callbackTurn.chips ?? diagnosticTurn.chips ?? gatedChips,
     typingLabel: payload.typingLabel,
     intakeState,
     leadDraft,
     mechanicSummary,
     intakeComplete,
     callbackReady,
-    shouldCaptureLead:
-      !explicitHandoffOnly &&
-      intakeComplete &&
-      Boolean(leadDraft.name && leadDraft.phone),
+    shouldCaptureLead: !explicitHandoffOnly && validation.canSubmit,
     structuredIntake,
   };
 }

@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 import { adminFetch } from "@/lib/admin/client";
 import { AdminQuickLinks } from "@/components/enterprise/AdminQuickLinks";
 import { AdminStatusBadge } from "@/components/enterprise/AdminStatusBadge";
+import { WorkshopCaseBrief } from "@/components/workshop/WorkshopCaseBrief";
+import { WorkshopDisclosureSection } from "@/components/workshop/WorkshopDisclosureSection";
+import { WorkshopCustomerPhone } from "@/features/booking/components/WorkshopCustomerPhone";
+import { phoneTelHref } from "@/lib/format-contact";
+import { formatPlate } from "@/lib/format-plate";
 import { LEAD_STATUSES, type Lead, type LeadStatus } from "@/lib/types/lead";
+import { resolveWorkshopCaseFromLead } from "@/lib/types/workshop-case-summary";
 
 /**
  * Lead inbox — CRM-ready scaffold.
@@ -93,7 +99,7 @@ export default function AdminLeadsPage() {
   const isFiltering = statusFilter !== "all";
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-white">Customers</h1>
@@ -163,62 +169,111 @@ export default function AdminLeadsPage() {
           </p>
         </div>
       ) : (
-        <ul className="space-y-3">
-          {visibleLeads.map((lead) => (
+        <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visibleLeads.map((lead) => {
+            const caseSummary =
+              lead.caseSummary ?? resolveWorkshopCaseFromLead(lead);
+            const phoneHref = phoneTelHref(lead.phone);
+
+            return (
             <li
               key={lead.id}
-              className="premium-card rounded-2xl p-4"
+              className="premium-card rounded-2xl p-4 sm:p-5"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-white">{lead.name}</p>
-                  <p className="text-sm text-zinc-400">{lead.phone}</p>
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-white">{lead.name}</p>
+                  <WorkshopCustomerPhone phone={lead.phone} />
+                  {lead.registration ? (
+                    <p className="mt-1 font-mono text-xs text-[#d4a63c]">
+                      {formatPlate(lead.registration)}
+                    </p>
+                  ) : null}
                 </div>
                 <AdminStatusBadge kind="lead" status={lead.status} />
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="rounded-full border border-white/10 px-2 py-0.5">
-                  Source: {lead.source.replaceAll("_", " ")}
-                </span>
-                <span className="rounded-full border border-white/10 px-2 py-0.5">
-                  Created: {new Date(lead.createdAt).toLocaleString("en-GB")}
-                </span>
-                {lead.registration && (
-                  <span className="rounded-full border border-[#d4a63c]/35 bg-[#d4a63c]/10 px-2 py-0.5 font-mono text-[#d4a63c]">
-                    Reg: {lead.registration}
-                  </span>
-                )}
+              {caseSummary ? (
+                <div className="mt-3">
+                  <WorkshopCaseBrief caseSummary={caseSummary} compact />
+                </div>
+              ) : lead.problemDescription ? (
+                <p className="mt-2 text-xs text-zinc-500">{lead.problemDescription}</p>
+              ) : null}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a
+                  href={phoneHref}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400/55 hover:bg-emerald-500/15 sm:flex-none sm:px-4"
+                >
+                  Call
+                </a>
+                <Link
+                  href={`/admin/bookings?reg=${encodeURIComponent(lead.registration ?? "")}`}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full border border-[#d4a63c]/35 bg-[#d4a63c]/10 px-3 py-2 text-xs font-semibold text-[#e8d5a3] transition hover:border-[#d4a63c]/55 hover:bg-[#d4a63c]/15 sm:flex-none sm:px-4"
+                >
+                  Open workflow
+                </Link>
               </div>
 
-              {lead.problemDescription && (
-                <p className="mt-2 text-xs text-zinc-500">{lead.problemDescription}</p>
-              )}
-              <div className="mt-3">
-                <label
-                  htmlFor={`lead-status-${lead.id}`}
-                  className="text-[11px] uppercase tracking-[0.12em] text-zinc-500"
-                >
-                  Update status
-                </label>
-                <select
-                  id={`lead-status-${lead.id}`}
-                  className="input-premium mt-2 h-11 w-full rounded-xl px-3 text-sm text-white"
-                  value={lead.status}
-                  disabled={pendingStatusId === lead.id}
-                  onChange={(e) =>
-                    void onChangeStatus(lead.id, e.target.value as LeadStatus)
-                  }
-                >
-                  {LEAD_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {status.replaceAll("_", " ")}
-                    </option>
-                  ))}
-                </select>
+              <div className="mt-4 space-y-2.5 border-t border-white/[0.06] pt-3.5">
+                <WorkshopDisclosureSection title="Notes" subtitle="Customer and advisor context">
+                  {lead.problemDescription?.trim() ? (
+                    <p className="text-xs leading-relaxed text-zinc-300">{lead.problemDescription}</p>
+                  ) : (
+                    <p className="text-xs text-zinc-500">No freeform notes captured.</p>
+                  )}
+                </WorkshopDisclosureSection>
+
+                <WorkshopDisclosureSection title="History" subtitle="Source and timestamps">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
+                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                      Source: {lead.source.replaceAll("_", " ")}
+                    </span>
+                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                      Created: {new Date(lead.createdAt).toLocaleString("en-GB")}
+                    </span>
+                    <span className="rounded-full border border-white/10 px-2 py-0.5">
+                      Updated: {new Date(lead.updatedAt).toLocaleString("en-GB")}
+                    </span>
+                  </div>
+                </WorkshopDisclosureSection>
+
+                <WorkshopDisclosureSection title="Previous jobs" subtitle="Status workflow actions">
+                  <label
+                    htmlFor={`lead-status-${lead.id}`}
+                    className="text-[11px] uppercase tracking-[0.12em] text-zinc-500"
+                  >
+                    Update status
+                  </label>
+                  <select
+                    id={`lead-status-${lead.id}`}
+                    className="input-premium mt-2 h-11 w-full rounded-xl px-3 text-sm text-white"
+                    value={lead.status}
+                    disabled={pendingStatusId === lead.id}
+                    onChange={(e) =>
+                      void onChangeStatus(lead.id, e.target.value as LeadStatus)
+                    }
+                  >
+                    {LEAD_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status.replaceAll("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+                </WorkshopDisclosureSection>
+
+                <WorkshopDisclosureSection title="Vehicle history" subtitle="Linked vehicle context">
+                  <p className="text-xs text-zinc-400">
+                    {lead.registration
+                      ? `Registration ${formatPlate(lead.registration)} is linked. Use Open workflow to follow booking and jobs.`
+                      : "No registration linked yet."}
+                  </p>
+                </WorkshopDisclosureSection>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </main>

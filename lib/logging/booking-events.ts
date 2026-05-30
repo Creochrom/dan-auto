@@ -6,9 +6,12 @@
 export function logBookingEvent(
   event:
     | "booking.created"
+    | "booking.updated"
+    | "booking.deleted"
     | "notification.sent"
     | "notification.failed"
-    | "notification.skipped",
+    | "notification.skipped"
+    | "audit.failed",
   data: Record<string, unknown>
 ): void {
   console.info(

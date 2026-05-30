@@ -4,6 +4,7 @@ import { jobService } from "@/lib/services/job.service";
 import { jsonError, jsonOk } from "@/lib/api/response";
 import { parseBody, updateBookingSchema } from "@/lib/validation/schemas";
 import type { BookingStatus, CreateBookingInput } from "@/lib/types/booking";
+import { parseEstimatedRangePence } from "@/lib/workshop/revenue-pipeline";
 
 /**
  * GET /api/bookings — list bookings (admin session required).
@@ -69,16 +70,25 @@ export async function PATCH(request: Request) {
 
   const { id, status, preferredDate, preferredTime, notes } = parsed.data;
   try {
-    const booking = await bookingService.update(id, {
-      ...(status !== undefined ? { status } : {}),
-      ...(preferredDate !== undefined ? { preferredDate } : {}),
-      ...(preferredTime !== undefined ? { preferredTime } : {}),
-      ...(notes !== undefined ? { notes } : {}),
-    });
-    if (!booking) return jsonError("Booking not found", 404);
+    const result = await bookingService.update(
+      id,
+      {
+        ...(status !== undefined ? { status } : {}),
+        ...(preferredDate !== undefined ? { preferredDate } : {}),
+        ...(preferredTime !== undefined ? { preferredTime } : {}),
+        ...(notes !== undefined ? { notes } : {}),
+      },
+      { actor: session.login }
+    );
+    if (!result) return jsonError("Booking not found", 404);
+
+    const { booking } = result;
 
     let job: { id: string; created: boolean } | null = null;
     if (status === "confirmed") {
+      const estimateMid = parseEstimatedRangePence(
+        booking.intakeSummary?.estimatedRange ?? null
+      )?.midPence;
       const ensured = await jobService.ensureBookingJob({
         bookingId: booking.id,
         registration: booking.registration,
@@ -87,6 +97,7 @@ export async function PATCH(request: Request) {
         service: booking.service,
         scheduledDate: booking.preferredDate,
         symptomsText: booking.intakeSummary?.symptoms ?? booking.notes,
+        estimatedValuePence: estimateMid ?? null,
         actor: session.login,
       });
       job = { id: ensured.job.id, created: ensured.created };

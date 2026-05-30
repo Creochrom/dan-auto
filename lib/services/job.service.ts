@@ -101,7 +101,22 @@ export const jobService = {
     const before = await jobsRepository.findById(id);
     if (!before) return null;
 
-    const updated = await jobsRepository.update(id, patch);
+    const effectivePatch: UpdateJobInput = { ...patch };
+
+    if (
+      patch.status === "collected" &&
+      patch.status !== before.status &&
+      effectivePatch.finalInvoicePence === undefined &&
+      before.finalInvoicePence == null
+    ) {
+      const frozen =
+        before.approvedQuotePence ?? before.estimatedValuePence ?? undefined;
+      if (frozen != null) {
+        effectivePatch.finalInvoicePence = frozen;
+      }
+    }
+
+    const updated = await jobsRepository.update(id, effectivePatch);
     if (!updated) return null;
 
     const nonStatusChanges: string[] = [];
@@ -119,7 +134,6 @@ export const jobService = {
       await jobsRepository
         .recordStatusEvent(id, before.status, patch.status, changedBy)
         .catch((err) => {
-          // Status event failure must not block the update response.
           console.error("[job.service] recordStatusEvent failed:", err);
         });
       await jobsRepository
@@ -134,15 +148,39 @@ export const jobService = {
         .catch((err) => {
           console.error("[job.service] addTimelineEvent(status_change) failed:", err);
         });
+
+      if (patch.status === "collected") {
+        await jobsRepository
+          .addTimelineEvent({
+            jobId: id,
+            eventType: "system",
+            actor: changedBy,
+            note: "Vehicle collected by customer.",
+            metadata: { milestone: "vehicle_collected" },
+          })
+          .catch((err) => {
+            console.error("[job.service] addTimelineEvent(collected) failed:", err);
+          });
+      }
+
       if (before.vehicleId) {
+        const vehicleTitle =
+          patch.status === "collected"
+            ? "Vehicle collected"
+            : `Job status: ${titleCaseWords(patch.status)}`;
+        const vehicleDescription =
+          patch.status === "collected"
+            ? "Vehicle collected by customer."
+            : `Job ${id} moved from ${titleCaseWords(before.status)} to ${titleCaseWords(patch.status)}.`;
+
         await vehicleTimelineService
           .upsertEventBySourceRef({
             vehicleId: before.vehicleId,
             eventType: "job_status_change",
             source: "job_status_event",
             sourceRef: `job_status:${id}:${patch.status}:${updated.updatedAt}`,
-            title: `Job status: ${titleCaseWords(patch.status)}`,
-            description: `Job ${id} moved from ${titleCaseWords(before.status)} to ${titleCaseWords(patch.status)}.`,
+            title: vehicleTitle,
+            description: vehicleDescription,
             eventAt: updated.updatedAt,
             metadata: {
               jobId: id,
@@ -250,6 +288,7 @@ export const jobService = {
     service: string;
     scheduledDate?: string;
     symptomsText?: string;
+    estimatedValuePence?: number | null;
     actor?: string;
   }): Promise<{ job: Job; created: boolean }> {
     const existing = await jobsRepository.findByBookingId(input.bookingId);
@@ -263,6 +302,7 @@ export const jobService = {
       service: input.service,
       scheduledDate: input.scheduledDate,
       symptomsText: input.symptomsText,
+      estimatedValuePence: input.estimatedValuePence,
       status: "booked",
     });
 

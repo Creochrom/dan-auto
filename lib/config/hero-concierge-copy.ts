@@ -62,7 +62,7 @@ export const HERO_INTENT_CARDS: HeroIntentCard[] = [
     description: "Rough local ranges and what affects the quote",
     icon: PoundSterling,
     message:
-      "I would like rough UK repair cost guidance for my vehicle — what might affect the price and how quotes can vary.",
+      "I need a rough price for a repair on my vehicle.",
   },
   {
     id: "callback",

@@ -12,6 +12,11 @@
  */
 
 import { BRAND } from "@/lib/config/brand";
+import {
+  formatBookingDateDisplay,
+  formatBookingSlotForSubject,
+  formatRegistrationForSubject,
+} from "@/lib/booking/format-booking-display";
 import { businessConfig } from "@/lib/config/business";
 import {
   formatWorkshopField,
@@ -33,8 +38,9 @@ import type { Booking } from "@/lib/types/booking";
 // ---------------------------------------------------------------------------
 
 export function renderWorkshopAlertSubject(booking: Booking): string {
-  const reg = booking.registration.replace(/\s/g, "") || "NO-REG";
-  return `New Booking Request — ${reg} — ${booking.service}`;
+  const reg = formatRegistrationForSubject(booking.registration);
+  const slot = formatBookingSlotForSubject(booking.preferredDate, booking.preferredTime);
+  return slot ? `New Booking – ${reg} – ${slot}` : `New Booking – ${reg}`;
 }
 
 export function renderWorkshopAlertText(booking: Booking): string {
@@ -47,16 +53,20 @@ export function renderWorkshopAlertText(booking: Booking): string {
   };
   const bookingDetails = {
     service: booking.service,
-    preferredDate: booking.preferredDate,
+    preferredDate: formatBookingDateDisplay(booking.preferredDate),
     preferredTime: booking.preferredTime,
     notes: booking.notes,
     sourceLabel: formatWorkshopSourceLabel(booking.source),
   };
 
   return [
-    `${BRAND.shortName} — New Booking Request`,
+    `${BRAND.shortName} — New Booking`,
     "",
-    ...renderWorkshopPhoneBannerText(contact.customerName, contact.customerPhone),
+    ...renderWorkshopPhoneBannerText(
+      contact.customerName,
+      contact.customerPhone,
+      contact.customerEmail
+    ),
     ...renderWorkshopIdsText(contact),
     ...renderWorkshopContactText(contact),
     ...renderWorkshopBookingText(bookingDetails),
@@ -78,7 +88,7 @@ export function renderWorkshopAlertHtml(booking: Booking): string {
   };
   const bookingDetails = {
     service: booking.service,
-    preferredDate: booking.preferredDate,
+    preferredDate: formatBookingDateDisplay(booking.preferredDate),
     preferredTime: booking.preferredTime,
     notes: booking.notes,
     sourceLabel: formatWorkshopSourceLabel(booking.source),
@@ -87,9 +97,9 @@ export function renderWorkshopAlertHtml(booking: Booking): string {
   return `<!DOCTYPE html>
 <html>
 <body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:24px;max-width:600px">
-  <h1 style="color:#d4a63c;font-size:18px;margin:0 0 16px">New Booking Request</h1>
+  <h1 style="color:#d4a63c;font-size:18px;margin:0 0 16px">New Booking</h1>
 
-  ${renderWorkshopPhoneBannerHtml(contact.customerName, contact.customerPhone)}
+  ${renderWorkshopPhoneBannerHtml(contact.customerName, contact.customerPhone, contact.customerEmail)}
   ${renderWorkshopIdsHtml(contact)}
   ${renderWorkshopContactHtml(contact)}
   ${renderWorkshopBookingHtml(bookingDetails)}

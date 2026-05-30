@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Release 0.2.4 — Mechanic Ready Handoffs Preview</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0a0a0a; color: #e5e5e5; padding: 32px; line-height: 1.5; }
+    h1 { color: #d4a63c; font-size: 20px; }
+    h2 { color: #d4a63c; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 32px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1100px; }
+    .card { background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; }
+    .email { background: #0a0a0a; border: 1px solid #3a3020; border-radius: 10px; padding: 18px; font-size: 14px; white-space: pre-wrap; }
+    .badge { display: inline-block; border: 1px solid rgba(212,166,60,0.35); background: rgba(212,166,60,0.1); color: #d4a63c; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+    .case { border: 1px solid rgba(212,166,60,0.2); background: rgba(212,166,60,0.04); border-radius: 12px; padding: 14px; margin-top: 12px; font-size: 13px; }
+    .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #71717a; margin-top: 10px; }
+    .muted { color: #71717a; font-size: 12px; }
+    .plate { font-family: monospace; font-size: 24px; font-weight: bold; color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>Release 0.2.4 — Mechanic Ready Handoffs</h1>
+  <p class="muted">WorkshopCaseSummary is now the primary mechanic view. Transcript is reference-only at the bottom of emails.</p>
+
+  <div class="grid">
+    <div>
+      <h2>Admin callback card</h2>
+      <div class="card">
+        <strong>Ruslan</strong><br />
+        <span class="muted">07667787786</span>
+        <div class="case">
+          <span class="badge">Callback</span> <span class="muted">MV57 HJX · Urgency: medium</span>
+          <div class="label">Vehicle</div>
+          2015 BMW 320D · MV57 HJX · 2.0L Diesel
+          <div class="label">Reason</div>
+          Customer requested a callback regarding brake pad replacement pricing.
+          <div class="label">Symptoms</div>
+          Brake squeak while braking.
+          <div class="label">Estimate discussed</div>
+          £120–£250 per axle
+          <div class="label">Preferred callback</div>
+          today · 12pm
+          <div class="label">Recommended action</div>
+          Call customer and confirm whether front, rear, or both axles require inspection.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h2>Admin booking card</h2>
+      <div class="card">
+        <div class="plate">MV57 HJX</div>
+        <strong>Brakes</strong>
+        <div class="case">
+          <span class="badge">Booking</span> <span class="muted">Urgency: medium</span>
+          <div class="label">Vehicle</div>
+          2015 BMW 320D · MV57 HJX · 2.0L Diesel
+          <div class="label">Service</div>
+          Brakes
+          <div class="label">Symptoms</div>
+          Brake squeak while braking.
+          <div class="label">Estimate discussed</div>
+          £120–£250 per axle
+          <div class="label">Preferred appointment</div>
+          2026-06-10 · 09:00
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Callback email (primary block)</h2>
+  <div class="email">===================================
+CALLBACK REQUEST — MV57HJX
+===================================
+
+Customer:
+  Ruslan · 07667787786
+
+Vehicle:
+  2015 BMW 320D · MV57 HJX · 2.0L Diesel
+
+Reason:
+  Customer requested a callback regarding brake pad replacement pricing.
+
+Symptoms:
+  Brake squeak while braking.
+
+Indicative price discussed:
+  £120–£250 per axle
+
+Preferred callback time:
+  today at 12pm
+
+Recommended action:
+  Call customer and confirm whether front, rear, or both axles require inspection.
+
+-----------------------------------
+Conversation transcript (reference only)
+-----------------------------------</div>
+</body>
+</html>

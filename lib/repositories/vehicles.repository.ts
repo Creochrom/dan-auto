@@ -6,7 +6,7 @@ import type { UpsertVehicleInput, Vehicle } from "@/lib/types/workshop-data";
 const mockVehicles = new Map<string, Vehicle>();
 
 function vehicleId(registration: string) {
-  return `veh_${stripPlate(registration).toLowerCase()}`;
+  return `veh_${stripPlate(registration)}`;
 }
 
 export const vehiclesRepository = {

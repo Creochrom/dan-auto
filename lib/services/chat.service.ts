@@ -15,9 +15,14 @@ import {
   type StructuredIntake,
 } from "@/lib/types/structured-intake";
 import type { IntakeIntent } from "@/lib/types/ai-intake";
+import { validateLeadContact } from "@/lib/validation/advisor-contact";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type { ChatRequest, ChatResponse, ChatSession, LeadDraft } from "@/lib/types/chat";
 import type { VehicleMemoryLookupResult } from "@/lib/types/vehicle-memory";
+import { applyLockedVehicleFacts, resolveDvlaVehicleFacts } from "@/lib/services/intake-mapper";
 import { stripPlate } from "@/lib/format-plate";
+import { CALLBACK_CONFIRM_CHIP } from "@/lib/config/callback-flow-copy";
+import { validateLeadCompletion } from "@/lib/services/advisor-workflow";
 
 const GEMINI_SETUP_MESSAGE = `The AI service advisor is not connected yet.
 
@@ -48,6 +53,44 @@ function geminiErrorTurn(session: ChatSession, err: unknown): AdvisorTurnResult 
   const detail = err instanceof Error ? err.message : String(err);
   console.error("[chat] Gemini turn failed:", err);
 
+  const mode = session.advisorRoute?.concierge_mode;
+  const intake = session.structuredIntake ?? createEmptyStructuredIntake();
+  const draft = session.leadDraft ?? {};
+  const registrationHint = draft.registration?.trim();
+
+  if (mode === "booking") {
+    const validation = validateLeadCompletion("booking", intake, draft, registrationHint);
+    if (validation.canSubmit) {
+      return {
+        content:
+          "Your booking details look complete. I'll show a quick summary next — check the day, window, and contact number, then tap Send booking request.",
+        intakeState: session.intakeState ?? createInitialIntakeState(),
+        structuredIntake: intake,
+        leadDraft: draft,
+        suggestionChips: undefined,
+        intakeComplete: true,
+      };
+    }
+  }
+
+  if (mode === "callback") {
+    const validation = validateLeadCompletion("callback", intake, draft, registrationHint);
+    if (validation.canSubmit) {
+      return {
+        content:
+          "Your callback details are saved. Tap Send request below — you don't need to wait for me to reconnect.",
+        intakeState: session.intakeState ?? createInitialIntakeState(),
+        structuredIntake: intake,
+        leadDraft: draft,
+        suggestionChips: [CALLBACK_CONFIRM_CHIP],
+        intakeComplete: true,
+      };
+    }
+  }
+
+  const isParseError =
+    /json|parse|unterminated string|unexpected token|assistantMessage/i.test(detail);
+
   // Surface a useful hint when the configured model is unavailable
   // (e.g. legacy `gemini-2.0-flash` 404 after the 2026-06-01 deprecation,
   // or a wrong `GEMINI_MODEL` override). Anything else gets a generic
@@ -57,17 +100,20 @@ function geminiErrorTurn(session: ChatSession, err: unknown): AdvisorTurnResult 
 
   const customerMessage = isModelUnavailable
     ? "Our AI service advisor is temporarily unavailable. Please call us on 07850 964 041 or use the booking form below — a mechanic will get straight back to you."
-    : "Sorry — I'm having trouble reaching the AI service right now. Please try again in a moment, or call us on 07850 964 041 and we'll help you directly.";
+    : isParseError
+      ? "I had a brief hiccup reading that reply, but your details are still saved. Please continue — or try again in a moment."
+      : "Sorry — I'm having trouble reaching the AI service right now. Please try again in a moment, or call us on 07850 964 041 and we'll help you directly.";
 
   return {
     content: customerMessage,
     intakeState: session.intakeState ?? createInitialIntakeState(),
-    structuredIntake: session.structuredIntake ?? createEmptyStructuredIntake(),
+    structuredIntake: intake,
+    leadDraft: draft,
     suggestionChips: [
       { id: "retry", label: "Try again", message: "Please try again" },
       { id: "book", label: "Book online instead", message: "I'd like to book online instead" },
     ],
-    intakeComplete: false,
+    intakeComplete: session.intakeState?.phase === "complete",
   };
 }
 
@@ -154,7 +200,44 @@ function seedFromVehicleMemory(
     vehicleModel: draft.vehicleModel || vehicleModelStr || undefined,
   };
 
-  return { structured, lead };
+  const locked = resolveDvlaVehicleFacts({ vehicleMemory: lookup });
+  return {
+    structured: applyLockedVehicleFacts(structured, locked),
+    lead,
+  };
+}
+
+function seedFromAdvisorRoute(
+  base: StructuredIntake,
+  draft: LeadDraft,
+  route?: AdvisorRouteContext
+): { structured: StructuredIntake; lead: LeadDraft } {
+  const v = route?.vehicle_data;
+  if (!v) return { structured: base, lead: draft };
+
+  const structured: StructuredIntake = {
+    ...base,
+    vehicle: {
+      make: base.vehicle.make || v.make || "",
+      model: base.vehicle.model || v.model || "",
+      year: base.vehicle.year || v.year || "",
+      engine: base.vehicle.engine || v.engine || "",
+      mileage: base.vehicle.mileage,
+    },
+  };
+
+  const vehicleModelStr = [v.year, v.make, v.model].filter(Boolean).join(" ");
+  const lead: LeadDraft = {
+    ...draft,
+    registration: draft.registration || v.registration,
+    vehicleModel: draft.vehicleModel || vehicleModelStr || undefined,
+  };
+
+  const locked = resolveDvlaVehicleFacts({ advisorRoute: route });
+  return {
+    structured: applyLockedVehicleFacts(structured, locked),
+    lead,
+  };
 }
 
 export const chatService = {
@@ -225,10 +308,25 @@ export const chatService = {
         session.leadDraft ?? {},
         lookup
       );
-      session.structuredIntake = seeded.structured;
-      session.leadDraft = seeded.lead;
-      await chatRepository.updateStructuredIntake(session.id, seeded.structured);
-      await chatRepository.updateLeadDraft(session.id, seeded.lead);
+      let structured = seeded.structured;
+      let lead = seeded.lead;
+
+      if (!lookup.dvlaMatched && request.advisorRoute?.vehicle_data) {
+        const routeSeeded = seedFromAdvisorRoute(structured, lead, request.advisorRoute);
+        structured = routeSeeded.structured;
+        lead = routeSeeded.lead;
+      } else {
+        const locked = resolveDvlaVehicleFacts({
+          vehicleMemory: lookup,
+          advisorRoute: request.advisorRoute,
+        });
+        structured = applyLockedVehicleFacts(structured, locked);
+      }
+
+      session.structuredIntake = structured;
+      session.leadDraft = lead;
+      await chatRepository.updateStructuredIntake(session.id, structured);
+      await chatRepository.updateLeadDraft(session.id, lead);
     }
 
     const userText = isInit ? INIT_TOKEN : request.message!.trim();
@@ -273,10 +371,15 @@ export const chatService = {
     const shouldCapture =
       turn.shouldCaptureLead &&
       !session.leadCaptured &&
+      session.advisorRoute?.handoff_policy !== "explicit_only" &&
       turn.leadDraft?.name &&
       turn.leadDraft?.phone;
 
     if (shouldCapture && turn.leadDraft) {
+      const contact = validateLeadContact(turn.leadDraft.name, turn.leadDraft.phone);
+      if (!contact.canSubmit) {
+        // Skip premature persistence — wait for explicit handoff confirmation.
+      } else {
       const { name, phone, email, registration, vehicleModel, problemDescription, callbackWindow } =
         turn.leadDraft;
       const summary = turn.mechanicSummary;
@@ -316,6 +419,7 @@ export const chatService = {
         { sourceIntent }
       );
       await chatRepository.markLeadCaptured(session.id);
+      }
     }
 
     const lastUser = [...session.messages]

@@ -2,6 +2,10 @@ import { mockStore } from "@/lib/repositories/mock-store";
 import { getStorageBackend } from "@/lib/repositories/backend";
 import { supabaseLeadsRepository } from "@/lib/repositories/supabase/leads.repository";
 import type { CreateLeadInput, Lead, LeadStatus } from "@/lib/types/lead";
+import {
+  parseWorkshopCaseFromLead,
+  serializeWorkshopCaseForLead,
+} from "@/lib/types/workshop-case-summary";
 
 function newId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -27,6 +31,9 @@ export const leadsRepository = {
     if (getStorageBackend() === "supabase") return supabaseLeadsRepository.create(input);
 
     const now = new Date().toISOString();
+    const aiSummary = input.caseSummary
+      ? serializeWorkshopCaseForLead(input.caseSummary)
+      : input.aiSummary;
     const lead: Lead = {
       id: newId("lead"),
       status: "new",
@@ -38,7 +45,8 @@ export const leadsRepository = {
       problemDescription: input.problemDescription,
       preferredDate: input.preferredDate,
       source: input.source ?? "website",
-      aiSummary: input.aiSummary,
+      aiSummary,
+      caseSummary: input.caseSummary ?? parseWorkshopCaseFromLead(aiSummary),
       createdAt: now,
       updatedAt: now,
     };

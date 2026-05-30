@@ -13,6 +13,7 @@ import { requireAdminSession } from "@/lib/admin/guard";
 import { jobService } from "@/lib/services/job.service";
 import { JOB_STATUSES } from "@/lib/types/job";
 import type { JobStatus } from "@/lib/types/job";
+import { normalizeRevenuePence } from "@/lib/workshop/job-revenue";
 
 const JOB_STATUS_SET = new Set<string>(JOB_STATUSES);
 
@@ -75,6 +76,28 @@ export async function PATCH(
     ...(typeof b.assignedTo === "string" ? { assignedTo: b.assignedTo } : {}),
   };
 
+  if ("estimatedValuePence" in b) {
+    const parsed = normalizeRevenuePence(b.estimatedValuePence);
+    if (parsed === undefined) {
+      return jsonError("estimatedValuePence must be a non-negative number or null", 400);
+    }
+    Object.assign(patch, { estimatedValuePence: parsed });
+  }
+  if ("approvedQuotePence" in b) {
+    const parsed = normalizeRevenuePence(b.approvedQuotePence);
+    if (parsed === undefined) {
+      return jsonError("approvedQuotePence must be a non-negative number or null", 400);
+    }
+    Object.assign(patch, { approvedQuotePence: parsed });
+  }
+  if ("finalInvoicePence" in b) {
+    const parsed = normalizeRevenuePence(b.finalInvoicePence);
+    if (parsed === undefined) {
+      return jsonError("finalInvoicePence must be a non-negative number or null", 400);
+    }
+    Object.assign(patch, { finalInvoicePence: parsed });
+  }
+
   // Optional inline note to append (used by the admin job detail page).
   const noteInput =
     typeof b.note === "object" &&
@@ -121,7 +144,7 @@ export async function PATCH(
 
   if (Object.keys(patch).length === 0 && !noteInput && attachmentsInput.length === 0) {
     return jsonError(
-      "Provide at least one of: status, notesText, symptomsText, assignedTo, note, attachments",
+      "Provide at least one of: status, notesText, symptomsText, assignedTo, estimatedValuePence, approvedQuotePence, finalInvoicePence, note, attachments",
       400
     );
   }

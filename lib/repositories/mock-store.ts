@@ -9,8 +9,11 @@ import type { Lead } from "@/lib/types/lead";
 import type { MediaUpload } from "@/lib/types/upload";
 import type { VehicleMemoryRecord } from "@/lib/types/vehicle-memory";
 
+import type { BookingChangeEvent } from "@/lib/types/booking-events";
+
 export type MockDataStore = {
   bookings: Booking[];
+  bookingChangeEvents: BookingChangeEvent[];
   leads: Lead[];
   chatSessions: ChatSession[];
   uploads: MediaUpload[];
@@ -25,6 +28,7 @@ function getGlobalStore(): MockDataStore {
   if (!g[STORE_KEY]) {
     g[STORE_KEY] = {
       bookings: [],
+      bookingChangeEvents: [],
       leads: [],
       chatSessions: [],
       uploads: [],
@@ -33,12 +37,16 @@ function getGlobalStore(): MockDataStore {
   }
   // Backfill if an older shape exists in the global from a hot-reload.
   if (!g[STORE_KEY].vehicleMemory) g[STORE_KEY].vehicleMemory = [];
+  if (!g[STORE_KEY].bookingChangeEvents) g[STORE_KEY].bookingChangeEvents = [];
   return g[STORE_KEY];
 }
 
 export const mockStore = {
   get bookings() {
     return getGlobalStore().bookings;
+  },
+  get bookingChangeEvents() {
+    return getGlobalStore().bookingChangeEvents;
   },
   get leads() {
     return getGlobalStore().leads;

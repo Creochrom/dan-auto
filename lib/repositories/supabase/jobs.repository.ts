@@ -50,6 +50,9 @@ type JobRow = {
   symptoms_text: string | null;
   notes_text: string | null;
   assigned_to: string | null;
+  estimated_value_pence: number | null;
+  approved_quote_pence: number | null;
+  final_invoice_pence: number | null;
   created_at: string;
   updated_at: string;
   vehicles?: VehicleRow | null;
@@ -133,6 +136,9 @@ function toJob(row: JobRow): Job {
     symptomsText: row.symptoms_text ?? undefined,
     notesText: row.notes_text ?? undefined,
     assignedTo: row.assigned_to ?? undefined,
+    estimatedValuePence: row.estimated_value_pence,
+    approvedQuotePence: row.approved_quote_pence,
+    finalInvoicePence: row.final_invoice_pence,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -187,7 +193,8 @@ function todayIso() {
 }
 
 function newVehicleId(registration: string) {
-  return `veh_${stripPlate(registration).toLowerCase()}`;
+  // Must match migration 007 backfill: 'veh_' || normalize_registration(registration)
+  return `veh_${stripPlate(registration)}`;
 }
 
 function newCustomerId(name: string, phone: string) {
@@ -203,18 +210,64 @@ async function ensureVehicle(registration: string): Promise<VehicleRow> {
   const supabase = getSupabaseServerClient();
   const canonical = stripPlate(registration);
   const display = registration.trim().toUpperCase();
-  const row: VehicleRow = {
-    id: newVehicleId(canonical),
-    registration: display,
-    registration_canonical: canonical,
-  };
-  const { data, error } = await supabase
+  const id = newVehicleId(registration);
+
+  const { data: existing, error: findError } = await supabase
     .from("vehicles")
-    .upsert(row, { onConflict: "registration_canonical" })
+    .select("*")
+    .eq("registration_canonical", canonical)
+    .maybeSingle();
+
+  if (findError) {
+    throw new Error(`[jobs] ensureVehicle lookup failed: ${findError.message}`);
+  }
+
+  if (existing) {
+    if (existing.registration !== display) {
+      const { data: updated, error: updateError } = await supabase
+        .from("vehicles")
+        .update({ registration: display })
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (updateError) {
+        throw new Error(`[jobs] ensureVehicle update failed: ${updateError.message}`);
+      }
+      return updated as VehicleRow;
+    }
+    return existing as VehicleRow;
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("vehicles")
+    .insert({
+      id,
+      registration: display,
+      registration_canonical: canonical,
+    })
     .select("*")
     .single();
-  if (error) throw new Error(`[jobs] ensureVehicle failed: ${error.message}`);
-  return data as VehicleRow;
+
+  if (!insertError && inserted) {
+    return inserted as VehicleRow;
+  }
+
+  // Concurrent insert — reuse the row that won the race.
+  if (insertError) {
+    const { data: raced, error: raceLookupError } = await supabase
+      .from("vehicles")
+      .select("*")
+      .eq("registration_canonical", canonical)
+      .maybeSingle();
+
+    if (!raceLookupError && raced) {
+      return raced as VehicleRow;
+    }
+
+    throw new Error(`[jobs] ensureVehicle failed: ${insertError.message}`);
+  }
+
+  throw new Error("[jobs] ensureVehicle failed: no row returned");
 }
 
 async function ensureCustomer(name: string, phone: string): Promise<CustomerRow> {
@@ -375,6 +428,9 @@ export const supabaseJobsRepository = {
       symptoms_text: input.symptomsText ?? null,
       notes_text: null,
       assigned_to: input.assignedTo ?? null,
+      estimated_value_pence: input.estimatedValuePence ?? null,
+      approved_quote_pence: null,
+      final_invoice_pence: null,
       created_at: now,
       updated_at: now,
     };
@@ -397,6 +453,15 @@ export const supabaseJobsRepository = {
     if (patch.notesText !== undefined) updates.notes_text = patch.notesText;
     if (patch.symptomsText !== undefined) updates.symptoms_text = patch.symptomsText;
     if (patch.assignedTo !== undefined) updates.assigned_to = patch.assignedTo;
+    if (patch.estimatedValuePence !== undefined) {
+      updates.estimated_value_pence = patch.estimatedValuePence;
+    }
+    if (patch.approvedQuotePence !== undefined) {
+      updates.approved_quote_pence = patch.approvedQuotePence;
+    }
+    if (patch.finalInvoicePence !== undefined) {
+      updates.final_invoice_pence = patch.finalInvoicePence;
+    }
 
     if (Object.keys(updates).length === 0) {
       return (await this.findById(id)) ?? null;

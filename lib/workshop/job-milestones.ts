@@ -6,6 +6,7 @@ export const WORKSHOP_MILESTONE_IDS = [
   "parts_ordered",
   "customer_called",
   "job_completed",
+  "vehicle_collected",
 ] as const;
 
 export type WorkshopMilestoneId = (typeof WORKSHOP_MILESTONE_IDS)[number];
@@ -41,6 +42,11 @@ export const WORKSHOP_MILESTONES: Record<WorkshopMilestoneId, WorkshopMilestoneD
     label: "Job completed",
     shortLabel: "Job completed",
     setStatus: "ready_for_collection",
+  },
+  vehicle_collected: {
+    id: "vehicle_collected",
+    label: "Vehicle collected by customer",
+    shortLabel: "Collected",
   },
 };
 

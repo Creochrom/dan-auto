@@ -17,3 +17,21 @@ export async function GET(
   if (!booking) return jsonError("Booking not found", 404);
   return jsonOk({ booking });
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { unauthorized } = await requireAdminSession();
+  if (unauthorized) return unauthorized;
+
+  const { id } = await params;
+  try {
+    const deleted = await bookingService.delete(id);
+    if (!deleted) return jsonError("Booking not found", 404);
+    return jsonOk({ deleted: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to delete booking";
+    return jsonError(message, 500);
+  }
+}

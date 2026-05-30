@@ -12,6 +12,17 @@ export {
   saveChatTranscript,
 } from "@/lib/chat/persistence";
 export {
+  prepareCustomerFacingTurn,
+  splitAdvisorTurnIntoBubbles,
+  stripAdvisorSemanticLabels,
+} from "@/lib/chat/customer-facing";
+export {
+  finalizeAssistantContent,
+  finalizeAssistantChunks,
+  sanitizeAssistantPipeline,
+  resolveCanonicalEngine,
+} from "@/lib/chat/assistant-output";
+export {
   splitAssistantContent,
   REVEAL_FIRST_MS,
   REVEAL_BETWEEN_MS,

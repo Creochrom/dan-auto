@@ -69,14 +69,14 @@ export default function WorkshopAssistantPage() {
 
   if (!ready) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-5">
+      <main className="admin-content-wrap max-w-5xl py-10">
         <p className="text-base text-zinc-500">Loading workshop assistant…</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex min-h-[100dvh] max-w-5xl flex-col px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:pt-4">
+    <main className="admin-content-wrap flex min-h-[100dvh] max-w-5xl flex-col pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:pt-4">
       <header className="mb-3 shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

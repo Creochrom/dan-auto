@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { sendChatMessage, submitAiIntake } from "@/lib/api/client";
+import { sendChatMessage, submitAiIntake, completeBookingIntake } from "@/lib/api/client";
+import { validateLeadContact } from "@/lib/validation/advisor-contact";
 import {
   clearAllChipsSnapshots,
   createOptimisticUserMessage,
@@ -9,10 +10,14 @@ import {
   saveChatTranscript,
   loadChatTranscript,
   clearChatTranscript,
-  splitAssistantContent,
   REVEAL_FIRST_MS,
   REVEAL_BETWEEN_MS,
 } from "@/lib/chat";
+import {
+  finalizeAssistantChunks,
+  resolveCanonicalEngine,
+  type FinalizeAssistantOptions,
+} from "@/lib/chat/assistant-output";
 import { ADVISOR_TYPING_LABELS } from "@/lib/config/brand";
 import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type {
@@ -22,6 +27,23 @@ import type {
   SendChatOptions,
 } from "@/lib/types/chat";
 import type { MechanicIntakeSummary, SuggestionChip } from "@/lib/types/intake";
+import type { StructuredIntake } from "@/lib/types/structured-intake";
+import { createEmptyStructuredIntake } from "@/lib/types/structured-intake";
+import {
+  BOOKING_CONFIRM_CHIP,
+  buildBookingIntakePayload,
+  isBookingHandoffReady,
+} from "@/lib/services/booking-handoff";
+import { CALLBACK_CONFIRM_CHIP } from "@/lib/config/callback-flow-copy";
+import { isCallbackHandoffReady } from "@/lib/services/callback-handoff";
+import type { HandoffDeliveryMeta } from "@/lib/config/system-status-copy";
+import {
+  bookingTraceEnd,
+  bookingTraceStage,
+  bookingTraceStart,
+  createBookingTraceId,
+  tracePayloadSummary,
+} from "@/lib/logging/booking-trace";
 
 const TYPING_DELAY_MS = 500;
 
@@ -85,9 +107,16 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
   const [intakeComplete, setIntakeComplete] = useState(false);
   const [intakeSubmitState, setIntakeSubmitState] =
     useState<IntakeSubmitState>("idle");
+  const [handoffResult, setHandoffResult] = useState<HandoffDeliveryMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [leadDraft, setLeadDraft] = useState<LeadDraft>({});
+  const [structuredIntake, setStructuredIntake] = useState<StructuredIntake | undefined>();
   const [callbackReady, setCallbackReady] = useState(false);
+
+  const leadDraftRef = useRef(leadDraft);
+  leadDraftRef.current = leadDraft;
+  const structuredIntakeRef = useRef(structuredIntake);
+  structuredIntakeRef.current = structuredIntake;
 
   const booted = useRef(false);
   const sending = useRef(false);
@@ -105,6 +134,17 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     [sessionStorageKey]
   );
 
+  const buildFinalizeOpts = useCallback(
+    (res: Awaited<ReturnType<typeof sendChatMessage>>): FinalizeAssistantOptions => ({
+      canonicalEngine: resolveCanonicalEngine({
+        routeEngine: advisorRoute?.vehicle_data?.engine,
+        intakeEngine: res.structuredIntake?.vehicle?.engine,
+      }),
+      pricingMode: advisorRoute?.concierge_mode === "pricing",
+    }),
+    [advisorRoute]
+  );
+
   const applyResponse = useCallback(
     (
       res: Awaited<ReturnType<typeof sendChatMessage>>,
@@ -114,6 +154,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       setSessionId(res.sessionId);
       setSuggestionChips(res.suggestionChips ?? []);
       if (res.leadDraft) setLeadDraft(res.leadDraft);
+      if (res.structuredIntake) setStructuredIntake(res.structuredIntake);
       if (res.mechanicSummary) setMechanicSummary(res.mechanicSummary);
       if (res.intakeComplete) setIntakeComplete(true);
       setCallbackReady(Boolean(res.callbackReady));
@@ -206,10 +247,47 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         if (sessionId) persist(sessionId, next);
         return next;
       });
-      setSuggestionChips([]);
+      setSuggestionChips(chips);
     },
     [persist, sessionId]
   );
+
+  const appendLocalUser = useCallback(
+    (content: string, displayContent?: string) => {
+      const message: ChatMessage = {
+        id: `local-u-${Date.now()}`,
+        role: "user",
+        content,
+        displayContent: displayContent ?? content,
+        createdAt: new Date().toISOString(),
+        source: "quick_reply",
+      };
+      setMessages((prev) => {
+        const next = [...prev, message];
+        if (sessionId) persist(sessionId, next);
+        return next;
+      });
+    },
+    [persist, sessionId]
+  );
+
+  const patchLeadDraft = useCallback((patch: Partial<LeadDraft>) => {
+    setLeadDraft((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const patchStructuredIntake = useCallback((patch: Partial<StructuredIntake>) => {
+    setStructuredIntake((prev) => {
+      const base = prev ?? createEmptyStructuredIntake();
+      return {
+        ...base,
+        ...patch,
+        customer: { ...base.customer, ...(patch.customer ?? {}) },
+        vehicle: { ...base.vehicle, ...(patch.vehicle ?? {}) },
+        issue: { ...base.issue, ...(patch.issue ?? {}) },
+        aiEstimate: { ...base.aiEstimate, ...(patch.aiEstimate ?? {}) },
+      };
+    });
+  }, []);
 
   const trySubmitIntake = useCallback(
     async (res: Awaited<ReturnType<typeof sendChatMessage>>) => {
@@ -219,7 +297,11 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
         setIntakeSubmitState("sent");
         return;
       }
-      if (!res.intakeComplete || !res.leadDraft?.name?.trim() || !res.leadDraft?.phone?.trim()) {
+      if (!res.intakeComplete) {
+        return;
+      }
+      const contact = validateLeadContact(res.leadDraft?.name, res.leadDraft?.phone);
+      if (!contact.canSubmit) {
         return;
       }
       if (intakeSubmitStarted.current) return;
@@ -279,7 +361,8 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       optimistic?: ChatMessage,
       chipsOffered?: SuggestionChip[]
     ) => {
-      const chunks = splitAssistantContent(res.message.content);
+      const finalizeOpts = buildFinalizeOpts(res);
+      const chunks = finalizeAssistantChunks(res.message.content, finalizeOpts);
       if (chunks.length <= 1) {
         applyResponse(res, optimistic, chipsOffered);
         await trySubmitIntake(res);
@@ -288,6 +371,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
 
       setSessionId(res.sessionId);
       if (res.leadDraft) setLeadDraft(res.leadDraft);
+      if (res.structuredIntake) setStructuredIntake(res.structuredIntake);
       if (res.mechanicSummary) setMechanicSummary(res.mechanicSummary);
       if (res.intakeComplete) setIntakeComplete(true);
       setCallbackReady(Boolean(res.callbackReady));
@@ -329,7 +413,7 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
 
       await trySubmitIntake(res);
     },
-    [applyResponse, persist, trySubmitIntake]
+    [applyResponse, persist, trySubmitIntake, buildFinalizeOpts]
   );
 
   const send = useCallback(
@@ -356,12 +440,32 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
           message: trimmed,
           registration: sendOpts?.registration ?? registrationHint,
           bookingContext: bookingContext ?? undefined,
-          advisorRoute: advisorRoute ?? undefined,
+          advisorRoute: sendOpts?.advisorRouteOverride ?? advisorRoute ?? undefined,
         });
         setTypingLabel(res.typingLabel ?? null);
         await revealResponse(res, optimistic, res.suggestionChips);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Message failed");
+        const bookingReady = isBookingHandoffReady(
+          advisorRoute?.concierge_mode,
+          structuredIntakeRef.current,
+          leadDraftRef.current,
+          sendOpts?.registration ?? registrationHint
+        );
+        const callbackReady = isCallbackHandoffReady(
+          advisorRoute?.concierge_mode,
+          structuredIntakeRef.current,
+          leadDraftRef.current,
+          sendOpts?.registration ?? registrationHint
+        );
+        if (bookingReady) {
+          setError(null);
+          setSuggestionChips([BOOKING_CONFIRM_CHIP]);
+        } else if (callbackReady) {
+          setError(null);
+          setSuggestionChips([CALLBACK_CONFIRM_CHIP]);
+        } else {
+          setError(e instanceof Error ? e.message : "Message failed");
+        }
         setMessages((m) =>
           m.map((msg) =>
             msg.id === optimistic.id ? { ...msg, status: "failed" } : msg
@@ -474,32 +578,27 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
             messages,
             leadDraft,
             mechanicSummary,
+            structuredIntake: structuredIntakeRef.current ?? undefined,
             advisorRoute: advisorRoute ?? undefined,
             bookingContext: bookingContext ?? undefined,
           },
         });
+        setHandoffResult({
+          leadId: result.leadId,
+          submittedAt: result.submittedAt,
+          emailSent: result.emailSent,
+        });
         setIntakeSubmitState("sent");
         setIntakeComplete(true);
         setCallbackReady(false);
-        if (input.successNotice) {
-          appendNotice(input.successNotice, "success", sessionId);
-        } else if (!input.skipNotice) {
-          appendAssistantNotice(
-            input.confirmationMessage ?? result.confirmationMessage,
-            sessionId
-          );
-        }
         return true;
       } catch (e) {
         intakeSubmitStarted.current = false;
         setIntakeSubmitState("error");
-        const message =
-          e instanceof Error ? e.message : "Could not send intake to workshop";
-        if (input.errorNotice) {
-          appendNotice(input.errorNotice, "error", sessionId);
-          setError(null);
-        } else {
-          setError(message);
+        setHandoffResult(null);
+        setError(e instanceof Error ? e.message : "Could not send request to workshop");
+        if (advisorRoute?.concierge_mode === "callback") {
+          setSuggestionChips([CALLBACK_CONFIRM_CHIP]);
         }
         return false;
       } finally {
@@ -515,9 +614,123 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
       advisorRoute,
       bookingContext,
       intakeSubmitState,
-      appendAssistantNotice,
-      appendNotice,
     ]
+  );
+
+  const submitBookingHandoff = useCallback(
+    async (input?: {
+      confirmationText?: string;
+      displayContent?: string;
+      name?: string;
+      phone?: string;
+      traceId?: string;
+      userAction?: string;
+    }) => {
+      const traceId = input?.traceId ?? createBookingTraceId();
+      bookingTraceStart(traceId, {
+        userAction: input?.userAction ?? "submitBookingHandoff",
+        chatSessionId: sessionId ?? null,
+        conciergeMode: advisorRoute?.concierge_mode ?? null,
+      });
+
+      if (!sessionId) {
+        bookingTraceEnd(traceId, "blocked", { reason: "no_session_id" });
+        setError("Start a conversation before sending to the workshop");
+        return false;
+      }
+      if (intakeSubmitState === "sending") {
+        bookingTraceEnd(traceId, "blocked", { reason: "already_sending" });
+        return false;
+      }
+      if (intakeSubmitStarted.current && intakeSubmitState === "sent") {
+        bookingTraceEnd(traceId, "success", { reason: "already_sent" });
+        return true;
+      }
+
+      bookingTraceStage("3_submitBookingHandoff", traceId, {
+        intakeSubmitState,
+        confirmationText: input?.confirmationText ?? null,
+      });
+
+      const payload = buildBookingIntakePayload({
+        chatSessionId: sessionId,
+        intake: structuredIntakeRef.current ?? createEmptyStructuredIntake(),
+        leadDraft: leadDraftRef.current,
+        registrationHint,
+        uploadIds: uploadIdsRef.current,
+        customerName: input?.name,
+        customerPhone: input?.phone,
+        traceId,
+      });
+      if (!payload) {
+        bookingTraceEnd(traceId, "blocked", { reason: "payload_null" });
+        setError("Booking details are incomplete");
+        return false;
+      }
+
+      intakeSubmitStarted.current = true;
+      setIntakeSubmitState("sending");
+      setError(null);
+      setIsTyping(true);
+      setTypingLabel("Sending booking request…");
+
+      if (input?.confirmationText?.trim()) {
+        const optimistic = createOptimisticUserMessage(input.confirmationText.trim(), {
+          displayContent: input.displayContent ?? input.confirmationText.trim(),
+          source: "typed",
+        });
+        setMessages((prev) => [...prev, optimistic]);
+      }
+
+      try {
+        bookingTraceStage("4_post_booking_intake", traceId, {
+          payload: tracePayloadSummary(payload),
+        });
+        const result = await completeBookingIntake(payload);
+        if (!result.bookingId) {
+          throw new Error("Booking was not saved — no booking reference returned.");
+        }
+        bookingTraceStage("9_api_response", traceId, {
+          bookingId: result.bookingId,
+          emailSent: result.notificationSent,
+          emailId: result.emailId ?? null,
+          bookingCreated: result.bookingCreated,
+          notificationSent: result.notificationSent,
+        });
+        setHandoffResult({
+          bookingId: result.bookingId,
+          submittedAt: new Date().toISOString(),
+          emailSent: result.notificationSent,
+          notificationSent: result.notificationSent,
+          bookingCreated: result.bookingCreated,
+        });
+        setIntakeSubmitState("sent");
+        setIntakeComplete(true);
+        setCallbackReady(false);
+        setSuggestionChips([]);
+        setMessages((prev) => clearAllChipsSnapshots(prev));
+        bookingTraceEnd(traceId, "success", {
+          bookingId: result.bookingId,
+          emailSent: result.emailSent,
+          clientState: "sent",
+        });
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Booking submission failed";
+        bookingTraceEnd(traceId, "failure", {
+          error: message,
+          clientState: "error",
+        });
+        intakeSubmitStarted.current = false;
+        setIntakeSubmitState("error");
+        setSuggestionChips([BOOKING_CONFIRM_CHIP]);
+        return false;
+      } finally {
+        setIsTyping(false);
+        setTypingLabel(null);
+      }
+    },
+    [sessionId, registrationHint, intakeSubmitState, advisorRoute?.concierge_mode]
   );
 
   const reset = useCallback(() => {
@@ -529,7 +742,9 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     setMechanicSummary(undefined);
     setIntakeComplete(false);
     setIntakeSubmitState("idle");
+    setHandoffResult(null);
     setLeadDraft({});
+    setStructuredIntake(undefined);
     setCallbackReady(false);
     setError(null);
     intakeSubmitStarted.current = false;
@@ -554,10 +769,17 @@ export function useAdvisorChat(options: UseAdvisorChatOptions = {}) {
     reset,
     retryIntakeSubmit,
     submitWorkshopHandoff,
+    submitCallbackHandoff: submitWorkshopHandoff,
+    submitBookingHandoff,
+    handoffResult,
     sessionId,
     leadDraft,
+    structuredIntake,
     callbackReady,
     appendLocalAssistant,
     appendAssistantWithChips,
+    appendLocalUser,
+    patchLeadDraft,
+    patchStructuredIntake,
   };
 }

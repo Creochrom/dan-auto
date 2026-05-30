@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Calendar, LogOut, Users, Wrench } from "lucide-react";
 import { adminFetch } from "@/lib/admin/client";
+import { resolveJobsFromResponse } from "@/lib/workshop/resolve-jobs-response";
 import { clearAdminDisplay, loadAdminDisplay, saveAdminDisplay, type AuthUser } from "@/lib/enterprise/auth";
 import { AdminQuickLinks } from "@/components/enterprise/AdminQuickLinks";
 import type { Booking } from "@/lib/types/booking";
@@ -88,7 +89,7 @@ export function AdminDashboard() {
 
       const bookings = Array.isArray(bookingsJson.data) ? bookingsJson.data : [];
       const leads = Array.isArray(leadsJson.data) ? leadsJson.data : [];
-      const jobs = Array.isArray(jobsJson.data) ? jobsJson.data : [];
+      const jobs = resolveJobsFromResponse(jobsJson);
       setCounts({
         bookings: bookings.length,
         bookingsNew: bookings.filter((b) => b.status === "new" || b.status === "awaiting_callback").length,

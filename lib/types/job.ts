@@ -74,6 +74,12 @@ export type Job = {
   assignedTo?: string;
   createdAt: string;
   updatedAt: string;
+  /** Optional workshop estimate in pence (e.g. AI intake midpoint). */
+  estimatedValuePence?: number | null;
+  /** Customer-approved quote in pence — counts toward confirmed revenue. */
+  approvedQuotePence?: number | null;
+  /** Final invoice amount in pence when work is completed. */
+  finalInvoicePence?: number | null;
 };
 
 /** Append-only technician / AI note on a job. Never edited after creation. */
@@ -108,6 +114,7 @@ export type CreateJobInput = {
   service: string;
   symptomsText?: string;
   assignedTo?: string;
+  estimatedValuePence?: number | null;
 };
 
 export type UpdateJobInput = {
@@ -115,6 +122,9 @@ export type UpdateJobInput = {
   notesText?: string;
   symptomsText?: string;
   assignedTo?: string;
+  estimatedValuePence?: number | null;
+  approvedQuotePence?: number | null;
+  finalInvoicePence?: number | null;
 };
 
 export type AddJobNoteInput = {

@@ -1,6 +1,8 @@
 import { chatRepository } from "@/lib/repositories/chat.repository";
 import type { AiIntakeSessionSnapshot } from "@/lib/types/ai-intake";
 import type { ChatSession } from "@/lib/types/chat";
+import { createEmptyStructuredIntake } from "@/lib/types/structured-intake";
+import { createInitialIntakeState } from "@/lib/services/service-advisor.engine";
 
 /**
  * Resolve chat session from server memory (or DB), or rebuild from client
@@ -22,6 +24,8 @@ export async function resolveAiIntakeSession(
     messages: snapshot.messages.slice(0, 80),
     leadDraft: snapshot.leadDraft,
     mechanicSummary: snapshot.mechanicSummary,
+    structuredIntake: snapshot.structuredIntake ?? createEmptyStructuredIntake(),
+    intakeState: snapshot.intakeState ?? createInitialIntakeState(),
     advisorRoute: snapshot.advisorRoute,
     bookingContext: snapshot.bookingContext,
     createdAt: now,

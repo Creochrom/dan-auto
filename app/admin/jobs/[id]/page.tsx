@@ -9,6 +9,7 @@ import { askWorkshopCopilot } from "@/features/copilot/services/copilot-client";
 import { JobAttachmentsPanel } from "@/components/workshop/JobAttachmentsPanel";
 import { JobCockpitSection } from "@/components/workshop/JobCockpitSection";
 import { JobInvoiceDraftPanel } from "@/components/workshop/JobInvoiceDraftPanel";
+import { JobRevenuePanel } from "@/components/workshop/JobRevenuePanel";
 import { JobMilestoneBar } from "@/components/workshop/JobMilestoneBar";
 import { JobTimelineFeed } from "@/components/workshop/JobTimelineFeed";
 import { VehicleIntelligencePanel } from "@/components/vehicle/VehicleIntelligencePanel";
@@ -320,7 +321,7 @@ export default function AdminJobDetailPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="admin-content-wrap max-w-5xl">
         <p className="text-sm text-zinc-500">Loading job details…</p>
       </main>
     );
@@ -328,7 +329,7 @@ export default function AdminJobDetailPage() {
 
   if (error && !job) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="admin-content-wrap max-w-5xl">
         <div className="premium-card rounded-2xl p-6">
           <p className="text-sm text-rose-300">{error}</p>
           <button
@@ -345,7 +346,7 @@ export default function AdminJobDetailPage() {
 
   if (!job) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="admin-content-wrap max-w-5xl">
         <div className="premium-card rounded-2xl p-6">
           <p className="text-sm text-zinc-300">Job not found.</p>
           <Link href="/admin/today" className="mt-4 inline-block text-sm text-[#d4a63c] hover:underline">
@@ -357,7 +358,7 @@ export default function AdminJobDetailPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-3 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+    <main className="admin-content-wrap max-w-3xl pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="sticky top-0 z-20 -mx-3 mb-4 border-b border-white/10 bg-[#0a0a0a]/95 px-3 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -585,16 +586,25 @@ export default function AdminJobDetailPage() {
       </JobCockpitSection>
 
       <JobCockpitSection
-        title="Value"
-        description="Invoice draft and indicative estimate from intake."
+        title="Revenue tracking"
+        description="Workshop values for Today dashboard — not accounting or payments."
         className="mt-4"
       >
-        {indicativeRange ? (
-          <p className="mb-3 text-xs text-zinc-400">
-            Indicative range from booking intake:{" "}
-            <span className="font-medium text-[#e8d5a3]">{indicativeRange}</span>
-          </p>
-        ) : null}
+        <JobRevenuePanel
+          job={job}
+          disabled={saving}
+          intakeEstimateHint={indicativeRange}
+          onSave={async (patch) => {
+            await patchJob(patch);
+          }}
+        />
+      </JobCockpitSection>
+
+      <JobCockpitSection
+        title="Invoice draft"
+        description="Line-item draft for workshop reference."
+        className="mt-4"
+      >
         <JobInvoiceDraftPanel
           jobId={job.id}
           disabled={saving}

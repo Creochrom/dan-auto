@@ -68,4 +68,24 @@ export function getEmailProvider(): "resend" | "log" {
   return "resend";
 }
 
+/** Block workshop handoff when production cannot deliver email. */
+export function assertProductionEmailDelivery(): void {
+  if (process.env.NODE_ENV !== "production") return;
+
+  const provider = getEmailProvider();
+  if (provider === "log") {
+    throw new Error(
+      "Workshop email is not configured for production (EMAIL_PROVIDER=log). Notifications cannot be sent."
+    );
+  }
+
+  if (!getEmailApiKey()) {
+    throw new Error("RESEND_API_KEY is not configured for production email delivery.");
+  }
+
+  if (getIntakeEmailRecipients().length === 0) {
+    throw new Error("Workshop inbox is not configured (BOOKING_EMAIL_TO).");
+  }
+}
+
 export const EMAIL_FROM_DISPLAY = businessConfig.shortName;

@@ -167,4 +167,15 @@ export const supabaseBookingsRepository = {
 
     return toBooking(data as BookingRow);
   },
+
+  async delete(id: string): Promise<boolean> {
+    const supabase = getSupabaseServerClient();
+    const { error, count } = await supabase
+      .from("bookings")
+      .delete({ count: "exact" })
+      .eq("id", id);
+
+    if (error) throw new Error(`[bookings] delete failed: ${error.message}`);
+    return (count ?? 0) > 0;
+  },
 };

@@ -16,18 +16,26 @@ export type StructuredIntakeVehicle = {
 };
 
 export type StructuredIntakeIssue = {
+  /** Primary symptom category label e.g. "Warning light", "Overheating". */
+  primarySymptom: string;
   symptoms: string[];
+  /** Symptoms noticed while driving — loss of power, pulling, vibration, etc. */
+  drivingSymptoms: string[];
   warningLights: string[];
   startedWhen: string;
   drivable: boolean | null;
   severity: string;
 };
 
+export type DiagnosticConfidenceLevel = "low" | "medium" | "high" | "";
+
 export type StructuredIntakeEstimate = {
   possibleCauses: string[];
   estimatedPriceRange: string;
   urgencyLevel: string;
   recommendedNextStep: string;
+  /** Diagnostic certainty after symptom investigation — not a repair diagnosis. */
+  diagnosticConfidence: DiagnosticConfidenceLevel;
   /** 1–2 sentence narrative the workshop reads first. AI-authored. */
   summary: string;
 };
@@ -58,7 +66,9 @@ export function createEmptyStructuredIntake(): StructuredIntake {
     customer: { name: "", contact: "" },
     vehicle: { make: "", model: "", year: "", engine: "", mileage: "" },
     issue: {
+      primarySymptom: "",
       symptoms: [],
+      drivingSymptoms: [],
       warningLights: [],
       startedWhen: "",
       drivable: null,
@@ -70,6 +80,7 @@ export function createEmptyStructuredIntake(): StructuredIntake {
       estimatedPriceRange: "",
       urgencyLevel: "",
       recommendedNextStep: "",
+      diagnosticConfidence: "",
       summary: "",
     },
     intent: "",

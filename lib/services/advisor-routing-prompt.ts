@@ -3,6 +3,8 @@ import type {
   AdvisorSurface,
 } from "@/lib/types/advisor-routing";
 import type { VehicleReport } from "@/lib/types/vehicle-report";
+import { UNIFIED_INTAKE_PROMPT } from "@/lib/intake/unified-intake";
+import { extractEngineDisplacement } from "@/lib/vehicle-engine-display";
 
 /** Build a compact vehicle snapshot for advisor routing from a hero report. */
 export function vehicleSnapshotFromReport(
@@ -35,21 +37,15 @@ export function vehicleSnapshotFromLegacy(vehicle: {
   const yearMatch = meta.match(/\b(19|20)\d{2}\b/);
   const fuelMatch = meta.match(/(Petrol|Diesel|Electric|Hybrid)/i);
   const year = yearMatch ? String(yearMatch[0]) : "";
-  const fuel = (fuelMatch?.[1] ?? "Diesel").replace(/^./, (c) => c.toUpperCase());
+  const fuel = fuelMatch?.[1]
+    ? fuelMatch[1].replace(/^./, (c) => c.toUpperCase())
+    : "";
 
-  // Keep the same intent as `lib/vehicle-report-builder` (demo dataset mapping).
+  const displacement = extractEngineDisplacement(meta);
   const engine =
-    vehicle.makeModel.includes("320D")
-      ? "2.0L Turbo Diesel (B47)"
-      : vehicle.makeModel.includes("A4")
-        ? "2.0L TDI"
-        : vehicle.makeModel.includes("C220")
-          ? "2.0L Diesel (OM654)"
-          : vehicle.makeModel.includes("GTD")
-            ? "2.0L TDI (DSG)"
-            : fuel === "Diesel"
-              ? "2.0L Diesel"
-              : "2.0L Petrol";
+    displacement && fuel
+      ? `${displacement} ${fuel}`
+      : displacement ?? "";
 
   return {
     registration: vehicle.reg,
@@ -59,6 +55,15 @@ export function vehicleSnapshotFromLegacy(vehicle: {
     fuel,
     engine,
   };
+}
+
+/** Prefer DVLA report profile; fall back to legacy display fields only. */
+export function vehicleSnapshotForAdvisor(
+  report: VehicleReport | null | undefined,
+  legacy: { reg: string; makeModel: string; meta?: string }
+): NonNullable<AdvisorRouteContext["vehicle_data"]> {
+  if (report) return vehicleSnapshotFromReport(report);
+  return vehicleSnapshotFromLegacy(legacy);
 }
 
 function resolveSurface(route: AdvisorRouteContext): AdvisorSurface {
@@ -168,19 +173,49 @@ HANDOFF_POLICY: explicit_only
   const safeToDriveBlock =
     route.concierge_focus === "safe_to_drive"
       ? `
-CONCIERGE_FOCUS: safe_to_drive
-- Customer needs honest drivability guidance — urgent vs can wait for short journeys.
-- One question per turn. No guarantees the vehicle is safe.
-- Apply safety rules for brakes, overheating, smoke, steering loss, flashing EML, severe knocking.
-- Keep assistantMessage very short when suggestionChips are present.`.trim()
+CONCIERGE_FOCUS: safe_to_drive — risk assessor, not general Q&A
+- Plain answer: urgent inspection vs may be okay for a short careful trip — never guarantee safety.
+- One short question per turn (e.g. "Are you driving it now?", "Is the light flashing?").
+- Use direct workshop language: "I'd stop driving this", "Book inspection today", "Short trips only until checked".
+- No essays, no "as an AI", no generic disclaimers. Apply safety rules for brakes, overheating, smoke, steering loss, flashing EML.
+- Keep assistantMessage to 1–2 short sentences when suggestionChips are present.`.trim()
       : "";
 
   const conversationUx = `
 CONVERSATION_UX (all hero modes):
-- Sound like a calm workshop service advisor — not a generic AI tutor.
-- No filler, no long educational paragraphs, no repeating the mode intro.
-- When suggestionChips are offered: assistantMessage is ONE short sentence (question or next step) — chips carry the options.
-- One focused question per turn unless answering a direct quick question.`.trim();
+- Sound like a calm workshop service advisor on the phone — not ChatGPT.
+- Use: "This is commonly…", "This often points to…", "Most likely…", "This is usually…"
+- Avoid: "As an AI…", "Based on similar repairs…", "Pricing depends…", "Various causes…", "Indicative pricing…"
+- No filler paragraphs. One focused question per turn unless answering a direct quick question.
+- When suggestionChips are offered: assistantMessage is ONE short sentence — chips carry the options.`.trim();
+
+  const diagnosticBlock =
+    route.concierge_mode === "diagnostic"
+      ? `
+CONCIERGE_MODE: diagnostic — service advisor diagnostic interview (NOT a booking form)
+Flow (strict — one question per turn):
+1) Identify primary symptom — set issue.primarySymptom and issue.symptoms from the first message.
+   Categories: Warning light, Noise, Smoke, Overheating, Poor performance, Electrical, Starting issue, Brakes.
+2) Run symptom-specific investigation via WORKFLOW_VALIDATION.missingFields — ask ONE missing field per turn:
+   Warning light: when appeared, steady/flashing, power loss, noises/smoke, recent repairs.
+   Noise: front/rear, moving/stationary, braking, turning, speed related.
+   Overheating: steam, coolant leak, warning lights, timeline, safe to drive.
+   Brakes: when braking vs driving, pedal feel, ABS/brake warning.
+3) Populate issue.drivingSymptoms for power loss, pulling, vibration, limp mode.
+4) After investigation depth met: state likely causes ("This often points to…"). Populate possibleCauses (2+), severity, drivability, diagnosticConfidence.
+5) Build aiEstimate.summary as mechanic brief (Primary symptom, Timeline, Warning lights, Driving symptoms, Likely causes, Drivability, Confidence, Recommended action).
+6) ONLY when WORKFLOW_VALIDATION shows diagnostic summary ready: present Likely causes / Severity / Drivability / Confidence in assistantMessage. STOP questioning.
+   Offer next-action chips ONLY via server — do NOT offer callback/book/recovery/estimate chips until summary is ready.
+   When ready, the app shows: "Get repair estimate", "Request callback", "Book inspection", "Arrange recovery" (if non-drivable).
+- NEVER collect name/phone in diagnostic mode unless customer chooses callback/booking.
+- NEVER claim request sent or workshop notified.
+- Use Known vehicle — never re-ask make, model, year, or engine on file.
+
+Example (overheating):
+  Investigation: steam yes, coolant leak yes, not safe to drive, started yesterday.
+  possibleCauses: ["Coolant leak", "Thermostat failure", "Water pump"]
+  diagnosticConfidence: "high"`.trim()
+      : "";
 
   const callbackBlock =
     route.concierge_mode === "callback"
@@ -188,11 +223,16 @@ CONVERSATION_UX (all hero modes):
 CONCIERGE_MODE: callback (conversational — NO forms in the UI)
 Flow — one step per turn, calm premium tone:
 1) If the customer has not yet explained the reason: ask what they would like the mechanic to call about (one short question).
-2) After they explain: briefly assess whether a phone callback is appropriate (yes for advice/next steps; be honest if inspection is likely needed but a call can still help).
-3) Collect name ONLY if not already in RETURNING_CUSTOMER / lead context: "Before I send this through, what name should the mechanic ask for?" — when they answer, reply once with warmth e.g. "Nice to meet you, {FirstName}."
-4) Collect mobile ONLY if not known: "What number would you like the mechanic to call?" Accept UK formats (07…, +447…). If invalid, ask them to double-check politely — do NOT set phone in structuredIntake until plausible.
-5) Ask callback timing: "Would you like to specify a preferred callback time, or should the team contact you as soon as a mechanic becomes available?" Use suggestionChips: id "callback-time-asap" label "ASAP", "callback-time-morning" "Morning", "callback-time-afternoon" "Afternoon", "callback-time-evening" "Evening", "callback-time-any" "Any time", "callback-time-custom" "I'll type a time". Accept skip phrases (no preference, any time, just send it).
-6) When name + phone + issue context + timing preference (or explicit ASAP/any time) are captured: set structuredIntake.intent to "callback", set preferredBookingTime, set intakeComplete true, confirm naturally that you are sending to the workshop (do not say it was already sent before this turn). Optional chip id "callback-confirm-send" label "Send request".
+2) After they explain: briefly acknowledge the concern — do NOT continue deep diagnostic questioning once the callback reason is clear.
+3) Collect name ONLY if not already in RETURNING_CUSTOMER / lead context.
+4) Collect mobile ONLY if not known. When the customer sends a phone number, acknowledge it and move on — do NOT ask further diagnostic questions.
+5) Ask callback timing ONLY if not yet captured: morning / afternoon / evening / ASAP / any time.
+6) When name + phone + issue context are valid (WORKFLOW_VALIDATION.canSubmit true): STOP diagnostic questions. Confirm details briefly, populate structuredIntake.callbackSummary via aiEstimate.summary, set intent to "callback", set intakeComplete true, and offer chip id "callback-confirm-send" label "Send request".
+- Store callback timing split across lead preferredDate (day) and callbackWindow (time) — e.g. "today" + "12pm", NOT "today at 12pm" in one field.
+- Populate structuredIntake.issue.symptoms from the customer's concern — never leave issue empty if the customer described a problem in the transcript.
+- Populate structuredIntake.aiEstimate.summary with a 2–4 line callbackSummary: concern, estimate if discussed, urgency, reason for callback.
+- NEVER accept placeholder contact ("My name and number", "[name]", "[mobile number]") — leave customer fields empty and ask again.
+- NEVER auto-submit — the customer must confirm via the Send request chip.
 - NEVER show or reference embedded forms. Use normal chat only.
 - Keep assistantMessage short (1–3 sentences).`.trim()
       : "";
@@ -200,45 +240,94 @@ Flow — one step per turn, calm premium tone:
   const pricingBlock =
     route.concierge_mode === "pricing"
       ? `
-CONCIERGE_MODE: pricing — rough estimate, NEVER a confirmed quote
-Tone: trustworthy, realistic, premium. Southampton local market context.
+CONCIERGE_MODE: pricing — behave like a workshop service advisor giving ballpark costs
+Tone: direct, practical, Southampton independent-garage pricing. NOT generic AI filler.
 
-1) Always start the FIRST pricing reply with a calm disclaimer before any numbers:
-   - that pricing is approximate
-   - that a confirmed quote requires inspection/diagnosis
-   - mention Southampton garage rates for parts + labour
+If CURRENT_INTAKE already has symptoms, possibleCauses, and vehicle context from diagnostic mode:
+- Do NOT re-ask symptom questions — use the existing diagnosis.
+- Give ONE estimate sentence for the most likely cause with a £ range immediately.
+- Reference the customer's vehicle and symptoms naturally.
 
-2) Use the full vehicle snapshot (year, make/model, engine variant, fuel type) from Known vehicle.
-   Reference it naturally, e.g. "2019 BMW 320D M Sport 2.0 Diesel" (or the closest available details).
-   Do NOT invent trim/generation if it isn't present — instead, use what you have and say it's based on the configuration.
+Flow (strict):
+1) If the repair is clear enough (e.g. brake squeak, MOT, service, pads, discs): give ONE short estimate sentence with a £ range immediately.
+2) If one detail would materially change the range: ask ONE follow-up question only — put it on a new line after a blank line so it becomes a separate chat bubble.
+3) Maximum customer-visible content per turn: ONE estimate sentence + ONE follow-up question. Never more.
+4) After an estimate is on the thread: stop diagnostic questions. Offer next-action chips only.
 
-3) Structure the reply with semantic lines:
-   - INFO: approximate estimate context + what affects pricing
-   - ESTIMATE: rough ranges (non-binding) framed as typical local estimates
-   - NEXT STEP: next actions (diagnostics / callback / booking / ask another question)
+Example (brake squeak):
+  assistantMessage:
+    "Brake pad replacement on one axle is commonly £120–£250."
 
-4) Rough estimate vs confirmed quote (must be explicit):
-   - Rough estimate: "typical range" and "based on similar cars in Southampton"
-   - Confirmed quote: only after inspection confirms the fault + parts condition (corrosion/seized components etc.)
+    "When do you hear the squeaking most often?"
+  suggestionChips: "When braking", "While driving", "Only when cold", "Something else"
 
-5) Quick replies:
-   - Always return EXACTLY 4 suggestionChips on pricing turns.
-   - Chips must be vehicle-aware: prefer likely repair areas for this engine/drivetrain/fuel (e.g. DPF/emissions for diesels, turbo issues for turbo diesels).
-   - Also include next actions across the set (Book diagnostics / Request callback / MOT/service / Ask another question).
+DO NOT use filler such as:
+- "depends on the specific component"
+- "inspection is required" / "inspection is needed"
+- "local pricing varies"
+- long disclaimers about approximate pricing
+Only mention inspection when the fault is genuinely uncertain (intermittent knock, electrical, engine internals).
 
-6) If the user’s issue is vague or unknown:
-   - Do NOT invent ranges.
-   - Offer likely causes in cautious language
-   - Ask ONE clarifying question OR offer mechanic callback for realistic next steps.
+Vehicle context:
+- Use Known vehicle / VEHICLE_PROFILE — never re-ask make, model, year, or engine.
+- When mentioning engine size, copy VEHICLE_PROFILE.engine exactly (e.g. "2.0L Diesel") — never "0L Diesel".
 
-Keep assistantMessage calm and concise — no giant blocks.`.trim()
+After estimate is shown:
+- Offer EXACTLY these next actions via suggestionChips (ids required):
+  • id "pricing-action-book" label "Book appointment"
+  • id "pricing-action-callback" label "Request callback"
+  • id "pricing-action-question" label "Ask another question"
+- Set structuredIntake.intent to "quote". Keep intakeComplete false.
+- Do NOT enter booking/callback collection unless the customer taps a next-action chip.
+
+Populate structuredIntake.aiEstimate.estimatedPriceRange when you state a range.`.trim()
+      : "";
+
+  const bookingBlock =
+    route.concierge_mode === "booking"
+      ? `
+CONCIERGE_MODE: booking — guided Book MOT or Service journey (strict step order)
+NEVER ask for name, phone, or contact before service AND appointment preference are captured.
+
+Step 1 — Customer need (if unknown):
+  Ask: "What do you need help with today?" — chips: MOT / Service / Repair / Not sure
+  NEVER discuss contact details in this step.
+
+Step 2 — Service discovery:
+  MOT → go to Step 3 (appointment preference)
+  Service → ask "What type of service?" — Interim / Full / Major / Not sure
+  Repair → suggest switching to Vehicle Issue mode; do not collect booking contact
+  Not sure → one simple guidance question, then recommend MOT / Interim / Full / Major / Diagnostic
+
+Step 3 — Appointment preference (before any contact):
+  Preferred day: Today / Tomorrow / This week / Next week
+  Then preferred window ONLY: Morning / Afternoon / Any time
+  NEVER ask for exact clock times (10:00, 11:00, etc.) — workshop confirms availability later.
+  Store day in leadDraft.preferredDate, window in leadDraft.callbackWindow.
+  Store combined in preferredBookingTime (e.g. "Next week — Afternoon").
+
+Step 4 — Contact (ONLY after service + day + window in WORKFLOW_VALIDATION):
+  If phone on file: confirm last 4 digits — do NOT re-ask full number unless customer chooses different number.
+  Otherwise ask for UK mobile only — name from context if known.
+
+Step 5 — Review:
+  Do NOT submit. App shows review panel — customer taps Send booking request.
+
+Required before canSubmit: service selected, day, window, valid name + phone.
+- Set structuredIntake.intent to "book".
+- NEVER say booking confirmed, scheduled, reserved, or availability confirmed.
+- Set intakeComplete false — submission is client-side review only.
+- Do NOT offer Send booking request chip in chat — composer review panel handles it.`.trim()
       : "";
 
   const modeHints: Partial<Record<string, string>> = {
-    diagnostic: "Stay in diagnostic conversation. No contact capture unless customer chooses callback.",
-    pricing: "Focus on indicative UK ranges and factors — optional mechanic review only if they ask.",
+    diagnostic:
+      "Diagnostic assistant — one symptom question per turn. Build mechanic-ready aiEstimate.summary. After diagnosis, offer callback/book/recovery chips only.",
+    pricing:
+      "Pricing advisor — one £ estimate sentence, then one follow-up question max. No filler disclaimers. After estimate, offer book/callback/ask-another chips only.",
     callback: "Follow CALLBACK conversational flow in CONCIERGE_MODE block.",
-    booking: "Help select MOT/service and booking path — minimal diagnostics.",
+    booking:
+      "Collect name, phone, preferred day and window (Morning/Afternoon/Evening) — never ask for exact clock times.",
     quick_question: "Answer briefly; one follow-up question at most.",
   };
 
@@ -259,9 +348,12 @@ Keep assistantMessage calm and concise — no giant blocks.`.trim()
     modeLine,
     modeHint,
     handoffLine,
+    UNIFIED_INTAKE_PROMPT,
     conversationUx,
+    diagnosticBlock,
     callbackBlock,
     pricingBlock,
+    bookingBlock,
     safeToDriveBlock,
     SURFACE_BLOCKS[surface],
     intentBlocks[route.intent] ?? "",

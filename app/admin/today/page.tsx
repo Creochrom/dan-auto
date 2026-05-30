@@ -6,28 +6,28 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Copy, Loader2, Phone } from "lucide-react";
 import { adminFetch } from "@/lib/admin/client";
 import { AdminQuickLinks } from "@/components/enterprise/AdminQuickLinks";
-import { TodayMetricStrip } from "@/components/workshop/TodayMetricStrip";
-import { TodayRevenueStrip } from "@/components/workshop/TodayRevenueStrip";
+import { TodayOperationalKpiStrip } from "@/components/workshop/TodayOperationalKpiStrip";
 import { VehicleWorkQueueCard } from "@/components/workshop/VehicleWorkQueueCard";
 import { WorkQueueFilters } from "@/components/workshop/WorkQueueFilters";
-import type { Booking, BookingStatus } from "@/lib/types/booking";
+import type { Booking } from "@/lib/types/booking";
 import type { Job } from "@/lib/types/job";
-import type { Invoice } from "@/lib/types/workshop-data";
-import { fetchInvoiceMapForJobs } from "@/lib/workshop/fetch-job-invoices";
 import type { MotQueueByBucket } from "@/lib/workshop/mot-queue";
 import {
   computeRevenuePipeline,
-  type RevenuePipeline,
 } from "@/lib/workshop/revenue-pipeline";
 import {
   buildWorkQueue,
-  computeTodayMetrics,
   countWorkQueueByFilter,
   filterWorkQueue,
   type WorkQueueFilter,
 } from "@/lib/workshop/work-queue";
+import { computeTodayOperationalKpis } from "@/lib/workshop/today-operational-kpis";
+import { filterCollectedJobs } from "@/lib/workshop/completed-jobs";
+import { resolveJobsFromResponse } from "@/lib/workshop/resolve-jobs-response";
+import { formatPipelineGbp } from "@/lib/workshop/revenue-pipeline";
+import { JOB_STATUS_LABELS, type JobStatus } from "@/lib/types/job";
 
-type JobsResponse = { ok?: boolean; data?: Job[]; error?: string };
+type JobsResponse = { ok?: boolean; data?: Job[] | { jobs?: Job[] }; error?: string };
 type BookingsResponse = { ok?: boolean; data?: Booking[]; error?: string };
 type MotQueueResponse = {
   ok?: boolean;
@@ -59,18 +59,6 @@ export default function AdminTodayPage() {
   const [queueFilter, setQueueFilter] = useState<WorkQueueFilter>("all");
   const [pendingConfirmId, setPendingConfirmId] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<Record<string, "idle" | "copied" | "error">>({});
-  const [revenueLoading, setRevenueLoading] = useState(false);
-  const [invoiceByJobId, setInvoiceByJobId] = useState<Map<string, Invoice | null>>(
-    () => new Map()
-  );
-
-  const emptyPipeline: RevenuePipeline = {
-    potentialPence: 0,
-    confirmedPence: 0,
-    completedPence: 0,
-    awaitingQuoteCount: 0,
-    awaitingQuotePence: 0,
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,7 +94,7 @@ export default function AdminTodayPage() {
         throw new Error("Could not load today queue.");
       }
 
-      setJobs(Array.isArray(jobsJson.data) ? jobsJson.data : []);
+      setJobs(resolveJobsFromResponse(jobsJson));
       setBookings(Array.isArray(bookingsJson.data) ? bookingsJson.data : []);
       setMotBuckets(
         motQueueJson.data?.buckets ?? {
@@ -116,15 +104,8 @@ export default function AdminTodayPage() {
           7: [],
         }
       );
-
-      const loadedJobs = Array.isArray(jobsJson.data) ? jobsJson.data : [];
-      setRevenueLoading(true);
-      const invoiceMap = await fetchInvoiceMapForJobs(loadedJobs.map((j) => j.id));
-      setInvoiceByJobId(invoiceMap);
-      setRevenueLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load today queue.");
-      setRevenueLoading(false);
     } finally {
       setLoading(false);
     }
@@ -155,20 +136,28 @@ export default function AdminTodayPage() {
     [workQueue]
   );
 
-  const metrics = useMemo(
-    () => computeTodayMetrics(bookings, jobs),
-    [bookings, jobs]
+  const operationalKpis = useMemo(
+    () => computeTodayOperationalKpis(jobs),
+    [jobs]
   );
 
   const revenuePipeline = useMemo(
-    () =>
-      computeRevenuePipeline({
-        bookings,
-        jobs,
-        invoiceByJobId,
-      }),
-    [bookings, jobs, invoiceByJobId]
+    () => computeRevenuePipeline({ jobs }),
+    [jobs]
   );
+
+  const collectedJobs = useMemo(
+    () => filterCollectedJobs(jobs, { updatedToday: true }),
+    [jobs]
+  );
+
+  const formatCollectedTime = (iso: string) =>
+    new Date(iso).toLocaleString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "short",
+    });
 
   const totalMotQueueCount = useMemo(
     () =>
@@ -214,8 +203,8 @@ export default function AdminTodayPage() {
         if (json.data?.job?.id) {
           const jobsRes = await adminFetch("/api/jobs", { credentials: "include" });
           const jobsJson = (await jobsRes.json().catch(() => null)) as JobsResponse | null;
-          if (jobsRes.ok && jobsJson?.ok && Array.isArray(jobsJson.data)) {
-            setJobs(jobsJson.data);
+          if (jobsRes.ok && jobsJson?.ok) {
+            setJobs(resolveJobsFromResponse(jobsJson));
           }
         }
       } catch (err) {
@@ -268,7 +257,7 @@ export default function AdminTodayPage() {
   );
 
   return (
-    <main className="mx-auto max-w-7xl px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+    <main className="admin-content-wrap pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-white sm:text-2xl">Today</h1>
@@ -283,11 +272,10 @@ export default function AdminTodayPage() {
 
       <AdminQuickLinks active="today" />
 
-      <TodayMetricStrip metrics={metrics} loading={loading} />
-
-      <TodayRevenueStrip
-        pipeline={revenueLoading ? emptyPipeline : revenuePipeline}
-        loading={loading || revenueLoading}
+      <TodayOperationalKpiStrip
+        kpis={operationalKpis}
+        potentialRevenuePence={revenuePipeline.potentialPence}
+        loading={loading}
       />
 
       <section className="mb-8" aria-label="Vehicle work queue">
@@ -352,6 +340,70 @@ export default function AdminTodayPage() {
           </ul>
         )}
       </section>
+
+      <details
+        id="completed"
+        open={collectedJobs.length > 0}
+        className="premium-card group mb-8 scroll-mt-20 rounded-2xl"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+          <div>
+            <h2 className="text-sm font-semibold text-white">Collected today</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Completed handovers · jobs remain in history and vehicle records
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-200">
+              {collectedJobs.length}
+            </span>
+            <ChevronDown className="h-4 w-4 text-zinc-500 transition group-open:rotate-180" />
+          </div>
+        </summary>
+
+        <div className="border-t border-white/[0.06] p-4 pt-0">
+          {loading ? (
+            <p className="mt-4 text-xs text-zinc-500">Loading collected jobs…</p>
+          ) : collectedJobs.length === 0 ? (
+            <p className="mt-4 text-xs text-zinc-500">
+              No vehicles collected today yet.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {collectedJobs.map((job) => (
+                <li
+                  key={job.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-3"
+                >
+                  <div>
+                    <p className="font-mono text-sm font-semibold text-[#e8d5a3]">
+                      {job.registration}
+                    </p>
+                    <p className="text-xs text-zinc-400">{job.service}</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      {JOB_STATUS_LABELS[job.status as JobStatus]} ·{" "}
+                      {formatCollectedTime(job.updatedAt)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 text-right">
+                    {job.finalInvoicePence != null ? (
+                      <p className="text-sm tabular-nums text-emerald-200">
+                        {formatPipelineGbp(job.finalInvoicePence)}
+                      </p>
+                    ) : null}
+                    <Link
+                      href={`/admin/jobs/${job.id}`}
+                      className="text-xs text-[#d4a63c] hover:underline"
+                    >
+                      Open job →
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
 
       <details id="mot" className="premium-card group scroll-mt-20 rounded-2xl">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">

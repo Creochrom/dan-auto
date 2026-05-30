@@ -1,12 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  bubbleText,
-  groupAssistantBlocks,
-  parseAdvisorMessageContent,
-  SEGMENT_LABEL,
-} from "@/lib/chat";
+import { bubbleText, stripAdvisorSemanticLabels } from "@/lib/chat";
 import { ChatQuickReplies } from "@/features/chat/components/ChatQuickReplies";
 import { AdvisorHandoffNoticeBubble } from "@/features/chat/components/AdvisorHandoffNoticeBubble";
 import type { ChatMessage } from "@/lib/types/chat";
@@ -124,25 +119,21 @@ export function ChatMessageBubble({
     );
   }
 
-  const blocks = groupAssistantBlocks(parseAdvisorMessageContent(message.content));
+  const displayContent = stripAdvisorSemanticLabels(message.content);
 
   return (
-    <div className="flex w-full flex-col items-start gap-1">
-      {blocks.map((block, i) => (
-        <motion.div
-          key={`${message.id}-b${i}`}
-          layout
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: isSending ? 0.85 : 1, y: 0 }}
-          transition={{ duration: 0.18, delay: i * 0.02 }}
-          className={`${ASSISTANT_BUBBLE} bg-white/[0.04] ${isSending ? "chat-bubble--sending" : ""}`}
-        >
-          {block.kind === "segment" && (
-            <span className="advisor-msg__label">{SEGMENT_LABEL[block.type]}</span>
-          )}
-          <p className="whitespace-pre-wrap">{block.text}</p>
-        </motion.div>
-      ))}
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: isSending ? 0.85 : 1, y: 0 }}
+      transition={{ duration: 0.18 }}
+      className="flex w-full flex-col items-start"
+    >
+      <div
+        className={`${ASSISTANT_BUBBLE} bg-white/[0.04] ${isSending ? "chat-bubble--sending" : ""}`}
+      >
+        <p className="whitespace-pre-wrap">{displayContent}</p>
+      </div>
 
       {chips && chips.length > 0 && (
         <div className="chat-inline-replies-anchor mt-1.5 w-full max-w-[min(92%,320px)] sm:max-w-[88%]">
@@ -156,6 +147,6 @@ export function ChatMessageBubble({
           />
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

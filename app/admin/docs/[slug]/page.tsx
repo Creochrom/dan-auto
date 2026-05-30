@@ -22,7 +22,7 @@ export default async function AdminDocDetailPage({
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <main className="admin-content-wrap max-w-6xl">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">

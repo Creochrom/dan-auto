@@ -39,6 +39,9 @@ export type WorkQueueItem = {
   bookingId?: string;
   jobId?: string;
   updatedAt: string;
+  estimatedValuePence?: number | null;
+  approvedQuotePence?: number | null;
+  finalInvoicePence?: number | null;
 };
 
 const QUEUE_BOOKING_STATUSES: readonly BookingStatus[] = [
@@ -115,6 +118,9 @@ function jobToItem(job: Job, today: string): WorkQueueItem {
     bookingId: job.bookingId,
     jobId: job.id,
     updatedAt: job.updatedAt,
+    estimatedValuePence: job.estimatedValuePence,
+    approvedQuotePence: job.approvedQuotePence,
+    finalInvoicePence: job.finalInvoicePence,
   };
 }
 

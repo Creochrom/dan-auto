@@ -1,9 +1,64 @@
 import type { BookingChatContext, LeadDraft } from "@/lib/types/chat";
 import type { IntakeSeverity, IntakeState, MechanicIntakeSummary } from "@/lib/types/intake";
+import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
+import type { VehicleMemoryLookupResult } from "@/lib/types/vehicle-memory";
 import {
   createEmptyStructuredIntake,
   type StructuredIntake,
 } from "@/lib/types/structured-intake";
+import {
+  validateCustomerName,
+  validateCustomerPhone,
+  validateLeadContact,
+} from "@/lib/validation/advisor-contact";
+import {
+  formatVehicleDisplay,
+  normalizeVehicleParts,
+} from "@/lib/vehicle/format-vehicle-display";
+
+/** DVLA-backed vehicle fields that Gemini must not overwrite. */
+export type LockedVehicleFacts = Partial<
+  Pick<StructuredIntake["vehicle"], "make" | "model" | "year" | "engine">
+>;
+
+export function resolveDvlaVehicleFacts(opts: {
+  vehicleMemory?: VehicleMemoryLookupResult;
+  advisorRoute?: AdvisorRouteContext;
+}): LockedVehicleFacts | undefined {
+  const memoryVehicle =
+    opts.vehicleMemory?.dvlaMatched && opts.vehicleMemory.vehicle
+      ? opts.vehicleMemory.vehicle
+      : undefined;
+  const routeVehicle = opts.advisorRoute?.vehicle_data;
+
+  const source = memoryVehicle ?? routeVehicle;
+  if (!source) return undefined;
+
+  const locked: LockedVehicleFacts = {};
+  if (source.make?.trim()) locked.make = source.make.trim();
+  if (source.model?.trim()) locked.model = source.model.trim();
+  if (source.year?.trim()) locked.year = source.year.trim();
+  if (source.engine?.trim()) locked.engine = source.engine.trim();
+
+  return Object.keys(locked).length > 0 ? locked : undefined;
+}
+
+export function applyLockedVehicleFacts(
+  intake: StructuredIntake,
+  locked?: LockedVehicleFacts
+): StructuredIntake {
+  if (!locked) return intake;
+  return {
+    ...intake,
+    vehicle: {
+      ...intake.vehicle,
+      make: locked.make ?? intake.vehicle.make,
+      model: locked.model ?? intake.vehicle.model,
+      year: locked.year ?? intake.vehicle.year,
+      engine: locked.engine ?? intake.vehicle.engine,
+    },
+  };
+}
 
 /**
  * Merge a partial Gemini extraction onto the session-resident intake.
@@ -15,15 +70,16 @@ import {
  */
 export function mergeStructuredIntake(
   current: StructuredIntake | undefined,
-  incoming: Partial<StructuredIntake> | undefined
+  incoming: Partial<StructuredIntake> | undefined,
+  lockedVehicle?: LockedVehicleFacts
 ): StructuredIntake {
   const base = current ?? createEmptyStructuredIntake();
-  if (!incoming) return base;
+  if (!incoming) return applyLockedVehicleFacts(base, lockedVehicle);
 
-  return {
+  const merged: StructuredIntake = {
     customer: {
-      name: pickString(incoming.customer?.name, base.customer.name),
-      contact: pickString(incoming.customer?.contact, base.customer.contact),
+      name: pickContactField(incoming.customer?.name, base.customer.name, "name"),
+      contact: pickContactField(incoming.customer?.contact, base.customer.contact, "phone"),
     },
     vehicle: {
       make: pickString(incoming.vehicle?.make, base.vehicle.make),
@@ -33,9 +89,13 @@ export function mergeStructuredIntake(
       mileage: pickString(incoming.vehicle?.mileage, base.vehicle.mileage),
     },
     issue: {
+      primarySymptom: pickString(incoming.issue?.primarySymptom, base.issue.primarySymptom ?? ""),
       symptoms: incoming.issue?.symptoms?.length
         ? incoming.issue.symptoms
         : base.issue.symptoms,
+      drivingSymptoms: incoming.issue?.drivingSymptoms?.length
+        ? incoming.issue.drivingSymptoms
+        : base.issue.drivingSymptoms ?? [],
       warningLights: incoming.issue?.warningLights?.length
         ? incoming.issue.warningLights
         : base.issue.warningLights,
@@ -63,6 +123,10 @@ export function mergeStructuredIntake(
         incoming.aiEstimate?.recommendedNextStep,
         base.aiEstimate.recommendedNextStep
       ),
+      diagnosticConfidence: pickString(
+        incoming.aiEstimate?.diagnosticConfidence,
+        base.aiEstimate.diagnosticConfidence
+      ) as StructuredIntake["aiEstimate"]["diagnosticConfidence"],
       summary: pickString(incoming.aiEstimate?.summary, base.aiEstimate.summary),
     },
     intent: incoming.intent && incoming.intent.trim() ? incoming.intent : base.intent,
@@ -71,6 +135,8 @@ export function mergeStructuredIntake(
       base.preferredBookingTime
     ),
   };
+
+  return applyLockedVehicleFacts(merged, lockedVehicle);
 }
 
 function pickString(
@@ -79,6 +145,24 @@ function pickString(
 ): string {
   if (typeof incoming === "string" && incoming.trim().length > 0) return incoming;
   return base;
+}
+
+/** Only accept validated contact values — never merge placeholder text from the model. */
+function pickContactField(
+  incoming: string | undefined | null,
+  base: string,
+  kind: "name" | "phone"
+): string {
+  const trimmed = typeof incoming === "string" ? incoming.trim() : "";
+  if (!trimmed) return base;
+
+  if (kind === "name") {
+    const parsed = validateCustomerName(trimmed);
+    return parsed.valid ? parsed.normalized : base;
+  }
+
+  const parsed = validateCustomerPhone(trimmed);
+  return parsed.valid ? parsed.normalized : base;
 }
 
 function parseSeverity(raw: string | undefined): IntakeSeverity {
@@ -93,9 +177,7 @@ export function structuredIntakeToLeadDraft(
   intake: StructuredIntake,
   existing: LeadDraft = {}
 ): LeadDraft {
-  const vehicleParts = [intake.vehicle.make, intake.vehicle.model, intake.vehicle.year]
-    .filter(Boolean)
-    .join(" ");
+  const vehicleParts = formatVehicleDisplay(normalizeVehicleParts(intake.vehicle));
 
   return {
     ...existing,
@@ -115,14 +197,12 @@ export function structuredIntakeToMechanicSummary(
   const symptoms = intake.issue.symptoms.join("; ").trim();
   if (!symptoms && !intake.aiEstimate.possibleCauses.length) return undefined;
 
-  const vehicle = [intake.vehicle.year, intake.vehicle.make, intake.vehicle.model]
-    .filter(Boolean)
-    .join(" ");
+  const vehicle = formatVehicleDisplay(normalizeVehicleParts(intake.vehicle));
 
   return {
     vehicle: vehicle || undefined,
     registration: registrationHint,
-    symptoms: symptoms || "See chat transcript",
+    symptoms: symptoms || "",
     possibleCauses: intake.aiEstimate.possibleCauses,
     estimatedRange: intake.aiEstimate.estimatedPriceRange || "Indicative only — inspection required",
     severity: parseSeverity(intake.issue.severity || intake.aiEstimate.urgencyLevel),
@@ -168,12 +248,12 @@ function parsePriceRange(range: string): { low: number; high: number } {
 }
 
 export function isStructuredIntakeReadyForHandoff(intake: StructuredIntake): boolean {
-  const hasContact = Boolean(intake.customer.name.trim() && intake.customer.contact.trim());
+  const contact = validateLeadContact(intake.customer.name, intake.customer.contact);
   const hasSymptoms = intake.issue.symptoms.length > 0;
   const hasVehicle =
     Boolean(intake.vehicle.make.trim() || intake.vehicle.model.trim()) ||
     Boolean(intake.vehicle.year.trim());
-  return hasContact && hasSymptoms && hasVehicle;
+  return contact.canSubmit && hasSymptoms && hasVehicle;
 }
 
 export function bookingContextLine(ctx?: BookingChatContext): string {

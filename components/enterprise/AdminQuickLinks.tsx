@@ -11,12 +11,12 @@ type AdminQuickLinksProps = {
 
 const linkClass = (isActive: boolean) =>
   isActive
-    ? "rounded-lg border border-[#d4a63c]/30 px-3 py-1.5 text-xs font-semibold text-[#d4a63c] hover:bg-[#d4a63c]/10"
-    : "rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-400 hover:border-white/20";
+    ? "inline-flex min-h-9 items-center rounded-full border border-[#d4a63c]/35 bg-[#d4a63c]/10 px-3.5 py-1.5 text-xs font-semibold text-[#e8d5a3] shadow-[0_0_0_1px_rgba(212,166,60,0.12)] transition hover:bg-[#d4a63c]/14"
+    : "inline-flex min-h-9 items-center rounded-full border border-white/[0.08] bg-white/[0.02] px-3.5 py-1.5 text-xs text-zinc-400 transition hover:border-white/20 hover:bg-white/[0.04] hover:text-zinc-200";
 
 export function AdminQuickLinks({ active }: AdminQuickLinksProps) {
   return (
-    <div className="mb-4 flex flex-wrap gap-2">
+    <div className="mb-4 flex flex-wrap gap-2.5">
       <Link href="/admin/today" className={linkClass(active === "today")}>
         Today →
       </Link>

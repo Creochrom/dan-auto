@@ -15,6 +15,20 @@ test("confirm flow creates one job per booking id", async () => {
     notes: "Customer reports intermittent knocking noise.",
     source: "website",
     intakeSummary: {
+      caseSummary: {
+        kind: "booking",
+        customerName: "Test Customer",
+        customerPhone: "07123456789",
+        registration: "AB12CDE",
+        symptoms: "Intermittent knocking from front suspension.",
+        bookingReason: "Diagnostics",
+        urgency: "medium",
+        drivability: "unknown",
+        preferredDate: "2026-06-01",
+        preferredTime: "10:00",
+        possibleCauses: ["Drop link wear"],
+        preparedAt: new Date().toISOString(),
+      },
       customerName: "Test Customer",
       customerPhone: "07123456789",
       registration: "AB12CDE",
@@ -31,8 +45,9 @@ test("confirm flow creates one job per booking id", async () => {
     },
   });
 
-  const booking = await bookingService.update(created.booking.id, { status: "confirmed" });
-  assert.ok(booking, "booking should exist");
+  const result = await bookingService.update(created.booking.id, { status: "confirmed" });
+  assert.ok(result, "booking should exist");
+  const booking = result.booking;
 
   const first = await jobService.ensureBookingJob({
     bookingId: booking.id,
