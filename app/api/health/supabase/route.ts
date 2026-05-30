@@ -34,42 +34,63 @@ export async function GET() {
     const supabase = getSupabaseServerClient();
     const start = Date.now();
 
-    const { error } = await supabase.from("leads").select("id").limit(1);
+    // Probe every table so the health check pinpoints exactly which migrations
+    // are missing. Table names match the migration files:
+    //   001 → leads, bookings
+    //   002 → chat_sessions, uploads, vehicle_memory
+    //   003 → slot_overrides
+    //   004 → jobs, job_notes, job_status_events
+    const TABLE_PROBES = [
+      "leads",
+      "bookings",
+      "chat_sessions",
+      "uploads",
+      "vehicle_memory",
+      "slot_overrides",
+      "jobs",
+      "job_notes",
+      "job_status_events",
+    ] as const;
+
+    const probeResults = await Promise.all(
+      TABLE_PROBES.map(async (table) => {
+        const { error } = await supabase.from(table).select("id").limit(1);
+        return {
+          table,
+          ok: !error,
+          // 42P01 = undefined_table (migration not yet applied)
+          missing: error?.code === "42P01",
+          error: error && error.code !== "42P01" ? error.message : undefined,
+        };
+      })
+    );
 
     const latencyMs = Date.now() - start;
+    const missingTables = probeResults.filter((r) => r.missing).map((r) => r.table);
+    const errorTables = probeResults.filter((r) => r.error);
+    const schemaReady = missingTables.length === 0 && errorTables.length === 0;
 
-    if (!error) {
-      return jsonOk({
-        storageBackend,
-        connected: true,
-        schemaReady: true,
-        latencyMs,
-      });
-    }
-
-    // 42P01 = undefined_table — Supabase is reachable but schema not yet migrated.
-    if (error.code === "42P01") {
-      return jsonOk({
-        storageBackend,
-        connected: true,
-        schemaReady: false,
-        latencyMs,
-      });
-    }
-
-    // Any other Supabase/PostgREST error still proves network connectivity.
     return jsonOk({
       storageBackend,
       connected: true,
-      schemaReady: false,
+      schemaReady,
       latencyMs,
-      detail: error.message,
+      tables: probeResults.map((r) => ({
+        table: r.table,
+        ok: r.ok,
+        ...(r.missing ? { missing: true } : {}),
+        ...(r.error ? { error: r.error } : {}),
+      })),
+      ...(missingTables.length > 0
+        ? {
+            missingTables,
+            hint: `Run migrations that create: ${missingTables.join(", ")}`,
+          }
+        : {}),
     });
   } catch (e) {
-    // Config error (missing env vars) or hard network failure.
     const message = e instanceof Error ? e.message : "Supabase health check failed";
 
-    // Distinguish config errors from network errors for easier diagnosis.
     if (message.includes("Missing required environment variable")) {
       return jsonError(message, 500);
     }

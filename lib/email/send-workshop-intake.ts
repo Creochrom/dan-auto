@@ -1,4 +1,4 @@
-import { getEmailProvider, getIntakeEmailTo } from "@/lib/email/config";
+import { getEmailProvider, getIntakeEmailRecipients } from "@/lib/email/config";
 import { sendTransactionalEmail } from "@/lib/email/send-transactional";
 import {
   renderBookingIntakeEmailHtml,
@@ -19,8 +19,8 @@ export async function sendWorkshopIntakeEmail(
   summary: ServiceIntakeSummary,
   opts?: { transcript?: ChatMessage[] }
 ): Promise<NotificationSendResult> {
-  const to = getIntakeEmailTo();
-  if (!to) {
+  const recipients = getIntakeEmailRecipients();
+  if (recipients.length === 0) {
     logBookingEvent("notification.failed", {
       kind: "workshop_intake",
       bookingId: booking.id,
@@ -32,13 +32,18 @@ export async function sendWorkshopIntakeEmail(
 
   const reg = summary.registration.replace(/\s/g, "");
   const subject = `New AI Service Intake — ${reg} — ${summary.bookingSlot.service}`;
+  const emailOpts = {
+    transcript: opts?.transcript,
+    bookingId: booking.id,
+    customerEmail: booking.customerEmail,
+  };
 
   try {
     const result = await sendTransactionalEmail({
-      to,
+      to: recipients,
       subject,
-      text: renderBookingIntakeEmailText(summary, opts?.transcript),
-      html: renderBookingIntakeEmailHtml(summary, opts?.transcript),
+      text: renderBookingIntakeEmailText(summary, emailOpts),
+      html: renderBookingIntakeEmailHtml(summary, emailOpts),
       replyTo: booking.customerEmail,
     });
     logBookingEvent("notification.sent", {

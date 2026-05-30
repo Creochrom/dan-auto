@@ -60,7 +60,11 @@ export function useHeroFloatingWindowPlacement({
 
     const container = containerRef?.current;
     const layer = container
-      ? { width: container.clientWidth, height: container.clientHeight }
+      ? {
+          width: container.clientWidth,
+          height: container.clientHeight,
+          top: container.getBoundingClientRect().top,
+        }
       : null;
 
     const nextPlacement = resolveFloatingWindowPlacement({

@@ -15,6 +15,7 @@ export type HeroViewportTier = "desktop" | "tablet" | "mobile";
 export type LayerBounds = {
   width: number;
   height: number;
+  top?: number;
 };
 
 export function getHeroViewportTier(viewportWidth: number): HeroViewportTier {
@@ -44,9 +45,9 @@ type StackTierConfig = {
 
 function tierConfig(tier: Exclude<HeroViewportTier, "desktop">): StackTierConfig {
   if (tier === "mobile") {
-    return { pad: 10, topAnchor: 56, minTop: 8, cascadeStep: 20 };
+    return { pad: 10, topAnchor: 20, minTop: 8, cascadeStep: 20 };
   }
-  return { pad: 12, topAnchor: 64, minTop: 12, cascadeStep: 24 };
+  return { pad: 12, topAnchor: 28, minTop: 12, cascadeStep: 24 };
 }
 
 function usableLayerHeight(layer: LayerBounds, tier: Exclude<HeroViewportTier, "desktop">): number {
@@ -58,7 +59,9 @@ function usableLayerHeight(layer: LayerBounds, tier: Exclude<HeroViewportTier, "
       10
     ) || 92;
   const safePad = tier === "mobile" ? 12 : 16;
-  const viewportCap = window.innerHeight - nav - safePad;
+  const layerTop = typeof layer.top === "number" ? Math.max(0, layer.top) : nav;
+  const ribbonGuard = tier === "mobile" ? 78 : 96;
+  const viewportCap = window.innerHeight - layerTop - safePad - ribbonGuard;
   return Math.max(120, Math.min(layer.height, viewportCap));
 }
 

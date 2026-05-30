@@ -1,7 +1,7 @@
 import { CALLBACK_SUBMIT_SUCCESS } from "@/lib/config/callback-flow-copy";
 import { WORKSHOP_SUBMIT_SUCCESS } from "@/lib/config/hero-concierge-copy";
 import { buildAiIntakeWorkshopSummary } from "@/lib/email/build-ai-intake-summary";
-import { getIntakeEmailTo } from "@/lib/email/config";
+import { getIntakeEmailRecipients } from "@/lib/email/config";
 import { sendTransactionalEmail } from "@/lib/email/send-transactional";
 import {
   buildAiIntakeSubject,
@@ -96,8 +96,13 @@ export const aiIntakeService = {
     const text = renderAiIntakeEmailText(summary);
     const html = renderAiIntakeEmailHtml(summary);
 
+    const recipients = getIntakeEmailRecipients();
+    if (recipients.length === 0) {
+      throw new Error("Workshop email is not configured (BOOKING_EMAIL_TO)");
+    }
+
     const sent = await sendTransactionalEmail({
-      to: getIntakeEmailTo(),
+      to: recipients,
       subject,
       text,
       html,
@@ -118,32 +123,36 @@ export const aiIntakeService = {
     }
 
     if (!fromMemory?.leadCaptured) {
-      await leadService.create({
-        name: summary.customerName,
-        phone: summary.customerPhone,
-        registration: summary.registration,
-        vehicleModel: summary.vehicle,
-        problemDescription: summary.symptoms,
-        preferredDate: summary.preferredBookingTime ?? summary.callbackAvailability,
-        source: "assistant",
-        aiSummary: [
-          summary.aiSummary ? `Summary: ${summary.aiSummary}` : null,
-          `Service: ${summary.serviceRequested}`,
-          summary.warningLights.length
-            ? `Warning lights: ${summary.warningLights.join(", ")}`
-            : null,
-          `Drivability: ${summary.drivability}`,
-          `Intent: ${summary.intent}`,
-          summary.possibleCauses.length
-            ? `Causes: ${summary.possibleCauses.join("; ")}`
-            : null,
-          `Range: ${summary.estimatedRange ?? "—"}`,
-          `Urgency: ${summary.urgency}`,
-          summary.partial ? `Partial — missing: ${summary.missingFields.join(", ")}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      });
+      await leadService.create(
+        {
+          name: summary.customerName,
+          phone: summary.customerPhone,
+          email: summary.customerEmail,
+          registration: summary.registration,
+          vehicleModel: summary.vehicle,
+          problemDescription: summary.symptoms,
+          preferredDate: summary.preferredBookingTime ?? summary.callbackAvailability,
+          source: summary.intent === "callback" ? "callback" : "assistant",
+          aiSummary: [
+            summary.aiSummary ? `Summary: ${summary.aiSummary}` : null,
+            `Service: ${summary.serviceRequested}`,
+            summary.warningLights.length
+              ? `Warning lights: ${summary.warningLights.join(", ")}`
+              : null,
+            `Drivability: ${summary.drivability}`,
+            `Intent: ${summary.intent}`,
+            summary.possibleCauses.length
+              ? `Causes: ${summary.possibleCauses.join("; ")}`
+              : null,
+            `Range: ${summary.estimatedRange ?? "—"}`,
+            `Urgency: ${summary.urgency}`,
+            summary.partial ? `Partial — missing: ${summary.missingFields.join(", ")}` : null,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        },
+        { suppressWorkshopEmail: true, sourceIntent: summary.intent }
+      );
       if (fromMemory) {
         await chatRepository.markLeadCaptured(sessionId);
       }

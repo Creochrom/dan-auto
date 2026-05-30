@@ -9,7 +9,6 @@ import { HeroAIChatModal } from "@/components/hero/HeroAIChatModal";
 import { HeroBookInspectionModal } from "@/components/hero/HeroBookInspectionModal";
 import { HeroEstimateModal } from "@/components/hero/HeroEstimateModal";
 import { HeroOverlayStage } from "@/components/hero/HeroOverlayStage";
-import { HeroReportSkeleton } from "@/components/hero/report/HeroReportSkeleton";
 import {
   HeroVehicleReportSuite,
   REPORT_WINDOWS,
@@ -33,7 +32,6 @@ import {
 import { HERO_SHOWCASE_VEHICLE } from "@/lib/vehicle-data";
 import { useAssistant } from "@/features/assistant/AssistantContext";
 import { stripPlate } from "@/lib/format-plate";
-import { scrollToSection } from "@/lib/scroll-to-section";
 import type { AdvisorRouteContext } from "@/lib/types/advisor-routing";
 import type { HeroConciergeMode } from "@/lib/types/hero-concierge";
 import { HeroVehicleInfoBar } from "@/components/hero/HeroVehicleInfoBar";
@@ -73,7 +71,6 @@ function PremiumHeroWindowStack({
   vehicleReport,
   vehicleData,
   isMember,
-  isLoading,
   insightsHubOpen,
   visibleInsightWindows,
   closedReportWindows,
@@ -102,7 +99,6 @@ function PremiumHeroWindowStack({
   vehicleReport: VehicleReport | null;
   vehicleData: VehicleResult | null;
   isMember: boolean;
-  isLoading: boolean;
   insightsHubOpen: boolean;
   visibleInsightWindows: ReadonlySet<string>;
   closedReportWindows: ReadonlySet<string>;
@@ -141,7 +137,6 @@ function PremiumHeroWindowStack({
     !closedReportWindows.has("insights-hub");
 
   const layerActive =
-    isLoading ||
     showEntry ||
     showHub ||
     visibleInsightWindows.size > 0 ||
@@ -178,12 +173,6 @@ function PremiumHeroWindowStack({
     >
       <HeroWindowStackProvider windowOrder={windowOrder}>
       <HeroWindowLayer active={layerActive}>
-        {isLoading && (
-          <div className="pointer-events-none absolute left-1/2 top-16 z-[45] -translate-x-1/2">
-            <HeroReportSkeleton />
-          </div>
-        )}
-
         {showEntry && (
           <HeroMainEntryWindow
             report={vehicleReport}
@@ -518,10 +507,7 @@ function PremiumHeroInner({
     [onBookNow, onCreateAccount, openChat, bringToFront, activateWindow]
   );
 
-  const overlayActive = isLoading || estimateOpen || inspectionOpen;
-  const handleBookVisitCta = useCallback(() => {
-    scrollToSection("booking");
-  }, []);
+  const overlayActive = estimateOpen || inspectionOpen;
 
   return (
     <HeroLandingShell
@@ -621,29 +607,6 @@ function PremiumHeroInner({
 
                 </div>
 
-                <div className="mt-4 hidden flex-col gap-3 sm:mt-5 lg:flex lg:flex-row lg:items-center">
-                  <button
-                    type="button"
-                    onClick={onCreateAccount}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d4a63a]/55 bg-transparent px-6 py-3.5 text-sm font-medium text-[#d4a63a] transition duration-200 hover:border-[#d4a63a] hover:shadow-[0_0_18px_rgba(212,166,58,0.14)] lg:w-auto lg:px-7"
-                  >
-                    Create account
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleBookVisitCta}
-                    className="btn-glow inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#f4d27a] via-[#e0b654] to-[#c9972d] px-6 py-3.5 text-sm font-bold text-black shadow-[0_0_26px_rgba(212,166,60,0.28)] transition hover:from-[#f8dd92] hover:via-[#eac56a] hover:to-[#d3a33b] hover:shadow-[0_0_34px_rgba(212,166,60,0.36)] lg:w-auto lg:px-7"
-                  >
-                    Book your visit in 60 seconds
-                  </button>
-                  <p className="text-center text-[11px] leading-relaxed text-zinc-500 lg:text-left">
-                    We only use your details for your booking request.{" "}
-                    <a href="/privacy" className="text-cyan hover:underline">
-                      Privacy policy
-                    </a>
-                    .
-                  </p>
-                </div>
               </div>
 
               <div className="hero-right" aria-hidden="true">
@@ -673,7 +636,6 @@ function PremiumHeroInner({
               vehicleReport={vehicleReport}
               vehicleData={vehicleData}
               isMember={isMember}
-              isLoading={isLoading}
               insightsHubOpen={insightsHubOpen}
               visibleInsightWindows={visibleInsightWindows}
               closedReportWindows={closedReportWindows}

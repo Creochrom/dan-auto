@@ -34,8 +34,8 @@ export function prepareBookingIntakeEmail(
     to: getIntakeEmailTo(),
     from: getEmailFrom(),
     subject,
-    text: renderBookingIntakeEmailText(summary, transcript),
-    html: renderBookingIntakeEmailHtml(summary, transcript),
+    text: renderBookingIntakeEmailText(summary, { transcript, bookingId }),
+    html: renderBookingIntakeEmailHtml(summary, { transcript, bookingId }),
     summary,
     meta: {
       preparedAt: new Date().toISOString(),

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 import { ChevronRight, Clock, X, type LucideIcon } from "lucide-react";
 import { getServiceDetail } from "@/lib/services-detail";
 
@@ -23,7 +24,129 @@ type Props = {
 
 export function ServiceGridPremium({ services, onBookService }: Props) {
   const [active, setActive] = useState<ServiceItem | null>(null);
+  const [mounted, setMounted] = useState(false);
   const detail = active ? getServiceDetail(active.title) : null;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [active]);
+
+  const modal = (
+    <AnimatePresence>
+      {active && detail && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
+          onClick={() => setActive(null)}
+          role="dialog"
+          aria-modal={true}
+          aria-labelledby="service-modal-title"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            onClick={(e) => e.stopPropagation()}
+            className="premium-panel glow-cyan max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-6 sm:p-8"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="eyebrow">{detail.title}</p>
+                <h3
+                  id="service-modal-title"
+                  className="mt-2 text-2xl font-light text-white"
+                >
+                  {detail.headline}
+                </h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Typical duration: {detail.typicalDuration} · From {active.from}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActive(null)}
+                className="rounded-full border border-white/10 p-2 text-zinc-400 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-400/90">
+                  How we perform this work
+                </p>
+                <ol className="mt-3 space-y-2">
+                  {detail.process.map((step, idx) => (
+                    <li
+                      key={step}
+                      className="flex gap-3 text-sm leading-relaxed text-zinc-300"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-xs font-bold text-amber-300">
+                        {idx + 1}
+                      </span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
+                  Why Dan Auto is different
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-300">
+                  {detail.whySuperior}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Real workshop example
+                </p>
+                <p className="mt-2 text-sm italic leading-relaxed text-zinc-400">
+                  {detail.workshopExample}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  onBookService?.(active.title);
+                  setActive(null);
+                }}
+                className="btn-glow rounded-full px-6 py-3 text-sm font-semibold text-black"
+              >
+                Book {active.title}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActive(null)}
+                className="btn-ghost rounded-full px-6 py-3 text-sm text-white"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <>
@@ -76,111 +199,7 @@ export function ServiceGridPremium({ services, onBookService }: Props) {
         ))}
       </div>
 
-      <AnimatePresence>
-        {active && detail && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[var(--z-overlay)] flex items-end justify-center bg-black/80 p-4 backdrop-blur-md sm:items-center"
-            onClick={() => setActive(null)}
-            role="dialog"
-            aria-modal
-            aria-labelledby="service-modal-title"
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 24 }}
-              transition={{ duration: 0.35, ease: EASE }}
-              onClick={(e) => e.stopPropagation()}
-              className="premium-panel glow-cyan max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-6 sm:p-8"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="eyebrow">{detail.title}</p>
-                  <h3
-                    id="service-modal-title"
-                    className="mt-2 text-2xl font-light text-white"
-                  >
-                    {detail.headline}
-                  </h3>
-                  <p className="mt-2 text-sm text-zinc-500">
-                    Typical duration: {detail.typicalDuration} · From {active.from}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActive(null)}
-                  className="rounded-full border border-white/10 p-2 text-zinc-400 hover:text-white"
-                  aria-label="Close"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="mt-6 space-y-6">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-400/90">
-                    How we perform this work
-                  </p>
-                  <ol className="mt-3 space-y-2">
-                    {detail.process.map((step, idx) => (
-                      <li
-                        key={step}
-                        className="flex gap-3 text-sm leading-relaxed text-zinc-300"
-                      >
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-xs font-bold text-amber-300">
-                          {idx + 1}
-                        </span>
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-
-                <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
-                    Why Dan Auto is different
-                  </p>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-                    {detail.whySuperior}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                    Real workshop example
-                  </p>
-                  <p className="mt-2 text-sm italic leading-relaxed text-zinc-400">
-                    {detail.workshopExample}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onBookService?.(active.title);
-                    setActive(null);
-                  }}
-                  className="btn-glow rounded-full px-6 py-3 text-sm font-semibold text-black"
-                >
-                  Book {active.title}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActive(null)}
-                  className="btn-ghost rounded-full px-6 py-3 text-sm text-white"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {mounted ? createPortal(modal, document.body) : null}
     </>
   );
 }

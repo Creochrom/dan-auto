@@ -4,15 +4,41 @@ import { businessConfig } from "@/lib/config/business";
 /** Verified Resend sender — danautocentre.co.uk domain */
 export const DEFAULT_EMAIL_FROM = `${BRAND.shortName} <${businessConfig.email}>`;
 
+const DEV_FALLBACK_INTAKE_TO = "creochrome@gmail.com";
+
+function parseEmailList(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 /**
- * Workshop inbox for booking notifications (server env only).
- * Set BOOKING_EMAIL_TO on Vercel production.
+ * Workshop inboxes for booking notifications (server env only).
+ *
+ * Supports comma-separated `BOOKING_EMAIL_TO` and optional `BOOKING_EMAIL_TO_SECONDARY`.
  */
+export function getIntakeEmailRecipients(): string[] {
+  const primary = parseEmailList(process.env.BOOKING_EMAIL_TO);
+  const secondary = parseEmailList(process.env.BOOKING_EMAIL_TO_SECONDARY);
+  const devFallback =
+    process.env.NODE_ENV === "development" && primary.length === 0 && secondary.length === 0
+      ? [DEV_FALLBACK_INTAKE_TO]
+      : [];
+
+  const seen = new Set<string>();
+  return [...primary, ...secondary, ...devFallback].filter((email) => {
+    const key = email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Comma-separated display string — used for previews and health checks. */
 export function getIntakeEmailTo(): string {
-  return (
-    process.env.BOOKING_EMAIL_TO?.trim() ||
-    (process.env.NODE_ENV === "development" ? "creochrome@gmail.com" : "")
-  );
+  return getIntakeEmailRecipients().join(", ");
 }
 
 /** Resend test / unverified senders — never use in production */

@@ -14,6 +14,7 @@ import {
   createEmptyStructuredIntake,
   type StructuredIntake,
 } from "@/lib/types/structured-intake";
+import type { IntakeIntent } from "@/lib/types/ai-intake";
 import type { ChatRequest, ChatResponse, ChatSession, LeadDraft } from "@/lib/types/chat";
 import type { VehicleMemoryLookupResult } from "@/lib/types/vehicle-memory";
 import { stripPlate } from "@/lib/format-plate";
@@ -276,29 +277,44 @@ export const chatService = {
       turn.leadDraft?.phone;
 
     if (shouldCapture && turn.leadDraft) {
-      const { name, phone, registration, vehicleModel, problemDescription, callbackWindow } =
+      const { name, phone, email, registration, vehicleModel, problemDescription, callbackWindow } =
         turn.leadDraft;
       const summary = turn.mechanicSummary;
-      await leadService.create({
-        name: name!,
-        phone: phone!,
-        registration,
-        vehicleModel,
-        problemDescription: problemDescription ?? summary?.symptoms,
-        preferredDate: callbackWindow,
-        source: "assistant",
-        aiSummary: summary
-          ? [
-              `Vehicle: ${summary.vehicle ?? "—"}`,
-              `Reg: ${summary.registration ?? "—"}`,
-              `Symptoms: ${summary.symptoms}`,
-              `Causes: ${summary.possibleCauses.join("; ")}`,
-              `Range: ${summary.estimatedRange}`,
-              `Severity: ${summary.severity}`,
-              `Callback: ${summary.callbackWindow ?? "—"}`,
-            ].join("\n")
-          : `Chat session ${session.id}`,
-      });
+      const structured = turn.structuredIntake ?? session.structuredIntake;
+      const rawIntent = structured?.intent?.toLowerCase();
+      const sourceIntent: IntakeIntent | undefined =
+        rawIntent === "book" ||
+        rawIntent === "callback" ||
+        rawIntent === "quote" ||
+        rawIntent === "info_only" ||
+        rawIntent === "unspecified"
+          ? rawIntent
+          : undefined;
+
+      await leadService.create(
+        {
+          name: name!,
+          phone: phone!,
+          email: email?.trim() || undefined,
+          registration,
+          vehicleModel,
+          problemDescription: problemDescription ?? summary?.symptoms,
+          preferredDate: callbackWindow,
+          source: rawIntent === "callback" ? "callback" : "assistant",
+          aiSummary: summary
+            ? [
+                `Vehicle: ${summary.vehicle ?? "—"}`,
+                `Reg: ${summary.registration ?? "—"}`,
+                `Symptoms: ${summary.symptoms}`,
+                `Causes: ${summary.possibleCauses.join("; ")}`,
+                `Range: ${summary.estimatedRange}`,
+                `Severity: ${summary.severity}`,
+                `Callback: ${summary.callbackWindow ?? "—"}`,
+              ].join("\n")
+            : `Chat session ${session.id}`,
+        },
+        { sourceIntent }
+      );
       await chatRepository.markLeadCaptured(session.id);
     }
 

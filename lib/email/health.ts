@@ -2,6 +2,7 @@ import {
   getEmailApiKey,
   getEmailFrom,
   getEmailProvider,
+  getIntakeEmailRecipients,
   getIntakeEmailTo,
 } from "@/lib/email/config";
 
@@ -11,6 +12,7 @@ export type EmailHealthReport = {
   /** Workshop inbox domain only (e.g. gmail.com) — not the full address */
   intakeToDomain: string;
   intakeToConfigured: boolean;
+  intakeRecipientCount: number;
   /** Sender domain or "default" */
   fromDomain: string;
   fromAllowed: boolean;
@@ -41,6 +43,7 @@ export function assessEmailHealth(): EmailHealthReport {
   const provider = getEmailProvider();
   const hasApiKey = Boolean(getEmailApiKey());
   const from = getEmailFrom();
+  const recipients = getIntakeEmailRecipients();
   const to = getIntakeEmailTo();
   const fromAllowed = !isDisallowedSender(from);
   const warnings: string[] = [];
@@ -55,7 +58,7 @@ export function assessEmailHealth(): EmailHealthReport {
     warnings.push("RESEND_API_KEY is missing.");
   }
 
-  if (!to) {
+  if (recipients.length === 0) {
     warnings.push("BOOKING_EMAIL_TO is missing.");
   }
 
@@ -78,8 +81,9 @@ export function assessEmailHealth(): EmailHealthReport {
   return {
     provider,
     hasApiKey,
-    intakeToDomain: domainFromAddress(to),
+    intakeToDomain: domainFromAddress(recipients[0] ?? to),
     intakeToConfigured: Boolean(process.env.BOOKING_EMAIL_TO?.trim()),
+    intakeRecipientCount: recipients.length,
     fromDomain: domainFromAddress(from),
     fromAllowed,
     ready,

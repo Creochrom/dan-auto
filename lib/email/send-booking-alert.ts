@@ -5,7 +5,7 @@
  * triggers the same notification logic without duplication.
  */
 
-import { getEmailProvider, getIntakeEmailTo } from "@/lib/email/config";
+import { getEmailProvider, getIntakeEmailRecipients } from "@/lib/email/config";
 import { sendTransactionalEmail } from "@/lib/email/send-transactional";
 import {
   renderCustomerConfirmationHtml,
@@ -33,8 +33,8 @@ export type NotificationSendResult = {
 export async function sendWorkshopBookingAlert(
   booking: Booking
 ): Promise<NotificationSendResult> {
-  const to = getIntakeEmailTo();
-  if (!to) {
+  const recipients = getIntakeEmailRecipients();
+  if (recipients.length === 0) {
     logBookingEvent("notification.failed", {
       kind: "workshop",
       bookingId: booking.id,
@@ -46,7 +46,7 @@ export async function sendWorkshopBookingAlert(
 
   try {
     const result = await sendTransactionalEmail({
-      to,
+      to: recipients,
       subject: renderWorkshopAlertSubject(booking),
       text: renderWorkshopAlertText(booking),
       html: renderWorkshopAlertHtml(booking),
@@ -57,7 +57,7 @@ export async function sendWorkshopBookingAlert(
       bookingId: booking.id,
       provider: result.provider,
       messageId: result.id,
-      recipientDomain: to.split("@")[1] ?? "unknown",
+      recipientDomain: recipients.map((r) => r.split("@")[1] ?? "unknown").join(","),
     });
     return { sent: true, provider: result.provider, messageId: result.id };
   } catch (err) {

@@ -1,8 +1,21 @@
 import { BRAND } from "@/lib/config/brand";
+import { bubbleText } from "@/lib/chat/timeline";
+import {
+  formatWorkshopField,
+  formatWorkshopSourceLabel,
+  NOT_PROVIDED,
+  renderWorkshopBookingHtml,
+  renderWorkshopBookingText,
+  renderWorkshopContactHtml,
+  renderWorkshopContactText,
+  renderWorkshopIdsHtml,
+  renderWorkshopIdsText,
+  renderWorkshopPhoneBannerHtml,
+  renderWorkshopPhoneBannerText,
+} from "@/lib/email/templates/workshop-shared";
 import { escapeHtml, sanitizePlainText } from "@/lib/utils/sanitize";
 import type { AiIntakeWorkshopSummary } from "@/lib/types/ai-intake";
 import type { ChatMessage } from "@/lib/types/chat";
-import { bubbleText } from "@/lib/chat/timeline";
 
 function formatTranscript(messages: ChatMessage[]): string {
   return messages
@@ -41,6 +54,31 @@ const INTENT_LABEL: Record<AiIntakeWorkshopSummary["intent"], string> = {
   unspecified: "Not yet stated",
 };
 
+function buildAiIntakeNotes(summary: AiIntakeWorkshopSummary): string {
+  const parts = [
+    summary.symptoms?.trim() ? summary.symptoms.trim() : null,
+    summary.aiSummary?.trim() ? `AI summary: ${summary.aiSummary.trim()}` : null,
+    summary.callbackRequested ? "Customer requested a callback." : null,
+    summary.drivabilityNote?.trim() ? summary.drivabilityNote.trim() : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join("\n\n") : NOT_PROVIDED;
+}
+
+function buildAiIntakeBookingFields(summary: AiIntakeWorkshopSummary) {
+  return {
+    service: summary.serviceRequested,
+    preferredDate:
+      summary.bookingPreference?.preferredDate ??
+      summary.preferredBookingTime ??
+      summary.callbackAvailability ??
+      "",
+    preferredTime: summary.bookingPreference?.preferredTime ?? "",
+    notes: buildAiIntakeNotes(summary),
+    sourceLabel: formatWorkshopSourceLabel("assistant", { intent: summary.intent }),
+  };
+}
+
 export function buildAiIntakeSubject(summary: AiIntakeWorkshopSummary): string {
   const reg = summary.registration.replace(/\s/g, "") || "NO-REG";
   const flag = summary.urgency === "high" ? "[URGENT] " : "";
@@ -49,26 +87,31 @@ export function buildAiIntakeSubject(summary: AiIntakeWorkshopSummary): string {
 }
 
 export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): string {
+  const contact = {
+    customerName: summary.customerName,
+    customerPhone: summary.customerPhone,
+    customerEmail: summary.customerEmail,
+    registration: summary.registration,
+    referenceId: summary.chatSessionId,
+  };
+  const bookingDetails = buildAiIntakeBookingFields(summary);
+
   const files =
     summary.uploadedFiles.length > 0
       ? summary.uploadedFiles
           .map((f) => `  - ${f.fileName} (${f.category})`)
           .join("\n")
-      : "  (none)";
-
-  const booking = summary.bookingPreference
-    ? `${summary.bookingPreference.service} · ${summary.bookingPreference.preferredDate} at ${summary.bookingPreference.preferredTime}`
-    : "Not selected (advisor-only intake)";
+      : `  ${NOT_PROVIDED}`;
 
   const observations =
     summary.observations.length > 0
       ? summary.observations.map((o) => `  - ${o}`).join("\n")
-      : "  (none)";
+      : `  ${NOT_PROVIDED}`;
 
   const warningLights =
     summary.warningLights.length > 0
       ? summary.warningLights.map((w) => `  - ${w}`).join("\n")
-      : "  (none reported)";
+      : `  ${NOT_PROVIDED}`;
 
   const partialNotice = summary.partial
     ? [
@@ -81,14 +124,16 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
 
   return [
     `${BRAND.shortName} — AI service intake`,
-    `Session: ${summary.chatSessionId}`,
-    `Prepared: ${summary.preparedAt}`,
     "",
+    ...renderWorkshopPhoneBannerText(contact.customerName, contact.customerPhone),
+    ...renderWorkshopIdsText(contact),
+    ...renderWorkshopContactText(contact),
+    ...renderWorkshopBookingText(bookingDetails),
     ...partialNotice,
     "-----------------------------------",
     "AI Summary (read first)",
     "-----------------------------------",
-    summary.aiSummary || "(AI did not produce a narrative summary — see issue description below)",
+    summary.aiSummary || NOT_PROVIDED,
     "",
     `Intent: ${INTENT_LABEL[summary.intent]}`,
     `Urgency: ${summary.urgency}`,
@@ -97,23 +142,9 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
     }`,
     "",
     "-----------------------------------",
-    "Customer Details",
-    "-----------------------------------",
-    `Name: ${summary.customerName}`,
-    `Phone: ${summary.customerPhone}`,
-    `Email: ${summary.customerEmail ?? "—"}`,
-    "",
-    "-----------------------------------",
-    "Vehicle",
-    "-----------------------------------",
-    `Registration: ${summary.registration}`,
-    `Service requested: ${summary.serviceRequested}`,
-    `Make/model: ${summary.vehicle ?? "—"}`,
-    "",
-    "-----------------------------------",
     "Issue Description",
     "-----------------------------------",
-    summary.symptoms,
+    formatWorkshopField(summary.symptoms),
     "",
     "Warning lights on dashboard:",
     warningLights,
@@ -121,11 +152,10 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
     "-----------------------------------",
     "AI Intake Notes",
     "-----------------------------------",
-    `Possible causes: ${summary.possibleCauses.join(", ") || "—"}`,
-    `Severity: ${summary.severity ?? "—"}`,
-    `Guidance range discussed: ${summary.estimatedRange ?? "—"}`,
-    `Severity note: ${summary.severityNote ?? "—"}`,
-    `Callback requested: ${summary.callbackRequested ? "Yes" : "No"}`,
+    `Possible causes: ${summary.possibleCauses.join(", ") || NOT_PROVIDED}`,
+    `Severity: ${formatWorkshopField(summary.severity)}`,
+    `Guidance range discussed: ${formatWorkshopField(summary.estimatedRange)}`,
+    `Severity note: ${formatWorkshopField(summary.severityNote)}`,
     "",
     "Observations:",
     observations,
@@ -133,14 +163,7 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
     "Clarifications:",
     summary.clarificationNotes.length
       ? summary.clarificationNotes.map((n) => `  - ${n}`).join("\n")
-      : "  (none)",
-    "",
-    "-----------------------------------",
-    "Booking / Callback",
-    "-----------------------------------",
-    `Preferred slot (customer): ${summary.preferredBookingTime ?? "—"}`,
-    `Booking form selection: ${booking}`,
-    `Callback availability: ${summary.callbackAvailability ?? "—"}`,
+      : `  ${NOT_PROVIDED}`,
     "",
     "-----------------------------------",
     "Uploaded Files",
@@ -150,12 +173,23 @@ export function renderAiIntakeEmailText(summary: AiIntakeWorkshopSummary): strin
     "-----------------------------------",
     "Conversation Transcript",
     "-----------------------------------",
-    formatTranscript(summary.transcript),
+    summary.transcript.length ? formatTranscript(summary.transcript) : NOT_PROVIDED,
+    "",
+    `Prepared: ${summary.preparedAt}`,
   ].join("\n");
 }
 
 export function renderAiIntakeEmailHtml(summary: AiIntakeWorkshopSummary): string {
   const s = summary;
+  const contact = {
+    customerName: s.customerName,
+    customerPhone: s.customerPhone,
+    customerEmail: s.customerEmail,
+    registration: s.registration,
+    referenceId: s.chatSessionId,
+  };
+  const bookingDetails = buildAiIntakeBookingFields(s);
+
   const causes = s.possibleCauses.map((c) => `<li>${escapeHtml(c)}</li>`).join("");
   const lights = s.warningLights.map((w) => `<li>${escapeHtml(w)}</li>`).join("");
   const uploads = s.uploadedFiles
@@ -164,16 +198,8 @@ export function renderAiIntakeEmailHtml(summary: AiIntakeWorkshopSummary): strin
         `<li>${escapeHtml(f.fileName)} <span style="color:#888">(${escapeHtml(f.category)})</span></li>`
     )
     .join("");
-  const obs = s.observations
-    .map((o) => `<li>${escapeHtml(o)}</li>`)
-    .join("");
-  const clar = s.clarificationNotes
-    .map((n) => `<li>${escapeHtml(n)}</li>`)
-    .join("");
-
-  const booking = s.bookingPreference
-    ? `<p>${escapeHtml(s.bookingPreference.service)} · ${escapeHtml(s.bookingPreference.preferredDate)} at ${escapeHtml(s.bookingPreference.preferredTime)}</p>`
-    : `<p style="color:#888">Advisor-only intake (no slot selected)</p>`;
+  const obs = s.observations.map((o) => `<li>${escapeHtml(o)}</li>`).join("");
+  const clar = s.clarificationNotes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
 
   const partialBanner = s.partial
     ? `<div style="background:#3a1a1a;border:1px solid #6b2a2a;color:#f5c6c6;padding:12px 14px;border-radius:8px;margin:0 0 18px;font-size:13px">
@@ -189,72 +215,49 @@ export function renderAiIntakeEmailHtml(summary: AiIntakeWorkshopSummary): strin
 
   return `<!DOCTYPE html>
 <html>
-<body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:24px;line-height:1.5">
+<body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:24px;line-height:1.5;max-width:600px">
   <h1 style="color:#d4a63c;font-size:18px;margin:0 0 8px">New AI Service Intake</h1>
-  <p style="color:#888;font-size:12px;margin:0 0 20px">${escapeHtml(BRAND.shortName)} · ${escapeHtml(s.chatSessionId)}</p>
+
+  ${renderWorkshopPhoneBannerHtml(contact.customerName, contact.customerPhone)}
+  ${renderWorkshopIdsHtml(contact)}
+  ${renderWorkshopContactHtml(contact)}
+  ${renderWorkshopBookingHtml(bookingDetails)}
 
   ${partialBanner}
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 8px">AI Summary</h2>
   <p style="background:#141414;border-left:3px solid #d4a63c;padding:12px 14px;border-radius:6px;margin:0 0 14px">
-    ${escapeHtml(s.aiSummary || "(AI did not produce a narrative — see issue description below)")}
+    ${escapeHtml(s.aiSummary || NOT_PROVIDED)}
   </p>
   <p style="margin:0 0 18px">
     <span style="display:inline-block;background:${urgencyBadgeBg};color:${urgencyBadgeColor};padding:3px 10px;border-radius:99px;font-size:12px;margin-right:6px">Urgency: ${escapeHtml(s.urgency)}</span>
     <span style="display:inline-block;background:#1a1a1a;color:#ddd;padding:3px 10px;border-radius:99px;font-size:12px;margin-right:6px">Intent: ${escapeHtml(INTENT_LABEL[s.intent])}</span>
     <span style="display:inline-block;background:#1a1a1a;color:#ddd;padding:3px 10px;border-radius:99px;font-size:12px">Drivability: ${escapeHtml(DRIVABILITY_LABEL[s.drivability])}</span>
   </p>
-  ${s.drivabilityNote ? `<p style="color:#aaa;font-size:13px;margin:-6px 0 14px">${escapeHtml(s.drivabilityNote)}</p>` : ""}
-
-  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Customer Details</h2>
-  <table style="width:100%;border-collapse:collapse">
-    <tr><td style="padding:4px 0;color:#888;width:120px">Name</td><td>${escapeHtml(s.customerName)}</td></tr>
-    <tr><td style="padding:4px 0;color:#888">Phone</td><td>${escapeHtml(s.customerPhone)}</td></tr>
-    <tr><td style="padding:4px 0;color:#888">Email</td><td>${escapeHtml(s.customerEmail ?? "—")}</td></tr>
-  </table>
-
-  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Vehicle</h2>
-  <table style="width:100%;border-collapse:collapse">
-    <tr><td style="padding:4px 0;color:#888;width:120px">Registration</td><td><strong>${escapeHtml(s.registration)}</strong></td></tr>
-    <tr><td style="padding:4px 0;color:#888">Service</td><td>${escapeHtml(s.serviceRequested)}</td></tr>
-    <tr><td style="padding:4px 0;color:#888">Make/model</td><td>${escapeHtml(s.vehicle ?? "—")}</td></tr>
-  </table>
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Issue Description</h2>
-  <p style="background:#111;padding:12px;border-radius:8px;margin:0 0 12px">${escapeHtml(s.symptoms)}</p>
+  <p style="background:#111;padding:12px;border-radius:8px;margin:0 0 12px">${escapeHtml(formatWorkshopField(s.symptoms))}</p>
   <p style="margin:0 0 6px;color:#bbb;font-size:13px"><strong>Warning lights on dashboard:</strong></p>
-  <ul style="margin:0 0 12px">${lights || `<li style="color:#888">None reported</li>`}</ul>
+  <ul style="margin:0 0 12px">${lights || `<li style="color:#888">${NOT_PROVIDED}</li>`}</ul>
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">AI Intake Notes</h2>
-  <p style="margin:0 0 4px;color:#bbb;font-size:13px"><strong>Possible causes:</strong></p>
-  <ul>${causes || "<li>—</li>"}</ul>
-  <p><strong>Severity:</strong> ${escapeHtml(s.severity ?? "—")}</p>
-  <p><strong>Guidance range:</strong> ${escapeHtml(s.estimatedRange ?? "—")} <span style="color:#888">(indicative)</span></p>
-  <p style="color:#aaa;font-size:13px">${escapeHtml(s.severityNote ?? "")}</p>
+  <ul>${causes || `<li>${NOT_PROVIDED}</li>`}</ul>
+  <p><strong>Severity:</strong> ${escapeHtml(formatWorkshopField(s.severity))}</p>
+  <p><strong>Guidance range:</strong> ${escapeHtml(formatWorkshopField(s.estimatedRange))} <span style="color:#888">(indicative)</span></p>
   <p><strong>Observations</strong></p>
-  <ul>${obs || "<li>—</li>"}</ul>
+  <ul>${obs || `<li>${NOT_PROVIDED}</li>`}</ul>
   <p><strong>Clarifications</strong></p>
-  <ul>${clar || "<li>—</li>"}</ul>
-
-  <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Booking / Callback</h2>
-  <table style="width:100%;border-collapse:collapse">
-    <tr><td style="padding:4px 0;color:#888;width:200px">Preferred slot (customer)</td><td>${escapeHtml(s.preferredBookingTime ?? "—")}</td></tr>
-    <tr><td style="padding:4px 0;color:#888">Booking form selection</td><td>${
-      s.bookingPreference
-        ? `${escapeHtml(s.bookingPreference.service)} · ${escapeHtml(s.bookingPreference.preferredDate)} at ${escapeHtml(s.bookingPreference.preferredTime)}`
-        : `<span style="color:#888">None selected</span>`
-    }</td></tr>
-    <tr><td style="padding:4px 0;color:#888">Callback availability</td><td>${escapeHtml(s.callbackAvailability ?? "—")}</td></tr>
-  </table>
-  ${booking === "" ? "" : ""}
+  <ul>${clar || `<li>${NOT_PROVIDED}</li>`}</ul>
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Uploaded Files</h2>
-  <ul>${uploads || "<li>None</li>"}</ul>
+  <ul>${uploads || `<li>${NOT_PROVIDED}</li>`}</ul>
 
   <h2 style="font-size:13px;color:#d4a63c;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 8px">Conversation Transcript</h2>
   <div style="background:#111;padding:14px;border-radius:8px;font-size:13px;max-height:480px;overflow:auto">
-    ${formatTranscriptHtml(s.transcript)}
+    ${s.transcript.length ? formatTranscriptHtml(s.transcript) : `<p>${NOT_PROVIDED}</p>`}
   </div>
+
+  <p style="margin:20px 0 0;font-size:11px;color:#52525b">Prepared: ${escapeHtml(s.preparedAt)}</p>
 </body>
 </html>`;
 }

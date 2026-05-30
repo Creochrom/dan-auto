@@ -13,77 +13,92 @@
 
 import { BRAND } from "@/lib/config/brand";
 import { businessConfig } from "@/lib/config/business";
-import { escapeHtml, sanitizePlainText } from "@/lib/utils/sanitize";
+import {
+  formatWorkshopField,
+  formatWorkshopSourceLabel,
+  renderWorkshopBookingHtml,
+  renderWorkshopBookingText,
+  renderWorkshopContactHtml,
+  renderWorkshopContactText,
+  renderWorkshopIdsHtml,
+  renderWorkshopIdsText,
+  renderWorkshopPhoneBannerHtml,
+  renderWorkshopPhoneBannerText,
+} from "@/lib/email/templates/workshop-shared";
+import { escapeHtml } from "@/lib/utils/sanitize";
 import type { Booking } from "@/lib/types/booking";
 
 // ---------------------------------------------------------------------------
-// Workshop alert — sent to contact@danautocentre.co.uk
+// Workshop alert — sent to the workshop inbox
 // ---------------------------------------------------------------------------
 
 export function renderWorkshopAlertSubject(booking: Booking): string {
-  const reg = booking.registration.replace(/\s/g, "");
+  const reg = booking.registration.replace(/\s/g, "") || "NO-REG";
   return `New Booking Request — ${reg} — ${booking.service}`;
 }
 
 export function renderWorkshopAlertText(booking: Booking): string {
-  const note = booking.notes ? sanitizePlainText(booking.notes, 1000) : "—";
+  const contact = {
+    customerName: booking.customerName,
+    customerPhone: booking.customerPhone,
+    customerEmail: booking.customerEmail,
+    registration: booking.registration,
+    bookingId: booking.id,
+  };
+  const bookingDetails = {
+    service: booking.service,
+    preferredDate: booking.preferredDate,
+    preferredTime: booking.preferredTime,
+    notes: booking.notes,
+    sourceLabel: formatWorkshopSourceLabel(booking.source),
+  };
 
   return [
     `${BRAND.shortName} — New Booking Request`,
     "",
-    `Customer:      ${booking.customerName}`,
-    `Phone:         ${booking.customerPhone}`,
-    `Email:         ${booking.customerEmail ?? "—"}`,
-    `Registration:  ${booking.registration}`,
-    `Vehicle:       ${booking.vehicleModel ?? "—"}`,
+    ...renderWorkshopPhoneBannerText(contact.customerName, contact.customerPhone),
+    ...renderWorkshopIdsText(contact),
+    ...renderWorkshopContactText(contact),
+    ...renderWorkshopBookingText(bookingDetails),
+    `Duration:      ${formatWorkshopField(booking.duration)}`,
+    `Vehicle:       ${formatWorkshopField(booking.vehicleModel)}`,
+    `Submitted:     ${formatWorkshopField(booking.createdAt)}`,
     "",
-    "BOOKING DETAILS",
-    `Service:       ${booking.service}`,
-    `Date:          ${booking.preferredDate}`,
-    `Time:          ${booking.preferredTime}`,
-    `Duration:      ${booking.duration}`,
-    `Source:        ${booking.source}`,
-    "",
-    "NOTES",
-    note,
-    "",
-    "---",
-    `Booking ID:    ${booking.id}`,
-    `Submitted:     ${booking.createdAt}`,
     `— ${BRAND.shortName} booking system`,
   ].join("\n");
 }
 
 export function renderWorkshopAlertHtml(booking: Booking): string {
-  const note = booking.notes
-    ? escapeHtml(sanitizePlainText(booking.notes, 1000))
-    : "<em style='color:#71717a'>None</em>";
+  const contact = {
+    customerName: booking.customerName,
+    customerPhone: booking.customerPhone,
+    customerEmail: booking.customerEmail,
+    registration: booking.registration,
+    bookingId: booking.id,
+  };
+  const bookingDetails = {
+    service: booking.service,
+    preferredDate: booking.preferredDate,
+    preferredTime: booking.preferredTime,
+    notes: booking.notes,
+    sourceLabel: formatWorkshopSourceLabel(booking.source),
+  };
 
   return `<!DOCTYPE html>
 <html>
 <body style="font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;padding:24px;max-width:600px">
   <h1 style="color:#d4a63c;font-size:18px;margin:0 0 16px">New Booking Request</h1>
 
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a;white-space:nowrap">Customer</td><td style="padding:5px 0"><strong>${escapeHtml(booking.customerName)}</strong></td></tr>
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Phone</td><td style="padding:5px 0"><a href="tel:${escapeHtml(booking.customerPhone)}" style="color:#22d3ee">${escapeHtml(booking.customerPhone)}</a></td></tr>
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Email</td><td style="padding:5px 0">${booking.customerEmail ? `<a href="mailto:${escapeHtml(booking.customerEmail)}" style="color:#22d3ee">${escapeHtml(booking.customerEmail)}</a>` : "<span style='color:#52525b'>—</span>"}</td></tr>
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Registration</td><td style="padding:5px 0"><strong style="font-family:monospace;color:#d4a63c">${escapeHtml(booking.registration)}</strong></td></tr>
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Vehicle</td><td style="padding:5px 0">${escapeHtml(booking.vehicleModel ?? "—")}</td></tr>
-  </table>
+  ${renderWorkshopPhoneBannerHtml(contact.customerName, contact.customerPhone)}
+  ${renderWorkshopIdsHtml(contact)}
+  ${renderWorkshopContactHtml(contact)}
+  ${renderWorkshopBookingHtml(bookingDetails)}
 
-  <h2 style="font-size:14px;color:#d4a63c;margin:0 0 8px">Booking Slot</h2>
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Service</td><td style="padding:5px 0"><strong>${escapeHtml(booking.service)}</strong></td></tr>
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Date</td><td style="padding:5px 0">${escapeHtml(booking.preferredDate)}</td></tr>
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Time</td><td style="padding:5px 0">${escapeHtml(booking.preferredTime)}</td></tr>
-    <tr><td style="padding:5px 12px 5px 0;color:#71717a">Duration</td><td style="padding:5px 0">${escapeHtml(booking.duration)}</td></tr>
-  </table>
-
-  <h2 style="font-size:14px;color:#d4a63c;margin:0 0 8px">Notes</h2>
-  <div style="background:#111;padding:12px;border-radius:8px;font-size:13px">${note}</div>
-
-  <p style="margin:20px 0 0;font-size:11px;color:#52525b">Booking ID: ${escapeHtml(booking.id)} · Submitted: ${escapeHtml(booking.createdAt)}</p>
+  <p style="margin:0;font-size:12px;color:#71717a">
+    Duration: ${escapeHtml(formatWorkshopField(booking.duration))}
+    · Vehicle: ${escapeHtml(formatWorkshopField(booking.vehicleModel))}
+    · Submitted: ${escapeHtml(formatWorkshopField(booking.createdAt))}
+  </p>
 </body>
 </html>`;
 }

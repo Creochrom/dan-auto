@@ -1,6 +1,7 @@
 export {
   DEFAULT_EMAIL_FROM,
   getIntakeEmailTo,
+  getIntakeEmailRecipients,
   getEmailFrom,
   getEmailApiKey,
   getEmailProvider,
@@ -12,6 +13,7 @@ export {
   sendWorkshopBookingAlert,
   sendCustomerBookingConfirmation,
 } from "@/lib/email/send-booking-alert";
+export { sendWorkshopLeadAlert } from "@/lib/email/send-lead-alert";
 export {
   prepareBookingIntakeEmail,
   type BookingEmailPayload,
@@ -33,3 +35,8 @@ export {
   renderAiIntakeEmailHtml,
   renderAiIntakeEmailText,
 } from "@/lib/email/templates/ai-intake";
+export {
+  renderLeadAlertHtml,
+  renderLeadAlertSubject,
+  renderLeadAlertText,
+} from "@/lib/email/templates/lead-alert";

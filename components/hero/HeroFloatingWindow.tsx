@@ -97,8 +97,7 @@ export function HeroFloatingWindow({
     freezePlacement: spawnLocked || isDragging,
   });
 
-  const dragEnabled =
-    (tier === "desktop" || tier === "tablet") && !reduceMotion;
+  const dragEnabled = !reduceMotion;
   const managedZ =
     windowId && wm ? wm.getZIndex(windowId) : 40 + stackDepth + focusBoost;
 
