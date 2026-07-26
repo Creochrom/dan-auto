@@ -4,11 +4,8 @@ import { vehiclesService } from "@/lib/services/vehicles.service";
 import { fetchVehicleDetails } from "@/lib/services/dvla/dvla.service";
 import { normalizeDvlaVehicle } from "@/lib/services/dvla/dvla.normalizer";
 import { DvlaServiceError } from "@/lib/services/dvla/dvla.types";
-import {
-  fetchMotHistory,
-  type MotHistoryVehicle,
-  type MotTestRecord,
-} from "@/lib/services/dvla/mot-history.service";
+import { getMotHistory } from "@/lib/integrations/dvsa-mot";
+import type { MotHistoryVehicle, MotTestRecord } from "@/lib/integrations/dvsa-mot";
 import { vehicleTimelineService } from "@/lib/services/vehicle-timeline.service";
 import { buildVehicleReportFromDvla } from "@/lib/vehicle-report-from-dvla";
 
@@ -71,6 +68,14 @@ async function ingestMotTimelineEvents(input: {
         odometerUnit: test.odometerUnit,
         expiryDate: test.expiryDate,
         advisories,
+        advisoryTexts: (test.rfrAndComments ?? [])
+          .filter((c) => c.type === "ADVISORY")
+          .map((c) => c.text)
+          .slice(0, 12),
+        failureTexts: (test.rfrAndComments ?? [])
+          .filter((c) => ["MAJOR", "DANGEROUS", "PRS"].includes(c.type))
+          .map((c) => c.text)
+          .slice(0, 12),
       },
     });
   }
@@ -90,10 +95,11 @@ export async function lookupVehicle(reg: string): Promise<VehicleLookupResponse>
 
   try {
     // Fetch VES and MOT history in parallel; MOT history failure is non-fatal.
-    const [raw, motHistoryData] = await Promise.all([
+    const [raw, motResult] = await Promise.all([
       fetchVehicleDetails(canon),
-      fetchMotHistory(canon),
+      getMotHistory(canon),
     ]);
+    const motHistoryData = motResult.data;
     const normalized = normalizeDvlaVehicle(raw, canon);
     const report = buildVehicleReportFromDvla(canon, normalized, motHistoryData);
     await ingestMotTimelineEvents({

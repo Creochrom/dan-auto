@@ -1,4 +1,5 @@
 import type { VehicleReport } from "@/lib/types/vehicle-report";
+import { buildMotHealthSummary, detectRecurringAdvisories } from "@/lib/mot/mot-report";
 
 export type VehicleInsights = {
   motExpiryLabel: string | null;
@@ -6,7 +7,11 @@ export type VehicleInsights = {
   taxLabel: string;
   lastMotSummary: string;
   advisoryCount: number;
+  defectCount: number;
   advisoryItems: string[];
+  failureItems: string[];
+  motHealthSummary: string[];
+  recurringThemes: string[];
   discussionPoints: string[];
   upsellHints: string[];
   lastMileage: number | null;
@@ -32,13 +37,13 @@ function motDueDays(report: VehicleReport): number | null {
   return Number.isFinite(days) ? days : null;
 }
 
-function latestAdvisories(report: VehicleReport): string[] {
+function latestItems(report: VehicleReport): { advisories: string[]; failures: string[] } {
   const latest = report.motHistory[0];
-  if (!latest || latest.advisories.length === 0) return [];
-  const items = latest.advisories.filter(
-    (a) => a.toLowerCase() !== "no advisories" && !a.toLowerCase().includes("unavailable")
-  );
-  return items.slice(0, 8);
+  if (!latest) return { advisories: [], failures: [] };
+  return {
+    advisories: latest.advisories.slice(0, 8),
+    failures: latest.failures.slice(0, 8),
+  };
 }
 
 function mileageTrendFromHistory(
@@ -59,19 +64,19 @@ function mileageTrendFromHistory(
 function upsellFromAdvisory(text: string): string | null {
   const lower = text.toLowerCase();
   if (lower.includes("tyre") || lower.includes("tire")) {
-    return "Potential upsell: tyre inspection or replacement may be needed soon.";
+    return "Tyre check — MOT advisory follow-up.";
   }
   if (lower.includes("brake")) {
-    return "Potential upsell: brake system check recommended.";
+    return "Brake inspection — MOT advisory follow-up.";
   }
   if (lower.includes("oil") || lower.includes("leak")) {
-    return "Potential upsell: fluid leak / service inspection.";
+    return "Fluid leak inspection recommended.";
   }
   if (lower.includes("corrosion") || lower.includes("rust")) {
     return "Discuss corrosion repair scope with customer.";
   }
   if (lower.includes("suspension") || lower.includes("track rod")) {
-    return "Potential upsell: steering / suspension work.";
+    return "Suspension inspection — MOT advisory follow-up.";
   }
   return `Worth quoting: ${text}`;
 }
@@ -81,7 +86,9 @@ export function getCustomerHealthLines(report: VehicleReport): string[] {
   const lines: string[] = [];
   const days = motDueDays(report);
 
-  if (report.profile.motExpiryDate) {
+  if (report.motHealthSummary.length > 0) {
+    lines.push(...report.motHealthSummary.slice(0, 2));
+  } else if (report.profile.motExpiryDate) {
     lines.push(`MOT valid until ${formatUkDate(report.profile.motExpiryDate)}`);
   } else {
     lines.push(report.profile.motStatus);
@@ -89,9 +96,9 @@ export function getCustomerHealthLines(report: VehicleReport): string[] {
 
   lines.push(`Tax: ${report.profile.taxStatus}`);
 
-  const advisories = latestAdvisories(report);
+  const { advisories } = latestItems(report);
   const latest = report.motHistory[0];
-  if (latest) {
+  if (latest && report.motHealthSummary.length === 0) {
     const count = advisories.length;
     lines.push(
       count > 0
@@ -113,17 +120,19 @@ export function getCustomerHealthLines(report: VehicleReport): string[] {
 
 export function deriveVehicleInsights(report: VehicleReport): VehicleInsights {
   const days = motDueDays(report);
-  const advisoryItems = latestAdvisories(report);
+  const { advisories, failures } = latestItems(report);
   const latest = report.motHistory[0];
   const lastMileage = latest?.mileage && latest.mileage > 0 ? latest.mileage : null;
   const mileageTrend = mileageTrendFromHistory(report.motHistory);
+  const motHealthSummary =
+    report.motHealthSummary.length > 0
+      ? report.motHealthSummary
+      : buildMotHealthSummary(report.motHistory);
+  const recurringThemes = detectRecurringAdvisories(report.motHistory);
 
-  const lastMotSummary =
-    latest && advisoryItems.length > 0
-      ? `${latest.result === "PASS" ? "Pass" : latest.result} · ${advisoryItems.length} advisories`
-      : latest
-        ? `${latest.result === "PASS" ? "Pass" : latest.result}`
-        : report.profile.motStatus;
+  const lastMotSummary = latest
+    ? `${latest.result} · ${advisories.length} advisories${failures.length ? ` · ${failures.length} defects` : ""}`
+    : report.profile.motStatus;
 
   const discussionPoints: string[] = [];
   if (days !== null && days <= 0) {
@@ -132,8 +141,12 @@ export function deriveVehicleInsights(report: VehicleReport): VehicleInsights {
     discussionPoints.push(`MOT due in ${days} days — offer MOT booking`);
   }
 
-  for (const item of advisoryItems.slice(0, 4)) {
+  for (const item of [...failures, ...advisories].slice(0, 4)) {
     discussionPoints.push(item);
+  }
+
+  for (const theme of recurringThemes) {
+    discussionPoints.push(`Recurring ${theme} advisories across MOT history`);
   }
 
   if (mileageTrend === "low_use") {
@@ -147,7 +160,7 @@ export function deriveVehicleInsights(report: VehicleReport): VehicleInsights {
     discussionPoints.push(`Suggested service: ${service.title}`);
   }
 
-  const upsellHints = advisoryItems
+  const upsellHints = [...failures, ...advisories]
     .slice(0, 5)
     .map(upsellFromAdvisory)
     .filter((h): h is string => Boolean(h));
@@ -159,8 +172,12 @@ export function deriveVehicleInsights(report: VehicleReport): VehicleInsights {
     motDueDays: days,
     taxLabel: report.profile.taxStatus,
     lastMotSummary,
-    advisoryCount: advisoryItems.length,
-    advisoryItems,
+    advisoryCount: advisories.length,
+    defectCount: failures.length,
+    advisoryItems: advisories,
+    failureItems: failures,
+    motHealthSummary,
+    recurringThemes,
     discussionPoints: discussionPoints.slice(0, 6),
     upsellHints: upsellHints.slice(0, 5),
     lastMileage,

@@ -40,6 +40,14 @@ async function factsFromDvla(reg: string): Promise<VehicleMemoryFacts | undefine
     motStatus: p.motStatus,
     motExpiryDate: p.motExpiryDate ?? undefined,
     taxStatus: p.taxStatus,
+    motHealthSummary: payload.report.motHealthSummary,
+    lastMotResult: payload.report.lastMot?.result,
+    lastMotAdvisoryCount: payload.report.lastMot?.advisoryCount,
+    recurringMotThemes: payload.report.motHistoryAvailable
+      ? payload.report.motHealthSummary
+          .filter((line) => line.toLowerCase().includes("repeated"))
+          .slice(0, 2)
+      : undefined,
   };
 }
 

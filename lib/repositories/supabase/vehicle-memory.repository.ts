@@ -63,6 +63,15 @@ function mergeFacts(
     motStatus: incoming.motStatus?.trim() || base.motStatus,
     motExpiryDate: incoming.motExpiryDate?.trim() || base.motExpiryDate,
     taxStatus: incoming.taxStatus?.trim() || base.taxStatus,
+    motHealthSummary: incoming.motHealthSummary?.length
+      ? incoming.motHealthSummary
+      : base.motHealthSummary,
+    lastMotResult: incoming.lastMotResult?.trim() || base.lastMotResult,
+    lastMotAdvisoryCount:
+      incoming.lastMotAdvisoryCount ?? base.lastMotAdvisoryCount,
+    recurringMotThemes: incoming.recurringMotThemes?.length
+      ? incoming.recurringMotThemes
+      : base.recurringMotThemes,
   };
 }
 

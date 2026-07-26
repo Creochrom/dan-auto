@@ -49,8 +49,8 @@ export const REPORT_WINDOWS: ReportWindowLayout[] = [
   {
     id: "mot",
     title: "MOT history",
-    width: 272,
-    position: { from: "left", x: "clamp(16px, 44vw, 480px)", y: 440 },
+    width: 288,
+    position: { from: "left", x: "clamp(16px, 44vw, 480px)", y: 280 },
     stackDepth: 5,
     delay: 0.32,
   },

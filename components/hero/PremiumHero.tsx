@@ -458,8 +458,13 @@ function PremiumHeroInner({
         next.delete(windowId);
         return next;
       });
-      bringToFront(windowId);
       activateWindow(windowId);
+      bringToFront(windowId);
+      // Window may mount on next paint — ensure it stacks above hub/entry.
+      requestAnimationFrame(() => {
+        bringToFront(windowId);
+        activateWindow(windowId);
+      });
     },
     [bringToFront, activateWindow]
   );

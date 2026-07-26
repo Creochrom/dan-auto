@@ -5,6 +5,9 @@ export type MotHistoryEntry = {
   result: "PASS" | "FAIL";
   mileage: number;
   advisories: string[];
+  failures: string[];
+  advisoryCount: number;
+  defectCount: number;
 };
 
 export type RecommendedService = {
@@ -45,6 +48,17 @@ export type VehicleReport = {
   commonIssues: string[];
   recommendedServices: RecommendedService[];
   motHistory: MotHistoryEntry[];
+  /** True when DVSA returned at least one MOT test */
+  motHistoryAvailable: boolean;
+  /** Customer-facing MOT health lines derived from live history */
+  motHealthSummary: string[];
+  lastMot?: {
+    date: string;
+    result: "PASS" | "FAIL";
+    advisoryCount: number;
+    defectCount: number;
+  };
+  previousMotDate?: string | null;
   /** Legacy shape for chat / estimate modals */
   legacy: VehicleResult;
   aiSummary: string;

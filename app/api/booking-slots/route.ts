@@ -1,27 +1,42 @@
 /**
  * GET /api/booking-slots?date=YYYY-MM-DD
- * Public read — returns available time slots for a given date.
- * No auth required; slot data is not sensitive.
+ * GET /api/booking-slots?from=YYYY-MM-DD&to=YYYY-MM-DD  (calendar range)
+ *
+ * Public read — returns available time slots. No auth required.
  */
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { jsonOk, jsonError } from "@/lib/api/response";
-import { getSlotAvailability } from "@/lib/services/slot-availability.service";
-
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import {
+  getAvailableSlots,
+  getAvailableSlotsRange,
+  ISO_DATE_RE,
+  isValidIsoDate,
+} from "@/lib/workshop/availability";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
-
-  if (!date || !ISO_DATE_RE.test(date)) {
-    return jsonError("Missing or invalid ?date=YYYY-MM-DD", 400);
-  }
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
 
   try {
-    const availability = await getSlotAvailability(date);
+    if (from && to) {
+      if (!isValidIsoDate(from) || !isValidIsoDate(to)) {
+        return jsonError("Invalid from/to — use YYYY-MM-DD", 400);
+      }
+      if (to < from) return jsonError("to must be on or after from", 400);
+      const availability = await getAvailableSlotsRange(from, to);
+      return jsonOk({ availability });
+    }
+
+    if (!date || !ISO_DATE_RE.test(date) || !isValidIsoDate(date)) {
+      return jsonError("Missing or invalid ?date=YYYY-MM-DD", 400);
+    }
+
+    const availability = await getAvailableSlots(date);
     return jsonOk(availability);
   } catch (err) {
     console.error("[booking-slots] GET error:", err);

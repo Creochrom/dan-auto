@@ -1130,12 +1130,19 @@ body {
   pointer-events: auto;
 }
 
-/* Mobile/tablet stack — JS positions windows; keep scroll inside shell */
+/* Mobile/tablet stack — JS positions windows; scroll inside panel body */
 @media (max-width: 1279px) {
-  .hero-floating-window--responsive-stack .hero-floating-window__shell {
+  .hero-floating-window--responsive-stack .hero-floating-window__shell:not(.hero-floating-window__shell--flat):not(.hero-floating-window__shell--flat-secondary) {
     max-height: var(--hero-window-max-h);
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .hero-floating-window--responsive-stack .hero-floating-window__chrome-bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #080706;
   }
 
   .hero-floating-window--responsive-stack:not(.hero-floating-window--draggable)
@@ -1945,6 +1952,149 @@ main > div#members {
   overflow: hidden;
 }
 
+/* Flat insight panels — stay inside hero; chrome fixed, body scrolls */
+.hero-floating-window--flat-panel.hero-floating-window,
+.hero-floating-window--flat-panel-secondary.hero-floating-window {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: min(
+    var(--hero-window-max-h),
+    calc(100dvh - var(--site-nav-current-height, 92px) - 5.5rem)
+  );
+}
+
+/* MOT history — fixed height inside hero; timeline scrolls inside */
+.hero-interactive-root .hero-window-layer .hero-floating-window[data-window-id="mot"],
+.hero-floating-window[data-window-id="mot"] {
+  --mot-window-h: min(
+    24rem,
+    calc(var(--hero-viewport-height) - 10.5rem),
+    calc(100dvh - var(--site-nav-current-height, 92px) - 5rem)
+  );
+  height: var(--mot-window-h);
+  max-height: var(--mot-window-h);
+  overflow: hidden;
+}
+
+.hero-floating-window--flat-panel .hero-floating-window__shell--chromeless,
+.hero-floating-window--flat-panel-secondary .hero-floating-window__shell--chromeless {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.hero-floating-window[data-window-id="mot"] .hero-floating-window__shell {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  overflow-y: hidden;
+}
+
+.hero-floating-window--flat-panel .hero-floating-window__chrome-bar,
+.hero-floating-window--flat-panel-secondary .hero-floating-window__chrome-bar {
+  flex-shrink: 0;
+}
+
+.hero-floating-window__body--scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hero-floating-window[data-window-id="mot"] .hero-floating-window__body--scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.hero-mot-history-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.hero-mot-history-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  padding-bottom: 0.5rem;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
+}
+
+.hero-mot-history-scroll.premium-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(212, 166, 60, 0.65) rgba(255, 255, 255, 0.06);
+}
+
+.hero-mot-history-scroll.premium-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.hero-mot-history-scroll.premium-scrollbar::-webkit-scrollbar-track {
+  margin-block: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hero-mot-history-scroll.premium-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(212, 166, 60, 0.55) 0%,
+    rgba(212, 166, 60, 0.32) 100%
+  );
+  border: 1px solid rgba(212, 166, 60, 0.15);
+}
+
+.hero-mot-history-scroll.premium-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(212, 166, 60, 0.72) 0%,
+    rgba(212, 166, 60, 0.48) 100%
+  );
+}
+
+@media (min-width: 1280px) {
+  .hero-interactive-root .hero-window-layer .hero-floating-window[data-window-id="mot"],
+  .hero-floating-window[data-window-id="mot"] {
+    --mot-window-h: min(
+      26rem,
+      calc(var(--hero-viewport-height) - 9.5rem)
+    );
+  }
+}
+
+@media (max-width: 1279px) {
+  .hero-interactive-root .hero-window-layer .hero-floating-window[data-window-id="mot"],
+  .hero-floating-window[data-window-id="mot"] {
+    --mot-window-h: min(22rem, calc(var(--hero-viewport-height) - 8rem), 78dvh);
+  }
+
+  .hero-floating-window--responsive-stack .hero-floating-window__shell--chromeless.hero-floating-window__shell--flat,
+  .hero-floating-window--responsive-stack .hero-floating-window__shell--chromeless.hero-floating-window__shell--flat-secondary {
+    overflow: hidden;
+    max-height: 100%;
+  }
+}
+
 .hero-floating-window__shell--chromeless .hero-floating-window__chrome-bar {
   border-radius: 0;
 }
@@ -2136,6 +2286,12 @@ main > div#members {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+
+.hero-floating-window--flat-panel .hero-floating-window__shell--chromeless,
+.hero-floating-window--flat-panel-secondary .hero-floating-window__shell--chromeless {
+  overflow: hidden;
+  overflow-y: hidden;
 }
 
 .hero-floating-window__shell::-webkit-scrollbar {
@@ -2352,10 +2508,29 @@ main > div#members {
   overflow: visible;
 }
 
+.hero-floating-window[data-window-id="mot"] .hero-floating-window__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .hero-floating-window__body--chromeless {
   display: flex;
   flex-direction: column;
   overflow: visible;
+}
+
+.hero-floating-window__body--chromeless.hero-floating-window__body--scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.hero-floating-window[data-window-id="mot"] .hero-floating-window__body--chromeless {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .hero-floating-window--assistant-chat .hero-floating-window__body--chromeless {

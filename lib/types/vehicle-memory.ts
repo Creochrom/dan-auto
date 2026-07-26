@@ -16,6 +16,11 @@ export type VehicleMemoryFacts = {
   /** ISO date from DVLA when available. */
   motExpiryDate?: string;
   taxStatus?: string;
+  /** DVSA MOT summary for AI advisor (from last lookup). */
+  motHealthSummary?: string[];
+  lastMotResult?: string;
+  lastMotAdvisoryCount?: number;
+  recurringMotThemes?: string[];
 };
 
 export type VehicleMemoryCustomer = {

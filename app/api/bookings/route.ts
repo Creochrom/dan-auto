@@ -5,6 +5,7 @@ import { jsonError, jsonOk } from "@/lib/api/response";
 import { parseBody, updateBookingSchema } from "@/lib/validation/schemas";
 import type { BookingStatus, CreateBookingInput } from "@/lib/types/booking";
 import { parseEstimatedRangePence } from "@/lib/workshop/revenue-pipeline";
+import { WorkshopClosedError } from "@/lib/workshop/availability";
 
 /**
  * GET /api/bookings — list bookings (admin session required).
@@ -49,6 +50,9 @@ export async function POST(request: Request) {
 
     return jsonOk(booking, 201);
   } catch (e) {
+    if (e instanceof WorkshopClosedError) {
+      return jsonError(e.message || "Workshop closed", 400);
+    }
     const message = e instanceof Error ? e.message : "Booking failed";
     return jsonError(message, 500);
   }
@@ -105,6 +109,9 @@ export async function PATCH(request: Request) {
 
     return jsonOk({ booking, job });
   } catch (e) {
+    if (e instanceof WorkshopClosedError) {
+      return jsonError(e.message || "Workshop closed", 400);
+    }
     const message = e instanceof Error ? e.message : "Failed to update booking";
     return jsonError(message, 500);
   }

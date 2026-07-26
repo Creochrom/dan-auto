@@ -71,6 +71,34 @@ export function VehicleIntelligencePanel({
         </div>
       )}
 
+      {insights.motHealthSummary.length > 0 && (
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+            MOT health summary
+          </p>
+          <ul className="mt-2 space-y-1.5 text-xs text-zinc-200">
+            {insights.motHealthSummary.map((line) => (
+              <li key={line}>· {line}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {insights.failureItems.length > 0 && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+          <p className="text-[10px] uppercase tracking-wider text-red-300">
+            Last MOT failures ({insights.defectCount})
+          </p>
+          <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto text-xs text-zinc-300">
+            {insights.failureItems.map((item) => (
+              <li key={item} className="leading-snug">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {insights.advisoryItems.length > 0 && (
         <div className="rounded-xl border border-white/[0.08] bg-black/30 p-3">
           <p className="text-[10px] uppercase tracking-wider text-zinc-500">
@@ -105,9 +133,11 @@ export function VehicleIntelligencePanel({
               <li key={`${entry.date}-${i}`} className="text-xs text-zinc-400">
                 <span className="text-zinc-200">{entry.date}</span> · {entry.result}
                 {entry.mileage > 0 ? ` · ${entry.mileage.toLocaleString("en-GB")} mi` : ""}
-                {entry.advisories[0] &&
-                  entry.advisories[0] !== "No advisories" && (
+                {entry.advisories.length > 0 && (
                     <p className="mt-0.5 line-clamp-2 text-zinc-500">{entry.advisories.join(" · ")}</p>
+                  )}
+                {entry.failures.length > 0 && (
+                    <p className="mt-0.5 line-clamp-2 text-red-300/80">{entry.failures.join(" · ")}</p>
                   )}
               </li>
             ))}

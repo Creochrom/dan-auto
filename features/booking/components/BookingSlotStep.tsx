@@ -9,12 +9,33 @@ import {
   bookingTimeSlotsDetailed,
 } from "@/lib/config/services";
 import type { SlotAvailability } from "@/lib/types/slot-availability";
+import { BookingDatePicker } from "@/features/booking/components/BookingDatePicker";
+
+function isSundayIso(iso: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y!, m! - 1, d!).getDay() === 0;
+}
+
+/** Skip Sundays when resolving presets. */
+function nextOpenPreset(offsetDays: number, offsetMonths = 0): string {
+  let iso = localIsoDate(offsetDays, offsetMonths);
+  let guard = 0;
+  while (isSundayIso(iso) && guard < 7) {
+    const [y, m, d] = iso.split("-").map(Number);
+    const dt = new Date(y!, m! - 1, d!);
+    dt.setDate(dt.getDate() + 1);
+    iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    guard++;
+  }
+  return iso;
+}
 
 const DATE_PRESETS = [
-  { label: "Today", value: () => localIsoDate(0) },
-  { label: "Tomorrow", value: () => localIsoDate(1) },
-  { label: "Next week", value: () => localIsoDate(7) },
-  { label: "Next month", value: () => localIsoDate(0, 1) },
+  { label: "Today", value: () => nextOpenPreset(0) },
+  { label: "Tomorrow", value: () => nextOpenPreset(1) },
+  { label: "Next week", value: () => nextOpenPreset(7) },
+  { label: "Next month", value: () => nextOpenPreset(0, 1) },
 ] as const;
 
 type Props = {
@@ -41,12 +62,11 @@ function useSlotAvailability(date: string): SlotAvailability | null {
       return;
     }
 
-    // Cancel any in-flight request for a previous date.
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setAvailability(null); // reset while loading
+    setAvailability(null);
 
     fetch(`/api/booking-slots?date=${date}`, { signal: controller.signal })
       .then((r) => r.json())
@@ -54,11 +74,9 @@ function useSlotAvailability(date: string): SlotAvailability | null {
         if (json.ok) setAvailability(json.data);
       })
       .catch((err) => {
-        // AbortError is expected when the date changes quickly; silently ignore.
         if (err?.name !== "AbortError") {
           console.warn("[BookingSlotStep] availability fetch failed:", err);
         }
-        // Leave availability as null → full grid shown (graceful degradation).
       });
 
     return () => controller.abort();
@@ -82,22 +100,26 @@ export function BookingSlotStep({
     setMinDate(localIsoDate(0));
   }, []);
 
-  // If the currently-selected time becomes unavailable after availability loads,
-  // clear it so the user must consciously pick an open slot.
+  // Clear selected time only when it becomes invalid — never call onChange if already empty
+  // (inline onTimeChange from parent is unstable and would otherwise loop forever).
   useEffect(() => {
-    if (availability && !availability.closed && time) {
-      if (!availability.available.includes(time)) {
-        onTimeChange("");
-      }
-    }
+    if (!time || !availability) return;
+    const invalid =
+      availability.closed || !availability.available.includes(time);
+    if (invalid) onTimeChange("");
   }, [availability, time, onTimeChange]);
 
   const isSlotAvailable = (slot: string): boolean => {
-    // null = still loading → optimistically show all slots as available.
     if (!availability) return true;
     if (availability.closed) return false;
     return availability.available.includes(slot);
   };
+
+  const closedMessage =
+    availability?.closedReason?.message ||
+    (availability?.closed
+      ? "The workshop is not taking bookings on this date. Please choose a different day."
+      : null);
 
   return (
     <div className="space-y-5">
@@ -143,13 +165,10 @@ export function BookingSlotStep({
             );
           })}
         </div>
-        <input
-          type="date"
-          required
-          min={minDate || undefined}
+        <BookingDatePicker
           value={date}
-          onChange={(e) => onDateChange(e.target.value)}
-          className="w-full rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white focus:border-cyan/50 focus:outline-none"
+          minDate={minDate}
+          onChange={onDateChange}
         />
       </div>
 
@@ -159,18 +178,16 @@ export function BookingSlotStep({
           {BOOKING_INTAKE_COPY.timeLabel}
         </label>
 
-        {/* Whole-day closed banner */}
-        {availability?.closed && (
+        {availability?.closed && closedMessage && (
           <p
             role="status"
             className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400"
+            title={availability.closedReason?.label}
           >
-            The workshop is not taking bookings on this date. Please choose a
-            different day.
+            {closedMessage}
           </p>
         )}
 
-        {/* Slot grid — shown when not closed (or while availability is loading) */}
         {!availability?.closed && (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {(bookingTimeSlotsDetailed as readonly string[]).map((slot) => {

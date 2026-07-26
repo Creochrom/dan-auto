@@ -130,6 +130,7 @@ export function HeroFloatingWindow({
     const manager = wmRef.current;
     if (!id || !manager) return;
     manager.registerWindow(id);
+    manager.bringToFront(id);
     return () => manager.unregisterWindow(id);
   }, []);
 
@@ -363,7 +364,11 @@ export function HeroFloatingWindow({
           }
         >
           {chromeBar}
-          <div className="hero-floating-window__body hero-floating-window__body--chromeless p-0">
+          <div
+            className={`hero-floating-window__body hero-floating-window__body--chromeless p-0${
+              flatPanel ? " hero-floating-window__body--scroll premium-scrollbar" : ""
+            }`}
+          >
             {children}
           </div>
         </div>

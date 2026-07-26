@@ -50,6 +50,7 @@ export function HeroVehicleInfoBar({ report, onBookMot, onOpenMotHistory }: Prop
     report.legacy.motStatus
   );
   const motUrgent = report.legacy.motStatus === "urgent";
+  const lastMot = report.lastMot;
 
   return (
     <div className="hero-vehicle-info-bar mt-3" role="status" aria-live="polite">
@@ -71,13 +72,32 @@ export function HeroVehicleInfoBar({ report, onBookMot, onOpenMotHistory }: Prop
         >
           <CardInner
             icon={<Calendar className="hero-vehicle-info-card__icon-svg" aria-hidden />}
-            label="MOT due"
-            value={motDue}
+            label={lastMot ? "Last MOT" : "MOT due"}
+            value={lastMot ? lastMot.result : motDue}
             footer={
-              <span className="hero-vehicle-info-card__action">
-                <span className="hero-vic-action--wide">View MOT history</span>
-                <span className="hero-vic-action--narrow">MOT history</span>
-              </span>
+              lastMot ? (
+                <span className="hero-vehicle-info-card__action">
+                  <span className="block text-[10px] text-zinc-400">
+                    {lastMot.advisoryCount > 0
+                      ? `${lastMot.advisoryCount} advisory${lastMot.advisoryCount === 1 ? "" : "ies"}`
+                      : "No advisories"}
+                  </span>
+                  <span className="hero-vehicle-info-card__action">
+                    <span className="hero-vic-action--wide">{lastMot.date} · View MOT history</span>
+                    <span className="hero-vic-action--narrow">MOT history</span>
+                  </span>
+                  {report.previousMotDate && (
+                    <span className="mt-0.5 block text-[9px] text-zinc-500">
+                      Previous MOT {report.previousMotDate}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="hero-vehicle-info-card__action">
+                  <span className="hero-vic-action--wide">View MOT history</span>
+                  <span className="hero-vic-action--narrow">MOT history</span>
+                </span>
+              )
             }
           />
         </button>

@@ -25,6 +25,7 @@ import type {
 } from "@/lib/types/booking";
 import type { BookingEventType, BookingTrackableField } from "@/lib/types/booking-events";
 import type { ServiceIntakeSummary } from "@/lib/types/service-intake";
+import { assertBookableDate } from "@/lib/workshop/availability";
 
 /**
  * Service-layer options for booking creation.
@@ -128,6 +129,8 @@ export const bookingService = {
     input: CreateBookingInput,
     opts?: BookingCreateOptions
   ): Promise<BookingCreateResult> {
+    await assertBookableDate(input.preferredDate);
+
     const booking = await bookingsRepository.create(input);
 
     if (opts?.traceId) {
@@ -208,6 +211,10 @@ export const bookingService = {
   ): Promise<BookingUpdateResult | null> {
     const before = await bookingsRepository.findById(id);
     if (!before) return null;
+
+    if (patch.preferredDate !== undefined) {
+      await assertBookableDate(patch.preferredDate);
+    }
 
     const after = await bookingsRepository.update(id, patch);
     if (!after) return null;

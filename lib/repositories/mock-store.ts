@@ -9,6 +9,8 @@ import type { Lead } from "@/lib/types/lead";
 import type { MediaUpload } from "@/lib/types/upload";
 import type { VehicleMemoryRecord } from "@/lib/types/vehicle-memory";
 
+import type { VehicleMotHistoryRecord } from "@/lib/types/vehicle-mot-history";
+
 import type { BookingChangeEvent } from "@/lib/types/booking-events";
 
 export type MockDataStore = {
@@ -19,6 +21,8 @@ export type MockDataStore = {
   uploads: MediaUpload[];
   /** Returning-customer memory keyed by canonical registration. */
   vehicleMemory: VehicleMemoryRecord[];
+  /** Cached DVSA MOT History payloads keyed by registration. */
+  vehicleMotHistory: VehicleMotHistoryRecord[];
 };
 
 const STORE_KEY = "__danaAutoMockStore";
@@ -33,10 +37,12 @@ function getGlobalStore(): MockDataStore {
       chatSessions: [],
       uploads: [],
       vehicleMemory: [],
+      vehicleMotHistory: [],
     };
   }
   // Backfill if an older shape exists in the global from a hot-reload.
   if (!g[STORE_KEY].vehicleMemory) g[STORE_KEY].vehicleMemory = [];
+  if (!g[STORE_KEY].vehicleMotHistory) g[STORE_KEY].vehicleMotHistory = [];
   if (!g[STORE_KEY].bookingChangeEvents) g[STORE_KEY].bookingChangeEvents = [];
   return g[STORE_KEY];
 }
@@ -59,5 +65,8 @@ export const mockStore = {
   },
   get vehicleMemory() {
     return getGlobalStore().vehicleMemory;
+  },
+  get vehicleMotHistory() {
+    return getGlobalStore().vehicleMotHistory;
   },
 };

@@ -2,8 +2,13 @@ import type { MotHistoryEntry, VehicleReport } from "@/lib/types/vehicle-report"
 import type { VehicleResult } from "@/lib/types/vehicle";
 import { formatPlate } from "@/lib/format-plate";
 import type { NormalizedDvlaVehicle } from "@/lib/services/dvla/dvla.types";
-import type { MotHistoryVehicle, MotTestRecord } from "@/lib/services/dvla/mot-history.service";
+import type { MotHistoryVehicle, MotTestRecord } from "@/lib/integrations/dvsa-mot";
 import { issuesFor, servicesFor } from "@/lib/vehicle-report-builder";
+import {
+  buildMotHealthSummary,
+  buildMotHistoryFromApi,
+  buildMotServiceOpportunities,
+} from "@/lib/mot/mot-report";
 import {
   engineLabelFromCapacity,
   extractEngineDisplacement,
@@ -18,12 +23,21 @@ function titleCaseMake(make: string): string {
     .join(" ");
 }
 
+function parseDvsaDate(raw: string | null | undefined): string | null {
+  if (!raw?.trim()) return null;
+  const normalized = raw.trim().replace(/\./g, "-").replace(" ", "T");
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 function motFromDvla(
   motStatus: string,
   motExpiryDate: string | null
 ): Pick<VehicleResult, "motLine" | "motDays" | "motStatus"> {
-  if (motExpiryDate) {
-    const expiry = new Date(motExpiryDate);
+  const isoExpiry = motExpiryDate ? parseDvsaDate(motExpiryDate) : null;
+  if (isoExpiry) {
+    const expiry = new Date(isoExpiry);
     const days = Math.ceil((expiry.getTime() - Date.now()) / 86_400_000);
     if (days > 30) {
       return { motLine: "MOT valid", motDays: days, motStatus: "valid" };
@@ -68,51 +82,12 @@ function taxLine(taxStatus: string): string {
   return taxStatus;
 }
 
-/**
- * Format a DVSA MOT date string ("2024-03-15 00:00:00.000" or ISO) to "Mar 2024".
- * Returns "—" on any parse failure.
- */
-function formatMotDate(raw: string): string {
-  try {
-    // DVSA uses space-separated datetime; replace space with T for ISO parsing.
-    const d = new Date(raw.replace(" ", "T"));
-    if (isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-  } catch {
-    return "—";
-  }
+function latestAdvisoryCount(test: MotTestRecord | undefined): number {
+  if (!test) return 0;
+  return (test.rfrAndComments ?? []).filter((c) => c.type === "ADVISORY").length;
 }
 
-function toMiles(value: number | null, unit: "mi" | "km" | null): number {
-  if (!value) return 0;
-  if (unit === "km") return Math.round(value * 0.621371);
-  return value;
-}
-
-/**
- * Convert DVSA MotTestRecord[] to the frontend MotHistoryEntry[] shape.
- * Limits to the most recent 6 tests to keep the payload lean.
- */
-function buildMotHistoryFromApi(tests: MotTestRecord[]): MotHistoryEntry[] {
-  return tests.slice(0, 6).map((t) => {
-    const advisories = (t.rfrAndComments ?? [])
-      .filter((c) =>
-        t.testResult === "PASSED"
-          ? c.type === "ADVISORY"
-          : ["ADVISORY", "MAJOR", "DANGEROUS", "PRS"].includes(c.type)
-      )
-      .map((c) => c.text);
-
-    return {
-      date: formatMotDate(t.completedDate),
-      result: t.testResult === "PASSED" ? "PASS" : "FAIL",
-      mileage: toMiles(t.odometerValue, t.odometerUnit),
-      advisories: advisories.length > 0 ? advisories : ["No advisories"],
-    };
-  });
-}
-
-/** Build a full VehicleReport from normalized DVLA data (workshop enrichment layered on). */
+/** Build a full VehicleReport from normalized DVLA data + optional DVSA MOT history. */
 export function buildVehicleReportFromDvla(
   canonReg: string,
   dvla: NormalizedDvlaVehicle,
@@ -122,15 +97,18 @@ export function buildVehicleReportFromDvla(
   const makeModel = titleCaseMake(dvla.make);
   const fuel =
     dvla.fuelType.charAt(0).toUpperCase() + dvla.fuelType.slice(1).toLowerCase();
-  const mot = motFromDvla(dvla.motStatus, dvla.motExpiryDate);
-
-  // Real MOT history tests (newest first) when MOT_HISTORY_API_KEY is set.
   const realTests = motHistoryData?.motTests ?? [];
+  const motHistoryAvailable = realTests.length > 0;
+  const motHistory: MotHistoryEntry[] = motHistoryAvailable
+    ? buildMotHistoryFromApi(realTests)
+    : [];
+
   const latestTest = realTests[0];
-  const latestAdvisoryCount =
-    latestTest?.testResult === "PASSED"
-      ? (latestTest.rfrAndComments ?? []).filter((c) => c.type === "ADVISORY").length
-      : 0;
+  const latestExpiry = latestTest?.expiryDate ?? dvla.motExpiryDate;
+  const mot = motFromDvla(dvla.motStatus, latestExpiry ?? dvla.motExpiryDate);
+  const latestAdvisoryCountValue = latestAdvisoryCount(latestTest);
+  const motHealthSummary = buildMotHealthSummary(motHistory);
+  const latestEntry = motHistory[0];
 
   const engine = engineLabel(dvla);
   const engineShort = extractEngineDisplacement(engine);
@@ -144,17 +122,24 @@ export function buildVehicleReportFromDvla(
     motLine: mot.motLine,
     motDays: mot.motDays,
     motStatus: mot.motStatus,
-    advisories: latestAdvisoryCount,
-    recommendation: "Book inspection for a full workshop health score",
+    advisories: latestAdvisoryCountValue,
+    recommendation: motHistoryAvailable
+      ? "Review MOT advisories and book any recommended checks"
+      : "Book inspection for a full workshop health score",
     imageUrl: resolveVehicleImage(makeModel).url,
     imageAlt: `${makeModel} — ${dvla.colour}`,
     estimatedFrom: 95,
     estimatedTo: 320,
-    suggestedRepairs: [],
-    aiInsight: `DVLA records matched for ${displayReg}. ${makeModel}, ${dvla.yearOfManufacture} ${fuel.toLowerCase()}.`,
+    suggestedRepairs: latestEntry
+      ? [...latestEntry.advisories, ...latestEntry.failures].slice(0, 4)
+      : [],
+    aiInsight: motHistoryAvailable
+      ? `DVLA records matched for ${displayReg}. ${motHealthSummary[0]}`
+      : `DVLA records matched for ${displayReg}. ${makeModel}, ${dvla.yearOfManufacture} ${fuel.toLowerCase()}.`,
   };
 
   const vehicleImage = resolveVehicleImage(makeModel);
+  const templateServices = servicesFor(legacy);
 
   return {
     reg: displayReg,
@@ -169,35 +154,33 @@ export function buildVehicleReportFromDvla(
       engine,
       motStatus: mot.motLine,
       taxStatus: taxLine(dvla.taxStatus),
-      motExpiryDate: dvla.motExpiryDate,
+      motExpiryDate: latestExpiry ?? dvla.motExpiryDate,
     },
     health: {
       score: mot.motStatus === "valid" ? 82 : mot.motStatus === "due_soon" ? 68 : 52,
       label: mot.motStatus === "valid" ? "DVLA verified" : "Attention advised",
       explanation:
-        realTests.length > 0 && latestAdvisoryCount > 0
-          ? `${latestAdvisoryCount} advisor${latestAdvisoryCount === 1 ? "y" : "ies"} on last MOT — ${mot.motLine}. Book for a full workshop assessment.`
-          : `Live DVLA data — ${mot.motLine}. Book inspection for advisories and wear items.`,
+        motHistoryAvailable && latestAdvisoryCountValue > 0
+          ? `${latestAdvisoryCountValue} advisor${latestAdvisoryCountValue === 1 ? "y" : "ies"} on last MOT — ${mot.motLine}. Book for a full workshop assessment.`
+          : motHistoryAvailable
+            ? `Live DVLA + MOT data — ${mot.motLine}.`
+            : `Live DVLA data — ${mot.motLine}. MOT test history unavailable from DVSA.`,
       tone: mot.motStatus === "valid" ? "good" : mot.motStatus === "due_soon" ? "attention" : "critical",
     },
     commonIssues: issuesFor(makeModel),
-    recommendedServices: servicesFor(legacy),
-    motHistory:
-      realTests.length > 0
-        ? buildMotHistoryFromApi(realTests)
-        : [
-            {
-              date: dvla.motExpiryDate
-                ? new Date(dvla.motExpiryDate).toLocaleDateString("en-GB", {
-                    month: "short",
-                    year: "numeric",
-                  })
-                : "—",
-              result: mot.motStatus === "urgent" ? ("FAIL" as const) : ("PASS" as const),
-              mileage: 0,
-              advisories: ["MOT history unavailable — set MOT_HISTORY_API_KEY to enable"],
-            },
-          ],
+    recommendedServices: buildMotServiceOpportunities(motHistory, templateServices),
+    motHistory,
+    motHistoryAvailable,
+    motHealthSummary,
+    lastMot: latestEntry
+      ? {
+          date: latestEntry.date,
+          result: latestEntry.result,
+          advisoryCount: latestEntry.advisoryCount,
+          defectCount: latestEntry.defectCount,
+        }
+      : undefined,
+    previousMotDate: motHistory[1]?.date ?? null,
     legacy,
     aiSummary: legacy.aiInsight,
   };

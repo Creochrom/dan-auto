@@ -10,9 +10,13 @@ export type SlotOverride = {
 
 export type CreateSlotOverrideInput = Omit<SlotOverride, "updatedAt">;
 
+import type { ClosedReason } from "@/lib/types/workshop-closure";
+
 /** Shape returned to the booking UI for a single date. */
 export type SlotAvailability = {
   date: string;        // YYYY-MM-DD
   closed: boolean;     // entire day unavailable
   available: string[]; // time strings that can still be booked
+  /** Why the day is closed — Sunday, holiday closure, or admin override. */
+  closedReason?: ClosedReason;
 };

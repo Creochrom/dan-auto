@@ -14,6 +14,11 @@ const NAV = [
   { href: "/admin/today", label: "Today", icon: LayoutDashboard, exact: true },
   { href: "/admin/jobs", label: "Jobs", icon: Wrench },
   { href: "/admin/bookings", label: "Bookings", icon: Calendar },
+  {
+    href: "/admin/bookings/availability",
+    label: "Availability",
+    icon: Calendar,
+  },
   { href: "/admin/leads", label: "Customers", icon: Users },
   { href: "/admin/docs", label: "Documentation", icon: BookOpenText },
   {
@@ -43,7 +48,10 @@ export function AdminShellNav() {
           const highlight = "highlight" in item ? item.highlight : false;
           const active = exact
             ? pathname === href || pathname === "/admin"
-            : pathname.startsWith(href);
+            : href === "/admin/bookings"
+              ? pathname === "/admin/bookings" ||
+                /^\/admin\/bookings\/[^/]+$/.test(pathname)
+              : pathname.startsWith(href);
           return (
             <Link
               key={href}

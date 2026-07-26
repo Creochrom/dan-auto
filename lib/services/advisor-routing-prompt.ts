@@ -5,6 +5,7 @@ import type {
 import type { VehicleReport } from "@/lib/types/vehicle-report";
 import { UNIFIED_INTAKE_PROMPT } from "@/lib/intake/unified-intake";
 import { extractEngineDisplacement } from "@/lib/vehicle-engine-display";
+import { formatMotContextForAi } from "@/lib/mot/mot-report";
 
 /** Build a compact vehicle snapshot for advisor routing from a hero report. */
 export function vehicleSnapshotFromReport(
@@ -21,6 +22,11 @@ export function vehicleSnapshotFromReport(
     year: String(report.profile.year),
     fuel: report.profile.fuel,
     engine: report.profile.engine,
+    motStatus: report.profile.motStatus,
+    motExpiryDate: report.profile.motExpiryDate ?? undefined,
+    mot_context: report.motHistoryAvailable
+      ? formatMotContextForAi(report.motHistory, report.profile.motExpiryDate)
+      : undefined,
   };
 }
 
@@ -103,6 +109,8 @@ SURFACE: hero_ai_assistant
   mot_help: `
 SURFACE: mot_help
 - Focus on MOT eligibility, pre-checks, advisories, retests, and booking an MOT slot.
+- When Known vehicle includes mot_context, reference live DVSA MOT history — recurring advisories, last test result, mileage trend, and MOT expiry.
+- If the customer mentions symptoms matching prior MOT advisories (e.g. brakes + brake wear advisories), connect them cautiously without guaranteeing diagnosis.
 - Passenger cars only — explain professionally if asked about vans/commercial (not eligible).
 - Saturday MOT hours 08:00–13:00 when relevant.
 - Keep replies short; offer booking or callback.`.trim(),
@@ -138,6 +146,15 @@ export function formatAdvisorRouteForPrompt(
   const today = new Date().toISOString().slice(0, 10);
   const vehicleLine = route.vehicle_data
     ? `Known vehicle: ${JSON.stringify(route.vehicle_data)}`
+    : "";
+
+  const motContextBlock = route.vehicle_data?.mot_context
+    ? `
+MOT_HISTORY_CONTEXT (DVSA — use when symptoms relate to prior advisories or failures):
+- Reference recurring advisories, previous failures, mileage trend, and MOT expiry naturally.
+- Example: customer reports brake squeak + brake advisories on MOT → note the issue may have progressed since the last test.
+- Do NOT invent MOT data not present in mot_context.
+- mot_context: ${JSON.stringify(route.vehicle_data.mot_context)}`.trim()
     : "";
 
   const intentBlocks: Record<AdvisorRouteContext["intent"], string> = {
@@ -300,7 +317,11 @@ Step 2 — Service discovery:
   Not sure → one simple guidance question, then recommend MOT / Interim / Full / Major / Diagnostic
 
 Step 3 — Appointment preference (before any contact):
-  Preferred day: Today / Tomorrow / This week / Next week
+  Preferred day: Today / Tomorrow / This week / Next week (NEVER Sunday — workshop closed Sundays)
+  Respect WORKSHOP_AVAILABILITY closures — if customer asks for a closed day or Sunday:
+    Reply naturally ("We're closed on Sundays." or explain the closure dates).
+    Immediately offer the next available dates as suggestionChips.
+    Do NOT store a closed day in preferredDate.
   Then preferred window ONLY: Morning / Afternoon / Any time
   NEVER ask for exact clock times (10:00, 11:00, etc.) — workshop confirms availability later.
   Store day in leadDraft.preferredDate, window in leadDraft.callbackWindow.
@@ -345,6 +366,7 @@ Required before canSubmit: service selected, day, window, valid name + phone.
     })}`,
     `TODAY: ${today}`,
     vehicleLine,
+    motContextBlock,
     modeLine,
     modeHint,
     handoffLine,

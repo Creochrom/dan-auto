@@ -146,13 +146,35 @@ function AdminBookingsContent() {
           <h1 className="text-xl font-semibold text-white">Bookings</h1>
           <p className="mt-1 text-sm text-zinc-500">Website & assistant requests</p>
         </div>
-        <Link href="/admin/today" className="text-sm text-[#d4a63c] hover:underline">
-          ← Today
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/admin/bookings/availability"
+            className="text-sm text-[#d4a63c] hover:underline"
+          >
+            Availability
+          </Link>
+          <Link href="/admin/today" className="text-sm text-[#d4a63c] hover:underline">
+            ← Today
+          </Link>
+        </div>
       </div>
 
       <AdminQuickLinks active="bookings" />
 
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Bookings</h1>
+          <p className="mt-1 text-sm text-zinc-400">
+            Workshop booking requests from the website and AI assistant.
+          </p>
+        </div>
+        <Link
+          href="/admin/bookings/availability"
+          className="inline-flex min-h-9 items-center rounded-full border border-[#d4a63c]/35 bg-[#d4a63c]/10 px-3.5 py-1.5 text-xs font-semibold text-[#e8d5a3] transition hover:bg-[#d4a63c]/14"
+        >
+          Workshop Availability →
+        </Link>
+      </div>
       {regCanon ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d4a63c]/25 bg-[#d4a63c]/5 px-4 py-3">
           <p className="text-sm text-zinc-200">

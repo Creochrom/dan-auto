@@ -2,6 +2,7 @@ import { bookingIntakeService } from "@/lib/services/booking-intake.service";
 import { jsonError, jsonOk } from "@/lib/api/response";
 import type { CompleteBookingIntakeInput } from "@/lib/types/service-intake";
 import { bookingTraceEnd, bookingTraceStage } from "@/lib/logging/booking-trace";
+import { WorkshopClosedError } from "@/lib/workshop/availability";
 
 /**
  * POST /api/booking-intake — finalize AI-assisted booking request.
@@ -61,6 +62,14 @@ export async function POST(request: Request) {
 
     return jsonOk(result, 201);
   } catch (e) {
+    if (e instanceof WorkshopClosedError) {
+      bookingTraceEnd(traceId, "blocked", {
+        stage: "5_booking_intake_route",
+        reason: "workshop_closed",
+        message: e.message,
+      });
+      return jsonError(e.message || "Workshop closed", 400);
+    }
     const message = e instanceof Error ? e.message : "Booking intake failed";
     bookingTraceEnd(traceId, "failure", { stage: "5_booking_intake_route", error: message });
     return jsonError(message, 400);

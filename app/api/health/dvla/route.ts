@@ -18,15 +18,16 @@ export const runtime = "nodejs";
 
 import { requireAdminSession } from "@/lib/admin/guard";
 import { jsonOk } from "@/lib/api/response";
+import {
+  fetchMotHistoryFromDvsa,
+  isDvsaMotConfigured,
+} from "@/lib/integrations/dvsa-mot";
 
 const DVLA_VEHICLE_URL =
   "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles";
 
 /** Probe plate — valid format, unlikely to exist; cheap auth check. */
 const PROBE_REG = "ZZ99ZZZ";
-
-const MOT_HISTORY_BASE =
-  "https://history.mot-testing.service.gov.uk/api/trade/vehicles/registration";
 
 type ProbeResult = {
   reachable: boolean;
@@ -85,42 +86,38 @@ async function probeDvlaVes(apiKey: string): Promise<ProbeResult> {
   }
 }
 
-async function probeMotHistory(apiKey: string): Promise<ProbeResult> {
+async function probeMotHistory(): Promise<ProbeResult & { mode?: string }> {
+  if (!isDvsaMotConfigured()) {
+    return {
+      reachable: false,
+      keyValid: false,
+      latencyMs: 0,
+      message:
+        "Optional — set MOT_HISTORY_API_KEY (and OAuth credentials for the new production API).",
+    };
+  }
+
   const t0 = Date.now();
   try {
-    const response = await fetch(
-      `${MOT_HISTORY_BASE}/${encodeURIComponent(PROBE_REG)}`,
-      {
-        headers: {
-          "x-api-key": apiKey,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(8_000),
-      }
-    );
+    const result = await fetchMotHistoryFromDvsa(PROBE_REG);
     const latencyMs = Date.now() - t0;
-
-    const keyValid =
-      response.ok ||
-      response.status === 404 ||
-      response.status === 400;
-
-    let message: string | undefined;
-    if (response.status === 401 || response.status === 403) {
-      message = "MOT History API key rejected — check MOT_HISTORY_API_KEY.";
-    } else if (!keyValid) {
-      message = `MOT History API returned HTTP ${response.status}.`;
-    } else if (response.status === 404) {
-      message = "MOT API reachable — probe registration not found (expected).";
-    }
+    const mode =
+      process.env.MOT_HISTORY_CLIENT_ID?.trim() &&
+      process.env.MOT_HISTORY_CLIENT_SECRET?.trim() &&
+      process.env.MOT_HISTORY_TOKEN_URL?.trim()
+        ? "production-oauth"
+        : "legacy-api-key";
 
     return {
       reachable: true,
-      keyValid,
+      keyValid: true,
       latencyMs,
-      httpStatus: response.status,
-      message,
+      httpStatus: result === null ? 404 : 200,
+      mode,
+      message:
+        result === null
+          ? `MOT API reachable (${mode}) — probe registration not found (expected).`
+          : `MOT API ready (${mode}).`,
     };
   } catch {
     return {
@@ -158,7 +155,7 @@ export async function GET() {
   const ves = await probeDvlaVes(dvlaKey);
 
   const motHistory = motKey
-    ? await probeMotHistory(motKey)
+    ? await probeMotHistory()
     : {
         configured: false,
         ready: false,

@@ -50,6 +50,11 @@ import {
   type StructuredIntake,
 } from "@/lib/types/structured-intake";
 import type { VehicleMemoryLookupResult } from "@/lib/types/vehicle-memory";
+import {
+  formatAvailabilityPromptBlock,
+  formatUkDate,
+  resolveClosedDateRequest,
+} from "@/lib/workshop/availability";
 
 /**
  * Default chat model.
@@ -148,6 +153,8 @@ VEHICLE_PROFILE & RETURNING_CUSTOMER (when present in the user turn):
 - NEVER ask the customer to re-provide name/phone/email if RETURNING_CUSTOMER lists them. Greet by first name ("Welcome back, James!") and ask only what's needed for THIS visit (issue, urgency, drivability, preferred slot).
 - If RECENT_INTAKES are present, you may reference the most recent one briefly when relevant ("Last time it was a brake job — what's happening now?"). Don't read them out as a list.
 - If VEHICLE_PROFILE arrives mid-conversation, acknowledge once and continue. Don't restart the intake.
+- When VEHICLE_PROFILE includes motHealthSummary, lastMotResult, or lastMotAdvisoryCount, use MOT history naturally — e.g. if the customer mentions brakes and prior MOT advisories mention brake wear, note the pattern cautiously ("I can see previous MOT advisories related to brake wear — this may indicate the issue has progressed").
+- Reference recurringMotThemes or repeated advisory lines when relevant; never invent MOT defects not in the profile.
 - Still capture symptoms, drivability, warning lights, urgency, and preferred booking time — these are PER-VISIT details, not vehicle facts.
 
 QUICK REPLIES (suggestionChips) — REQUIRED on every turn unless you are
@@ -402,7 +409,12 @@ function buildVehicleMemoryBlock(lookup: VehicleMemoryLookupResult): string[] {
         fuel: v.fuel || undefined,
         engine: v.engine || undefined,
         motStatus: v.motStatus || undefined,
+        motExpiryDate: v.motExpiryDate || undefined,
         taxStatus: v.taxStatus || undefined,
+        lastMotResult: v.lastMotResult || undefined,
+        lastMotAdvisoryCount: v.lastMotAdvisoryCount ?? undefined,
+        motHealthSummary: v.motHealthSummary?.length ? v.motHealthSummary : undefined,
+        recurringMotThemes: v.recurringMotThemes?.length ? v.recurringMotThemes : undefined,
         source: lookup.dvlaMatched ? "DVLA" : "memory",
       })}`
     );
@@ -444,6 +456,7 @@ function buildTurnContext(
     leadDraft?: LeadDraft;
     vehicleMemory?: VehicleMemoryLookupResult;
     advisorRoute?: AdvisorRouteContext;
+    availabilityBlock?: string;
   }
 ): string {
   const memoryLines = params.vehicleMemory
@@ -467,6 +480,7 @@ function buildTurnContext(
     workflowValidationBlock(workflowMode, validation, currentIntake, params.leadDraft ?? {}),
     bookingContextLine(params.bookingContext),
     routeBlock,
+    params.availabilityBlock ?? "",
     ...memoryLines,
     params.registrationHint && !params.vehicleMemory?.regDisplay
       ? `Registration hint: ${params.registrationHint}`
@@ -529,6 +543,12 @@ export async function runGeminiAdvisorTurn(params: {
   });
 
   const history = toGeminiHistory(params.messages);
+  const workflowModePreview = resolveWorkflowMode(params.advisorRoute);
+  const availabilityBlock =
+    workflowModePreview === "booking"
+      ? await formatAvailabilityPromptBlock()
+      : undefined;
+
   const context = buildTurnContext(currentIntake, {
     isInit: params.isInit,
     registrationHint: params.registrationHint,
@@ -536,6 +556,7 @@ export async function runGeminiAdvisorTurn(params: {
     leadDraft: params.leadDraft,
     vehicleMemory: params.vehicleMemory,
     advisorRoute: params.advisorRoute,
+    availabilityBlock,
   });
 
   const last = params.messages[params.messages.length - 1];
@@ -673,6 +694,29 @@ export async function runGeminiAdvisorTurn(params: {
 
   rawContent = callbackTurn.content;
 
+  // Server-side closed-day enforcement for booking mode (Sunday / closures).
+  let closedDayChips: SuggestionChip[] | undefined;
+  if (workflowMode === "booking" && !params.isInit) {
+    const closedReq = await resolveClosedDateRequest({
+      userMessage: params.userMessage,
+      preferredDate: leadDraft.preferredDate,
+    });
+    if (closedReq?.closed && closedReq.assistantHint) {
+      rawContent = closedReq.assistantHint;
+      closedDayChips = closedReq.nextOpenDates.map((iso, i) => ({
+        id: `next-open-${i}`,
+        label: formatUkDate(iso),
+        message: `I'd like ${formatUkDate(iso)}`,
+      }));
+      if (leadDraft.preferredDate) {
+        leadDraft = { ...leadDraft, preferredDate: undefined };
+      }
+      if (structuredIntake.preferredBookingTime) {
+        structuredIntake = { ...structuredIntake, preferredBookingTime: "" };
+      }
+    }
+  }
+
   let content = sanitizeAssistantContactPlaceholders(rawContent, validation, {
     name: leadDraft.name ?? structuredIntake.customer.name,
     phone: leadDraft.phone ?? structuredIntake.customer.contact,
@@ -687,7 +731,11 @@ export async function runGeminiAdvisorTurn(params: {
 
   return {
     content,
-    suggestionChips: callbackTurn.chips ?? diagnosticTurn.chips ?? gatedChips,
+    suggestionChips:
+      closedDayChips ??
+      callbackTurn.chips ??
+      diagnosticTurn.chips ??
+      gatedChips,
     typingLabel: payload.typingLabel,
     intakeState,
     leadDraft,

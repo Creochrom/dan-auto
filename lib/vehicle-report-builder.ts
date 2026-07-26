@@ -6,6 +6,7 @@ import type {
   VehicleReport,
 } from "@/lib/types/vehicle-report";
 import type { VehicleResult } from "@/lib/types/vehicle";
+import { buildMotHealthSummary } from "@/lib/mot/mot-report";
 import { mockVehicleLookup } from "@/lib/vehicle-data";
 import { resolveVehicleImage } from "@/lib/vehicle-images";
 
@@ -109,15 +110,28 @@ export function issuesFor(makeModel: string): string[] {
   return MODEL_ISSUES[key ?? "DEFAULT"] ?? MODEL_ISSUES.DEFAULT;
 }
 
+function motEntry(
+  date: string,
+  result: "PASS" | "FAIL",
+  mileage: number,
+  advisories: string[],
+  failures: string[] = []
+): MotHistoryEntry {
+  return {
+    date,
+    result,
+    mileage,
+    advisories,
+    failures,
+    advisoryCount: advisories.length,
+    defectCount: failures.length,
+  };
+}
+
 function motHistoryFor(vehicle: VehicleResult, year: number): MotHistoryEntry[] {
   if (vehicle.unknown) {
     return [
-      {
-        date: "—",
-        result: "PASS",
-        mileage: 0,
-        advisories: ["No MOT history in demo dataset"],
-      },
+      motEntry("—", "PASS", 0, ["No MOT history in demo dataset"]),
     ];
   }
 
@@ -125,27 +139,18 @@ function motHistoryFor(vehicle: VehicleResult, year: number): MotHistoryEntry[] 
   const currentMileage = miles ? Number(miles[1].replace(/,/g, "")) : 52000;
 
   return [
-    {
-      date: `Mar ${year}`,
-      result: "PASS",
-      mileage: currentMileage,
-      advisories:
-        vehicle.advisories > 0
-          ? vehicle.suggestedRepairs.slice(0, 2)
-          : ["No advisories"],
-    },
-    {
-      date: `Mar ${year - 1}`,
-      result: "PASS",
-      mileage: currentMileage - 11200,
-      advisories: ["Nearside rear tyre — advisory"],
-    },
-    {
-      date: `Mar ${year - 2}`,
-      result: "PASS",
-      mileage: currentMileage - 22800,
-      advisories: ["No advisories"],
-    },
+    motEntry(
+      `Mar ${year}`,
+      "PASS",
+      currentMileage,
+      vehicle.advisories > 0
+        ? vehicle.suggestedRepairs.slice(0, 2)
+        : ["No advisories"]
+    ),
+    motEntry(`Mar ${year - 1}`, "PASS", currentMileage - 11200, [
+      "Nearside rear tyre — advisory",
+    ]),
+    motEntry(`Mar ${year - 2}`, "PASS", currentMileage - 22800, ["No advisories"]),
   ];
 }
 
@@ -195,6 +200,8 @@ export function buildVehicleReport(reg: string): VehicleReport {
     taxStatus: vehicle.unknown ? "Tax status unavailable" : taxStatusFor(vehicle.motStatus),
   };
 
+  const motHistory = motHistoryFor(vehicle, year);
+
   return {
     reg: vehicle.reg,
     matched,
@@ -203,7 +210,18 @@ export function buildVehicleReport(reg: string): VehicleReport {
     health: healthFor(vehicle),
     commonIssues: issuesFor(vehicle.makeModel),
     recommendedServices: servicesFor(vehicle),
-    motHistory: motHistoryFor(vehicle, year),
+    motHistory,
+    motHistoryAvailable: !vehicle.unknown,
+    motHealthSummary: vehicle.unknown ? [] : buildMotHealthSummary(motHistory),
+    lastMot: motHistory[0]
+      ? {
+          date: motHistory[0].date,
+          result: motHistory[0].result,
+          advisoryCount: motHistory[0].advisoryCount,
+          defectCount: motHistory[0].defectCount,
+        }
+      : undefined,
+    previousMotDate: motHistory[1]?.date ?? null,
     legacy: vehicle,
     aiSummary: vehicle.aiInsight,
   };

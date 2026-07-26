@@ -43,6 +43,10 @@ export type AdvisorVehicleSnapshot = {
   year?: string;
   fuel?: string;
   engine?: string;
+  motStatus?: string;
+  motExpiryDate?: string;
+  /** DVSA MOT history summary for advisor context */
+  mot_context?: Record<string, unknown>;
 };
 
 /** Payload stored on the chat session and sent from the client on each turn. */

@@ -18,7 +18,7 @@ export function HeroRecommendedServicesCard({
     <div className="hero-report-panel w-full">
       <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#d4a63c]">
         <Wrench className="h-3.5 w-3.5" aria-hidden />
-        Recommended for your vehicle
+        Recommended workshop actions
       </p>
       <ul className="mt-2.5 space-y-2">
         {report.recommendedServices.map((svc) => (

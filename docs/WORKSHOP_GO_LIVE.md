@@ -22,6 +22,7 @@ Run each file once in **Supabase Dashboard → SQL Editor** (or `supabase db pus
 | 008 | — | *Not in repo — no `008_*.sql` file.* |
 | 009 | `009_booking_statuses.sql` | Extends `bookings.status` check to include `rescheduled` and `rejected`. |
 | 010 | `010_vehicle_timeline_events.sql` | Append-only `vehicle_timeline_events` (MOT + workshop lifecycle on vehicle). |
+| 013 | `013_vehicle_mot_history.sql` | Cached DVSA MOT History API payloads (one row per registration, 24h refresh). |
 
 After all applied: **Table Editor** should show leads/bookings through workshop tables above; confirm no SQL errors on re-run (migrations are idempotent).
 
@@ -67,7 +68,15 @@ See [ADMIN_AUTH.md](./ADMIN_AUTH.md) for generators and troubleshooting.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `MOT_HISTORY_API_KEY` | Recommended | DVSA MOT History API for richer MOT data on plate/history flows. |
+| `MOT_HISTORY_API_KEY` | Recommended | DVSA MOT History API key. Server-side only — never expose to the browser. |
+| `MOT_HISTORY_CLIENT_ID` | For new API | OAuth client ID from DVSA registration email. |
+| `MOT_HISTORY_CLIENT_SECRET` | For new API | OAuth client secret from DVSA. |
+| `MOT_HISTORY_TOKEN_URL` | For new API | Full Microsoft OAuth token URL from DVSA (includes tenant ID). |
+| `MOT_HISTORY_SCOPE` | Optional | OAuth scope (default `https://tapi.dvsa.gov.uk/.default`). |
+
+When OAuth credentials are set, the app uses the **new production API** at `history.mot.api.gov.uk`. With only `MOT_HISTORY_API_KEY`, it falls back to the legacy trade endpoint.
+
+Apply migration **013** (`vehicle_mot_history`) so MOT responses are cached in Supabase and DVSA is not called on every lookup.
 
 ### AnythingLLM (workshop copilot RAG)
 
